@@ -1237,7 +1237,29 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
 # ---------------------------------------------------------------------------
 # Loop principal
 # ---------------------------------------------------------------------------
+def verificar_atualizacao() -> None:
+    """Verifica se há nova versão no GitHub e avisa no log."""
+    try:
+        import subprocess
+        resultado = subprocess.run(
+            ["git", "fetch", "--dry-run"],
+            capture_output=True, text=True, timeout=10
+        )
+        status = subprocess.run(
+            ["git", "status", "-uno"],
+            capture_output=True, text=True, timeout=10
+        )
+        if "Your branch is behind" in status.stdout:
+            log.warning("=" * 50)
+            log.warning("AVISO: Nova versao disponivel no GitHub!")
+            log.warning("Execute: git pull && python nunes.py")
+            log.warning("=" * 50)
+    except Exception:
+        pass  # sem internet ou git não configurado — ignora silenciosamente
+
+
 def main() -> None:
+    verificar_atualizacao()
     log.info("=" * 50)
     log.info(f"Nunes iniciado | Modo: {MODO.upper()}")
     log.info(f"Risco: {RISCO_POR_TRADE*100}% | Alavancagem: {ALAVANCAGEM}x")
