@@ -1807,6 +1807,40 @@ def main() -> None:
                 saldo_atual_dia = get_saldo_total(client)
                 perda_dia = ((saldo_abertura_dia - saldo_atual_dia) / saldo_abertura_dia * 100) if saldo_abertura_dia > 0 else 0
                 max_pos_dinamico, risco_dinamico = limites_por_saldo(saldo_atual_dia)
+
+                # --- LIMPEZA AUTOMÁTICA: fecha as menos promissoras se exceder o limite ---
+                if len(abertas) > max_pos_dinamico:
+                    excesso = len(abertas) - max_pos_dinamico
+                    # Candidatas a fechar: negativas sem DCA e sem ROI alto
+                    candidatas = [
+                        p for p in abertas
+                        if p["symbol"] not in dca_aplicado
+                        and p["symbol"] not in posicoes_herdadas
+                        and calcular_roi(p) < 30.0
+                    ]
+                    # Ordena por ROI crescente (piores primeiro)
+                    candidatas.sort(key=lambda p: calcular_roi(p))
+                    para_fechar = candidatas[:excesso]
+                    for p in para_fechar:
+                        symbol = p["symbol"]
+                        roi    = calcular_roi(p)
+                        amt    = float(p["positionAmt"])
+                        lado   = "LONG" if amt > 0 else "SHORT"
+                        side   = "SELL" if lado == "LONG" else "BUY"
+                        try:
+                            client.futures_create_order(
+                                symbol=symbol, side=side, type="MARKET",
+                                quantity=abs(amt), reduceOnly=True
+                            )
+                            peak_roi.pop(symbol, None)
+                            ma_reverteu.pop(symbol, None)
+                            posicao_abertura.pop(symbol, None)
+                            log.warning(f"Limpeza automatica: {symbol} {lado} ROI {roi:+.1f}% fechado (excesso de posicoes)")
+                            telegram(f"<b>Limpeza automatica:</b> {symbol} {lado} ROI {roi:+.1f}%\nFechado por excesso ({len(abertas)}/{max_pos_dinamico} posicoes)")
+                            time.sleep(0.5)
+                        except BinanceAPIException as e:
+                            log.error(f"Erro limpeza automatica {symbol}: {e}")
+
                 if perda_dia >= LIMITE_PERDA_DIARIA:
                     log.info(f"Limite de perda diaria atingido ({perda_dia:.1f}%). Sem novas entradas hoje.")
                 elif len(abertas) >= max_pos_dinamico:
