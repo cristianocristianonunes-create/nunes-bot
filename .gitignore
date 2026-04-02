@@ -1,0 +1,6 @@
+# Dados sensíveis — nunca subir
+.env
+estado_bot.json
+robo.log
+__pycache__/
+*.pyc
