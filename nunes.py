@@ -1221,6 +1221,97 @@ def get_racio_margem(client: Client) -> float:
         return 0.0
     return (maint / balance) * 100
 
+
+# Níveis de proteção do Rácio de Margem
+RACIO_BLOQUEIA_ENTRADAS = 15.0  # acima disso: sem novas entradas
+RACIO_BLOQUEIA_DCA      = 18.0  # acima disso: DCA automático bloqueado
+RACIO_FECHA_PIOR        = 20.0  # acima disso: fecha a posição com maior prejuízo em $
+RACIO_EMERGENCIA        = 25.0  # acima disso: fecha posições até voltar a 15%
+RACIO_ALERTA_TS: float  = 0.0   # timestamp do último alerta de rácio alto
+
+def proteger_racio(client: Client, abertas: list) -> bool:
+    """
+    Proteção escalonada do Rácio de Margem.
+    Retorna True se DCA deve ser bloqueado (rácio > RACIO_BLOQUEIA_DCA).
+    """
+    global RACIO_ALERTA_TS
+    racio = get_racio_margem(client)
+
+    if racio < RACIO_BLOQUEIA_DCA:
+        return False  # tudo normal
+
+    bloquear_dca = racio >= RACIO_BLOQUEIA_DCA
+
+    # Candidatas a fechar: sem DCA ativo, ordenadas por maior prejuízo em dólar
+    sem_dca = [p for p in abertas if p["symbol"] not in dca_aplicado]
+    sem_dca.sort(key=lambda p: float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))))
+
+    def fechar_posicao_racio(posicao):
+        symbol = posicao["symbol"]
+        amt    = float(posicao["positionAmt"])
+        lado   = "LONG" if amt > 0 else "SHORT"
+        side   = "SELL" if lado == "LONG" else "BUY"
+        pnl    = float(posicao.get("unrealizedProfit", posicao.get("unRealizedProfit", 0)))
+        roi    = calcular_roi(posicao)
+        try:
+            if MODO == "real":
+                client.futures_create_order(
+                    symbol=symbol, side=side, type="MARKET",
+                    quantity=abs(amt), reduceOnly=True
+                )
+            peak_roi.pop(symbol, None)
+            ma_reverteu.pop(symbol, None)
+            posicao_abertura.pop(symbol, None)
+            log.warning(f"  [RACIO {racio:.1f}%] Fechando {symbol} {lado} | PnL ${pnl:+.2f} | ROI {roi:+.1f}%")
+            return True
+        except BinanceAPIException as e:
+            log.error(f"  Erro ao fechar {symbol} por rácio: {e}")
+            return False
+
+    if racio >= RACIO_EMERGENCIA:
+        # Fecha posições até voltar a 15%
+        if time.time() - RACIO_ALERTA_TS >= 300:
+            telegram(
+                f"<b>EMERGENCIA: Racio de Margem {racio:.1f}%</b>\n"
+                f"Fechando posicoes automaticamente ate voltar a {RACIO_BLOQUEIA_ENTRADAS:.0f}%.\n"
+                f"Posicoes sem DCA: {len(sem_dca)}"
+            )
+            RACIO_ALERTA_TS = time.time()
+        for posicao in sem_dca:
+            racio_atual = get_racio_margem(client)
+            if racio_atual < RACIO_BLOQUEIA_ENTRADAS:
+                log.info(f"  [RACIO] Recuperado para {racio_atual:.1f}%. Parando fechamentos.")
+                break
+            fechar_posicao_racio(posicao)
+            time.sleep(0.5)
+        # Se ainda acima do limite e só restam posições com DCA, fecha as piores delas também
+        racio_pos = get_racio_margem(client)
+        if racio_pos >= RACIO_EMERGENCIA:
+            com_dca = [p for p in abertas if p["symbol"] in dca_aplicado]
+            com_dca.sort(key=lambda p: float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))))
+            for posicao in com_dca:
+                if get_racio_margem(client) < RACIO_BLOQUEIA_ENTRADAS:
+                    break
+                fechar_posicao_racio(posicao)
+                time.sleep(0.5)
+
+    elif racio >= RACIO_FECHA_PIOR:
+        # Fecha apenas a posição com maior prejuízo em dólar
+        if sem_dca:
+            pior = sem_dca[0]
+            pnl  = float(pior.get("unrealizedProfit", pior.get("unRealizedProfit", 0)))
+            log.warning(f"  [RACIO {racio:.1f}%] Fechando pior posicao: {pior['symbol']} PnL ${pnl:+.2f}")
+            fechar_posicao_racio(pior)
+        elif time.time() - RACIO_ALERTA_TS >= 600:
+            telegram(
+                f"<b>Atencao: Racio {racio:.1f}%</b>\n"
+                f"Todas as posicoes negativas estao em DCA.\n"
+                f"Monitorando recuperacao."
+            )
+            RACIO_ALERTA_TS = time.time()
+
+    return bloquear_dca
+
 # ---------------------------------------------------------------------------
 # Execução de ordens
 # ---------------------------------------------------------------------------
@@ -1527,6 +1618,9 @@ def main() -> None:
 
             abertas = posicoes_abertas(client)
 
+            # --- PROTEÇÃO DO RÁCIO DE MARGEM ---
+            dca_bloqueado_por_racio = proteger_racio(client, abertas)
+
             # Listar posições abertas
             if abertas:
                 saldo_total = get_saldo_total(client)
@@ -1680,9 +1774,12 @@ def main() -> None:
                         try:
                             ma_ok = ma_cruza_favor(client, symbol, direcao)
                             if ma_ok:
-                                log.info(f"  {symbol}: {horas_aberta:.1f}h sem recuperacao | MA cruzou -> aplicando DCA antes de fechar")
-                                aplicar_dca(client, p, banca)
-                                dca_ativo = symbol
+                                if dca_bloqueado_por_racio:
+                                    log.warning(f"  {symbol}: DCA bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                                else:
+                                    log.info(f"  {symbol}: {horas_aberta:.1f}h sem recuperacao | MA cruzou -> aplicando DCA antes de fechar")
+                                    aplicar_dca(client, p, banca)
+                                    dca_ativo = symbol
                             else:
                                 ultimo_alerta_tempo = alerta_dca_log.get(f"tempo_{symbol}", 0)
                                 if time.time() - ultimo_alerta_tempo >= 1800:
@@ -1709,9 +1806,12 @@ def main() -> None:
                             ma_ok  = ma_cruza_favor(client, symbol, direcao)
                             rsi_ok = rsi_extremo(client, symbol, direcao)
                             if ma_ok and rsi_ok:
-                                log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou + RSI extremo -> DCA antecipado")
-                                aplicar_dca(client, p, banca)
-                                dca_ativo = symbol
+                                if dca_bloqueado_por_racio:
+                                    log.warning(f"  {symbol}: DCA antecipado bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                                else:
+                                    log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou + RSI extremo -> DCA antecipado")
+                                    aplicar_dca(client, p, banca)
+                                    dca_ativo = symbol
                             else:
                                 motivo = []
                                 if not ma_ok:  motivo.append("MA nao cruzou")
@@ -1738,9 +1838,12 @@ def main() -> None:
                         ma_ok  = ma_cruza_favor(client, symbol, direcao)
                         rsi_ok = rsi_extremo(client, symbol, direcao)
                         if ma_ok and rsi_ok:
-                            log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou + RSI extremo -> aplicando DCA")
-                            aplicar_dca(client, p, banca)
-                            dca_ativo = symbol
+                            if dca_bloqueado_por_racio:
+                                log.warning(f"  {symbol}: DCA bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                            else:
+                                log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou + RSI extremo -> aplicando DCA")
+                                aplicar_dca(client, p, banca)
+                                dca_ativo = symbol
                         else:
                             motivo = []
                             if not ma_ok:  motivo.append("MA nao cruzou")
@@ -1795,10 +1898,13 @@ def main() -> None:
                                 try:
                                     ma_ok = ma_cruza_favor(client, symbol, direcao)
                                     if ma_ok:
-                                        log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou a favor -> DCA antecipado em -80%")
-                                        aplicar_dca(client, p, banca)
-                                        dca_ativo = symbol
-                                        alerta_80_log[symbol] = time.time()
+                                        if dca_bloqueado_por_racio:
+                                            log.warning(f"  {symbol}: DCA -80% bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                                        else:
+                                            log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou a favor -> DCA antecipado em -80%")
+                                            aplicar_dca(client, p, banca)
+                                            dca_ativo = symbol
+                                            alerta_80_log[symbol] = time.time()
                                     else:
                                         ultimo_alerta_80 = alerta_80_log.get(symbol, 0)
                                         if time.time() - ultimo_alerta_80 >= 1800:
