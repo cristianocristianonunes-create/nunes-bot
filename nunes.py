@@ -36,7 +36,21 @@ RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "6.0"))  # % máximo do
 STOP_LOSS_ROI      = float(os.getenv("STOP_LOSS_ROI", "2.0"))
 TAKE_PROFIT_ROI    = float(os.getenv("TAKE_PROFIT_ROI", "5.0"))
 
-MAX_POSICOES          = 30   # limite de segurança — controle principal é o Rácio de Margem
+MAX_POSICOES          = 30   # limite de segurança absoluto — controle dinâmico abaixo
+
+
+def limites_por_saldo(saldo: float) -> tuple[int, float]:
+    """Retorna (max_posicoes, risco_por_trade) baseado no saldo atual."""
+    if saldo < 100:
+        return 10, 0.02
+    elif saldo < 300:
+        return 12, 0.015
+    elif saldo < 600:
+        return 15, 0.01
+    elif saldo < 1000:
+        return 18, 0.01
+    else:
+        return 20, 0.01
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
@@ -1161,10 +1175,11 @@ def get_racio_margem(client: Client) -> float:
 # ---------------------------------------------------------------------------
 # Execução de ordens
 # ---------------------------------------------------------------------------
-def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca: float, qualidade: str = "NORMAL") -> None:
+def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca: float, qualidade: str = "NORMAL", risco_base: float = None) -> None:
     saldo_total    = get_saldo_total(client)
     alav_ideal     = alavancagem_dinamica(saldo_total)
-    risco          = 0.02 if qualidade == "PREMIUM" else RISCO_POR_TRADE
+    _risco_base    = risco_base if risco_base is not None else RISCO_POR_TRADE
+    risco          = 0.02 if qualidade == "PREMIUM" else _risco_base
     margem         = round(banca * risco, 2)
     side           = "BUY" if direcao == "LONG" else "SELL"
     side_close     = "SELL" if direcao == "LONG" else "BUY"
@@ -1791,10 +1806,11 @@ def main() -> None:
                 # Verifica perda diária
                 saldo_atual_dia = get_saldo_total(client)
                 perda_dia = ((saldo_abertura_dia - saldo_atual_dia) / saldo_abertura_dia * 100) if saldo_abertura_dia > 0 else 0
+                max_pos_dinamico, risco_dinamico = limites_por_saldo(saldo_atual_dia)
                 if perda_dia >= LIMITE_PERDA_DIARIA:
                     log.info(f"Limite de perda diaria atingido ({perda_dia:.1f}%). Sem novas entradas hoje.")
-                elif len(abertas) >= MAX_POSICOES:
-                    log.info(f"Maximo de seguranca atingido ({MAX_POSICOES} posicoes).")
+                elif len(abertas) >= max_pos_dinamico:
+                    log.info(f"Maximo dinamico atingido ({len(abertas)}/{max_pos_dinamico} posicoes | saldo ${saldo_atual_dia:.0f}).")
                 elif (racio_atual := get_racio_margem(client)) >= RACIO_MARGEM_MAX:
                     log.info(f"Racio de Margem {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}%. Sem novas entradas.")
                 else:
@@ -1866,10 +1882,10 @@ def main() -> None:
                     sinais_encontrados.sort(key=lambda x: 0 if x[4] == "PREMIUM" else 1)
 
                     for symbol, sinal, direcao_4h, preco, qualidade in sinais_encontrados:
-                        if len(posicoes_abertas(client)) >= MAX_POSICOES:
+                        if len(posicoes_abertas(client)) >= max_pos_dinamico:
                             break
                         log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | 4H: {direcao_4h} | Preco: {preco}")
-                        abrir_posicao(client, symbol, sinal, preco, banca, qualidade)
+                        abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
                         ultimo_entrada = time.time()
 
                     log.info(f"Varredura concluida: {len(pares_filtrados)} pares | {len(sinais_encontrados)} sinais encontrados")
