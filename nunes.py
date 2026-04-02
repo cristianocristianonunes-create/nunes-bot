@@ -950,21 +950,66 @@ def ma_alinhada_5min(client: Client, symbol: str, direcao: str) -> bool:
     return atual["ma7"] < atual["ma25"]
 
 
+def ma_alinhada_15min(client: Client, symbol: str, direcao: str) -> bool:
+    """Verifica se MA7 está alinhada com a direção no 15min (filtro intermediário)."""
+    df = get_candles(client, symbol, Client.KLINE_INTERVAL_15MINUTE, limit=30)
+    df["ma7"]  = df["close"].rolling(7).mean()
+    df["ma25"] = df["close"].rolling(25).mean()
+    atual = df.iloc[-1]
+    if direcao in ("alta", "LONG"):
+        return atual["ma7"] > atual["ma25"]
+    return atual["ma7"] < atual["ma25"]
+
+
+def calcular_adx(df: pd.DataFrame, periodo: int = 14) -> float:
+    """
+    Calcula o ADX (Average Directional Index) — mede a força da tendência.
+    ADX > 20: mercado em tendência (entradas válidas).
+    ADX < 20: mercado lateral (MAs dão sinais falsos — evitar entrar).
+    """
+    high  = df["high"]
+    low   = df["low"]
+    close = df["close"]
+
+    plus_dm  = high.diff()
+    minus_dm = low.diff().abs()
+    plus_dm  = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0.0)
+    minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0.0)
+
+    tr = pd.concat([
+        high - low,
+        (high - close.shift()).abs(),
+        (low  - close.shift()).abs()
+    ], axis=1).max(axis=1)
+
+    atr       = tr.ewm(span=periodo, adjust=False).mean()
+    plus_di   = 100 * plus_dm.ewm(span=periodo, adjust=False).mean()  / atr.replace(0, float("nan"))
+    minus_di  = 100 * minus_dm.ewm(span=periodo, adjust=False).mean() / atr.replace(0, float("nan"))
+    dx        = (100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, float("nan")))
+    adx       = dx.ewm(span=periodo, adjust=False).mean()
+    return float(adx.iloc[-1]) if not adx.empty else 0.0
+
+
 def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     """
-    Estratégia unificada MA7 x MA25 em todos os timeframes.
-    4H: tendência (MA7 x MA25)
-    5min: confirmação (MA7 x MA25 alinhada)
-    M1: gatilho — MA7 cruza MA25 na direção + volume
+    Estratégia multi-timeframe com filtros de qualidade:
+    4H:   tendência (MA7 x MA25) — verificado em tendencia_4h()
+    15min: confirmação intermediária — MA7 alinhada com direção do 4H
+    5min: confirmação — MA7 alinhada com direção do 4H
+    M1:   gatilho — MA7 cruza MA25 + volume 1.5x + RSI não estendido + ADX > 20
     """
+    # Filtro intermediário 15min — MA7 alinhada com 4H
+    if not ma_alinhada_15min(client, symbol, direcao):
+        return None
+
     # Confirmação 5min — MA7 alinhada com direção do 4H
     if not ma_alinhada_5min(client, symbol, direcao):
         return None
 
-    # Gatilho no M1 — MA7 cruza MA25
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=50)
-    df["ma7"]      = df["close"].rolling(7).mean()
-    df["ma25"]     = df["close"].rolling(25).mean()
+    # Gatilho no M1
+    df = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=60)
+    df["ma7"]       = df["close"].rolling(7).mean()
+    df["ma25"]      = df["close"].rolling(25).mean()
     df["vol_media"] = df["volume"].rolling(20).mean()
 
     prev  = df.iloc[-2]
@@ -973,20 +1018,24 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     cruzou_alta  = prev["ma7"] <= prev["ma25"] and atual["ma7"] > atual["ma25"]
     cruzou_baixa = prev["ma7"] >= prev["ma25"] and atual["ma7"] < atual["ma25"]
 
-    # Volume acima da média
-    volume_ok = atual["volume"] >= atual["vol_media"] * 1.0
+    # Volume 1.5x a média — elimina falsos rompimentos com volume fraco
+    volume_ok = atual["volume"] >= atual["vol_media"] * 1.5
 
-    # RSI no M1 — evita entrar quando já está em extremo
+    # RSI no M1 — limites mais conservadores (65/35 em vez de 70/30)
     delta = df["close"].diff()
     gain  = delta.clip(lower=0).rolling(14).mean()
     loss  = (-delta.clip(upper=0)).rolling(14).mean()
     rs    = gain / loss.replace(0, float("inf"))
     rsi   = (100 - (100 / (1 + rs))).iloc[-1]
-    rsi_ok = (direcao == "alta" and rsi < 70) or (direcao == "baixa" and rsi > 30)
+    rsi_ok = (direcao == "alta" and rsi < 65) or (direcao == "baixa" and rsi > 35)
 
-    if direcao == "alta" and cruzou_alta and volume_ok and rsi_ok:
+    # ADX > 20 — só entra em mercado com tendência real, evita lateralização
+    adx       = calcular_adx(df)
+    adx_ok    = adx >= 20.0
+
+    if direcao == "alta" and cruzou_alta and volume_ok and rsi_ok and adx_ok:
         return "LONG"
-    if direcao == "baixa" and cruzou_baixa and volume_ok and rsi_ok:
+    if direcao == "baixa" and cruzou_baixa and volume_ok and rsi_ok and adx_ok:
         return "SHORT"
     return None
 
