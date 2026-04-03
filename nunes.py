@@ -1899,18 +1899,25 @@ def main() -> None:
                     else:
                         log.info(f"  {symbol}: [EM DCA] ROI {roi:+.1f}% | entrada DCA {roi_entrada_dca:+.1f}% | aguardando +2%")
 
-                # --- POSIÇÕES NORMAIS — TRAILING STOP ---
-                elif roi > 0 and pico >= 20:
-                    # Trailing: se cair 20% do pico, fecha 90%
+                # --- POSIÇÕES NORMAIS — TRAILING STOP ESCALONADO ---
+                elif roi > 0 and pico >= 5:
+                    # Tolerância escalonada: quanto maior o pico, mais apertado
+                    if pico >= 50:
+                        tolerancia = 0.15  # 15% do pico — protege lucros grandes
+                    elif pico >= 20:
+                        tolerancia = 0.20  # 20% do pico
+                    else:
+                        tolerancia = 0.40  # 40% do pico — dá espaço para crescer
+
                     queda_do_pico = pico - roi
                     queda_pct = queda_do_pico / pico if pico > 0 else 0
-                    if queda_pct >= 0.20:
-                        log.info(f"  {symbol}: trailing stop! Pico {pico:.0f}% -> atual {roi:.0f}% -> fechando 90%")
-                        fechar_parcial(client, p, 0.90, f"Trailing stop (pico {pico:.0f}%)")
+                    if queda_pct >= tolerancia:
+                        log.info(f"  {symbol}: trailing stop! Pico {pico:.0f}% -> atual {roi:.0f}% (tolerancia {tolerancia:.0%}) -> fechando 90%")
+                        fechar_parcial(client, p, 0.90, f"Trailing stop (pico {pico:.0f}% tol {tolerancia:.0%})")
                         peak_roi.pop(symbol, None)
                         ma_reverteu.pop(symbol, None)
                     else:
-                        log.info(f"  {symbol}: ROI {roi:+.1f}% | pico {pico:.0f}% | trailing ok")
+                        log.info(f"  {symbol}: ROI {roi:+.1f}% | pico {pico:.0f}% | trailing ok (tol {tolerancia:.0%})")
 
                 # --- STOP -30% SEM SINAL DE MA ---
                 elif roi < -30.0 and symbol not in dca_aplicado:
