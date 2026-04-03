@@ -1914,6 +1914,31 @@ def main() -> None:
                     else:
                         log.info(f"  {symbol}: ROI {roi:+.1f}% | pico {pico:.0f}% | trailing ok")
 
+                # --- STOP -30% SEM SINAL DE MA ---
+                elif roi < -30.0 and symbol not in dca_aplicado:
+                    try:
+                        ma_ok = ma_cruza_favor(client, symbol, direcao)
+                    except Exception:
+                        ma_ok = False
+                    if ma_ok:
+                        sinal_ma_detectado[symbol] = time.time()
+                        log.info(f"  {symbol}: ROI {roi:+.1f}% < -30% mas MA cruzou a favor | aguardando DCA")
+                    else:
+                        log.warning(f"  {symbol}: ROI {roi:+.1f}% < -30% sem sinal de MA -> entrada errada, cortando")
+                        telegram(
+                            f"<b>Stop -30% sem sinal: {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}%\n"
+                            f"Sem cruzamento de MA a favor. Entrada errada."
+                        )
+                        fechar_parcial(client, p, 1.0, f"Stop -30% sem sinal MA ({roi:.0f}%)")
+                        peak_roi.pop(symbol, None)
+                        ma_reverteu.pop(symbol, None)
+                        posicao_abertura.pop(symbol, None)
+                        sinal_ma_detectado.pop(symbol, None)
+                        if dca_ativo == symbol:
+                            dca_ativo = None
+                        continue
+
                 # --- STOP POR TEMPO (3h sem recuperação) ---
                 elif roi < 0 and (time.time() - posicao_abertura.get(symbol, time.time())) / 3600 >= STOP_TEMPO_HORAS:
                     horas_aberta = (time.time() - posicao_abertura.get(symbol, time.time())) / 3600
