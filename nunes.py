@@ -61,6 +61,7 @@ INTERVALO_POSICOES    = 30   # segundos entre verificação de posições aberta
 INTERVALO_ENTRADAS    = 30   # segundos entre busca de novas entradas
 ROI_MIN_REVERSAO      = 20.0 # ROI mínimo para monitorar reversão (%)
 LIMITE_PERDA_DIARIA   = float(os.getenv("LIMITE_PERDA_DIARIA", "5.0"))  # % máximo de perda no dia
+ROI_STOP_LOSS_MAX     = float(os.getenv("ROI_STOP_LOSS_MAX", "-100.0"))  # fecha posição se ROI abaixo disso
 RESUMO_HORA           = 22   # hora do resumo diário (horário local)
 DCA_ANTECIPADO_ROI    = -150.0  # ROI para DCA antecipado (com sinal de MA)
 STOP_TEMPO_HORAS      = 24.0    # horas sem recuperação após DCA para fechar
@@ -884,6 +885,10 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     quantidade = round((adicional * ALAVANCAGEM) / preco, precisao)
     side       = "BUY" if direcao == "LONG" else "SELL"
 
+    if quantidade <= 0:
+        log.warning(f"  DCA {symbol} bloqueado: quantidade={quantidade} (saldo insuficiente para ordem minima)")
+        return
+
     if MODO == "simulacao":
         log.info(f"[DCA SIMULACAO] {symbol} | +${adicional:.2f} margem (35%) | Qtd: {quantidade}")
         dca_aplicado.add(symbol)
@@ -1479,23 +1484,33 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
 # ---------------------------------------------------------------------------
 # Loop principal
 # ---------------------------------------------------------------------------
-def verificar_atualizacao() -> None:
-    """Verifica se há nova versão no GitHub e avisa no log."""
+def verificar_atualizacao(reiniciar: bool = False) -> None:
+    """
+    Verifica se há nova versão no GitHub.
+    Se reiniciar=True e houver atualização: faz git pull e reinicia o processo.
+    """
     try:
-        import subprocess
-        resultado = subprocess.run(
-            ["git", "fetch", "--dry-run"],
-            capture_output=True, text=True, timeout=10
-        )
+        import subprocess, sys
+        subprocess.run(["git", "fetch"], capture_output=True, text=True, timeout=15)
         status = subprocess.run(
             ["git", "status", "-uno"],
             capture_output=True, text=True, timeout=10
         )
         if "Your branch is behind" in status.stdout:
-            log.warning("=" * 50)
-            log.warning("AVISO: Nova versao disponivel no GitHub!")
-            log.warning("Execute: git pull && python nunes.py")
-            log.warning("=" * 50)
+            if reiniciar:
+                log.warning("=" * 50)
+                log.warning("Nova versao detectada! Baixando e reiniciando...")
+                log.warning("=" * 50)
+                telegram("Atualizacao detectada no GitHub!\nBaixando nova versao e reiniciando o bot...")
+                pull = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30)
+                log.info(f"git pull: {pull.stdout.strip()}")
+                log.info("Reiniciando processo...")
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            else:
+                log.warning("=" * 50)
+                log.warning("AVISO: Nova versao disponivel no GitHub!")
+                log.warning("O bot vai baixar automaticamente na proxima verificacao.")
+                log.warning("=" * 50)
     except Exception:
         pass  # sem internet ou git não configurado — ignora silenciosamente
 
@@ -1531,6 +1546,7 @@ def main() -> None:
 
     ultimo_scan_entradas  = 0
     ultimo_resumo_hora    = 0
+    ultimo_check_update   = time.time()
     saldo_abertura        = banca_inicial
     saldo_abertura_dia    = get_saldo_total(client)
     resumo_diario_enviado = False
@@ -1782,6 +1798,24 @@ def main() -> None:
 
                 pico = peak_roi.get(symbol, roi)
 
+                # --- STOP LOSS MÁXIMO ABSOLUTO ---
+                if roi <= ROI_STOP_LOSS_MAX:
+                    log.warning(f"  {symbol}: STOP LOSS MAX {roi:+.1f}% <= {ROI_STOP_LOSS_MAX:.0f}% -> fechando")
+                    telegram(
+                        f"<b>Stop Loss Maximo: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}%\n"
+                        f"Limite absoluto ({ROI_STOP_LOSS_MAX:.0f}%) atingido."
+                    )
+                    fechar_parcial(client, p, 1.0, f"Stop loss max ({roi:.0f}%)")
+                    peak_roi.pop(symbol, None)
+                    ma_reverteu.pop(symbol, None)
+                    posicao_abertura.pop(symbol, None)
+                    dca_aplicado.discard(symbol)
+                    roi_no_dca.pop(symbol, None)
+                    if dca_ativo == symbol:
+                        dca_ativo = None
+                    continue
+
                 # Alertas de risco para todas as posições
                 verificar_alertas_risco(client, p, roi)
 
@@ -1868,11 +1902,11 @@ def main() -> None:
                         log.info(f"  {symbol}: [EM DCA] ROI {roi:+.1f}% | entrada DCA {roi_entrada_dca:+.1f}% | aguardando +2%")
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
-                elif roi > 0 and pico >= 50:
-                    # Trailing: se cair 30% do pico, fecha 90%
+                elif roi > 0 and pico >= 20:
+                    # Trailing: se cair 20% do pico, fecha 90%
                     queda_do_pico = pico - roi
                     queda_pct = queda_do_pico / pico if pico > 0 else 0
-                    if queda_pct >= 0.30:
+                    if queda_pct >= 0.20:
                         log.info(f"  {symbol}: trailing stop! Pico {pico:.0f}% -> atual {roi:.0f}% -> fechando 90%")
                         fechar_parcial(client, p, 0.90, f"Trailing stop (pico {pico:.0f}%)")
                         peak_roi.pop(symbol, None)
@@ -2273,6 +2307,11 @@ def main() -> None:
             if time.time() - ultimo_resumo_hora >= 3600:
                 enviar_resumo_hora(client, saldo_abertura)
                 ultimo_resumo_hora = time.time()
+
+            # Auto-update: verifica GitHub a cada 5 minutos e reinicia se houver nova versão
+            if time.time() - ultimo_check_update >= 300:
+                verificar_atualizacao(reiniciar=True)
+                ultimo_check_update = time.time()
 
             time.sleep(INTERVALO_POSICOES)
 
