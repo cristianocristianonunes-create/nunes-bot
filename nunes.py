@@ -811,6 +811,27 @@ def rsi_extremo(client: Client, symbol: str, direcao: str, periodo: int = 14) ->
         return rsi_atual > 70
 
 
+_cache_precisao: dict[str, int] = {}  # cache de precisão por symbol
+
+def get_precisao_quantidade(client: Client, symbol: str) -> int:
+    """
+    Retorna a precisão de quantidade (casas decimais) exigida pela Binance para o par.
+    Usa cache para não chamar a API a cada ordem.
+    """
+    if symbol in _cache_precisao:
+        return _cache_precisao[symbol]
+    try:
+        info = client.futures_exchange_info()
+        for s in info["symbols"]:
+            if s["symbol"] == symbol:
+                precisao = int(s.get("quantityPrecision", 3))
+                _cache_precisao[symbol] = precisao
+                return precisao
+    except Exception:
+        pass
+    return 3  # fallback seguro
+
+
 def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     """
     DCA: adiciona 30-40% da margem atual para acelerar recuperação.
@@ -832,7 +853,8 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
         log.info(f"  Saldo insuficiente para DCA ideal. Usando maximo disponivel: ${adicional:.2f}")
 
     preco      = float(client.futures_symbol_ticker(symbol=symbol)["price"])
-    quantidade = round((adicional * ALAVANCAGEM) / preco, 3)
+    precisao   = get_precisao_quantidade(client, symbol)
+    quantidade = round((adicional * ALAVANCAGEM) / preco, precisao)
     side       = "BUY" if direcao == "LONG" else "SELL"
 
     if MODO == "simulacao":
@@ -857,6 +879,8 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
         salvar_estado()
     except BinanceAPIException as e:
         log.error(f"Erro DCA {symbol}: {e}")
+        # Não marca como dca_ativo — a ordem não foi executada
+        dca_aplicado.discard(symbol)
 
 
 def fechar_parcial(client: Client, posicao: dict, pct: float, motivo: str) -> None:
