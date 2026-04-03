@@ -1654,7 +1654,6 @@ def main() -> None:
                     if margem_anterior > 0 and margem_atual > margem_anterior * 1.15:
                         if symbol not in dca_aplicado:
                             dca_aplicado.add(symbol)
-                            global dca_ativo
                             if dca_ativo is None:
                                 dca_ativo = symbol
                             log.info(f"  {symbol}: DCA manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f}) | marcado como DCA aplicado")
