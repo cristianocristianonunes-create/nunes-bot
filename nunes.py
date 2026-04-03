@@ -688,6 +688,7 @@ ma_reverteu:      dict[str, float] = {}   # symbol -> ROI no momento em que a MA
 alerta_80_log:         dict[str, float] = {}   # timestamp do último alerta de -80% por symbol
 alerta_ciclo_risco_ts: float           = 0.0  # timestamp do último alerta de ciclo em risco
 posicoes_herdadas:     set[str]        = set() # symbols herdados de ciclos anteriores (negativos não fechados)
+margem_registrada:     dict[str, float] = {}  # margem inicial registrada por symbol para detectar DCA manual
 
 ESTADO_FILE = "C:/robo-trade/estado_bot.json"
 
@@ -1645,6 +1646,20 @@ def main() -> None:
                 amt     = float(p["positionAmt"])
                 direcao = "LONG" if amt > 0 else "SHORT"
                 roi     = calcular_roi(p)
+                margem_atual = float(p.get("positionInitialMargin", 0))
+
+                # Detecta DCA manual: margem aumentou > 15% desde o último registro
+                if symbol in margem_registrada:
+                    margem_anterior = margem_registrada[symbol]
+                    if margem_anterior > 0 and margem_atual > margem_anterior * 1.15:
+                        if symbol not in dca_aplicado:
+                            dca_aplicado.add(symbol)
+                            global dca_ativo
+                            if dca_ativo is None:
+                                dca_ativo = symbol
+                            log.info(f"  {symbol}: DCA manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f}) | marcado como DCA aplicado")
+                            telegram(f"<b>DCA manual detectado: {symbol}</b>\nMargem aumentou de ${margem_anterior:.2f} para ${margem_atual:.2f}\nBot vai aguardar +2% para fechar.")
+                margem_registrada[symbol] = margem_atual
 
                 # Registra horário de abertura da posição
                 if symbol not in posicao_abertura:
