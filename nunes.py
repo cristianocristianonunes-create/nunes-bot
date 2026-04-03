@@ -1090,7 +1090,13 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     Estratégia multi-timeframe com filtros de qualidade:
     1H:   tendência (MA7 x MA25) — verificado em tendencia_1h()
     5min: confirmação — MA7 alinhada com direção do 1H
-    M1:   gatilho — MA7 cruza MA25 + volume 1.5x + RSI não estendido + ADX > 20
+    M1:   gatilho — MA7 cruza MA25 + volume 1.5x + RSI restrito + ADX > 20
+
+    Melhorias implementadas:
+    - RSI mais restrito (55/45) evita entrar em movimentos já esticados
+    - Cruzamento validado no candle FECHADO (iloc[-3] x iloc[-2]), não no candle atual aberto
+    - Filtro de retração: RSI não pode estar muito esticado NA direção da entrada
+      (evita entrar no topo/fundo do impulso inicial)
     """
     # Confirmação 5min — MA7 alinhada com direção do 1H
     if not ma_alinhada_5min(client, symbol, direcao):
@@ -1102,30 +1108,41 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     df["ma25"]      = df["close"].rolling(25).mean()
     df["vol_media"] = df["volume"].rolling(20).mean()
 
-    prev  = df.iloc[-2]
-    atual = df.iloc[-1]
+    # Usa candles FECHADOS: [-3] e [-2] para detectar cruzamento confirmado
+    # O candle [-1] está ainda aberto e pode gerar falsos sinais
+    c_ant  = df.iloc[-3]   # candle fechado anterior
+    c_ref  = df.iloc[-2]   # candle fechado de referência (confirmação)
+    c_vol  = df.iloc[-2]   # volume do candle confirmado
 
-    cruzou_alta  = prev["ma7"] <= prev["ma25"] and atual["ma7"] > atual["ma25"]
-    cruzou_baixa = prev["ma7"] >= prev["ma25"] and atual["ma7"] < atual["ma25"]
+    cruzou_alta  = c_ant["ma7"] <= c_ant["ma25"] and c_ref["ma7"] > c_ref["ma25"]
+    cruzou_baixa = c_ant["ma7"] >= c_ant["ma25"] and c_ref["ma7"] < c_ref["ma25"]
 
     # Volume 1.5x a média — elimina falsos rompimentos com volume fraco
-    volume_ok = atual["volume"] >= atual["vol_media"] * 1.5
+    volume_ok = c_vol["volume"] >= c_vol["vol_media"] * 1.5
 
-    # RSI no M1 — limites mais conservadores (65/35 em vez de 70/30)
+    # RSI no M1 — restrito a 55/45 para evitar entrar em movimentos já esticados
     delta = df["close"].diff()
     gain  = delta.clip(lower=0).rolling(14).mean()
     loss  = (-delta.clip(upper=0)).rolling(14).mean()
     rs    = gain / loss.replace(0, float("inf"))
-    rsi   = (100 - (100 / (1 + rs))).iloc[-1]
-    rsi_ok = (direcao == "alta" and rsi < 65) or (direcao == "baixa" and rsi > 35)
+    rsi_series = 100 - (100 / (1 + rs))
+    rsi   = rsi_series.iloc[-2]  # RSI do candle fechado
+
+    # Filtro principal: RSI não pode estar esticado contra a entrada
+    rsi_ok = (direcao == "alta" and rsi < 55) or (direcao == "baixa" and rsi > 45)
+
+    # Filtro de retração: RSI não pode estar MUITO esticado na direção (evita entrar no impulso)
+    # Para LONG: RSI não deve estar abaixo de 35 (sobrevendido demais = impulso já aconteceu)
+    # Para SHORT: RSI não deve estar acima de 65 (sobrecomprado demais = impulso já aconteceu)
+    retraction_ok = (direcao == "alta" and rsi >= 35) or (direcao == "baixa" and rsi <= 65)
 
     # ADX > 20 — só entra em mercado com tendência real, evita lateralização
     adx       = calcular_adx(df)
     adx_ok    = adx >= 20.0
 
-    if direcao == "alta" and cruzou_alta and volume_ok and rsi_ok and adx_ok:
+    if direcao == "alta" and cruzou_alta and volume_ok and rsi_ok and retraction_ok and adx_ok:
         return "LONG"
-    if direcao == "baixa" and cruzou_baixa and volume_ok and rsi_ok and adx_ok:
+    if direcao == "baixa" and cruzou_baixa and volume_ok and rsi_ok and retraction_ok and adx_ok:
         return "SHORT"
     return None
 
