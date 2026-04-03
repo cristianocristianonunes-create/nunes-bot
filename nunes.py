@@ -1953,9 +1953,7 @@ def main() -> None:
             if agora - ultimo_scan_entradas >= INTERVALO_ENTRADAS:
                 ultimo_scan_entradas = agora
 
-                # Verifica perda diária
                 saldo_atual_dia = get_saldo_total(client)
-                perda_dia = ((saldo_abertura_dia - saldo_atual_dia) / saldo_abertura_dia * 100) if saldo_abertura_dia > 0 else 0
                 max_pos_dinamico, risco_dinamico = limites_por_saldo(saldo_atual_dia)
 
                 # --- LIMPEZA AUTOMÁTICA: fecha as menos promissoras se exceder o limite ---
@@ -1991,9 +1989,7 @@ def main() -> None:
                         except BinanceAPIException as e:
                             log.error(f"Erro limpeza automatica {symbol}: {e}")
 
-                if perda_dia >= LIMITE_PERDA_DIARIA:
-                    log.info(f"Limite de perda diaria atingido ({perda_dia:.1f}%). Sem novas entradas hoje.")
-                elif len(abertas) >= max_pos_dinamico:
+                if len(abertas) >= max_pos_dinamico:
                     log.info(f"Maximo dinamico atingido ({len(abertas)}/{max_pos_dinamico} posicoes | saldo ${saldo_atual_dia:.0f}).")
                 elif (racio_atual := get_racio_margem(client)) >= RACIO_MARGEM_MAX:
                     log.info(f"Racio de Margem {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}%. Sem novas entradas.")
