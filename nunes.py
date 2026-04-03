@@ -682,23 +682,21 @@ def tendencia_btc(client: Client) -> str:
     return "baixa"
 
 
-def tendencia_4h(client: Client, symbol: str) -> tuple[str, bool]:
+def tendencia_5min(client: Client, symbol: str) -> tuple[str, bool]:
     """
-    Retorna ('alta'|'baixa', ma99_alinhada).
-    ma99_alinhada = True se preço e MA7/MA25 estão do mesmo lado da MA99.
+    Retorna ('alta'|'baixa', confirmado).
+    confirmado = True se MA7 e MA25 estão claramente separadas no 5min (spread >= 0.3%).
+    Usado como filtro de direção em vez do 4H — mais reativo, menos lag.
     """
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_4HOUR, limit=110)
+    df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
     df["ma7"]  = df["close"].rolling(7).mean()
     df["ma25"] = df["close"].rolling(25).mean()
-    df["ma99"] = df["close"].rolling(99).mean()
     ultima = df.iloc[-1]
     direcao = "alta" if ultima["ma7"] > ultima["ma25"] else "baixa"
-    # MA99 alinhada: preço acima da MA99 para LONG, abaixo para SHORT
-    if direcao == "alta":
-        ma99_ok = ultima["close"] > ultima["ma99"] and ultima["ma7"] > ultima["ma99"]
-    else:
-        ma99_ok = ultima["close"] < ultima["ma99"] and ultima["ma7"] < ultima["ma99"]
-    return direcao, ma99_ok
+    # Confirmado: separação >= 0.3% entre MA7 e MA25 indica tendência real
+    spread = abs(ultima["ma7"] - ultima["ma25"]) / ultima["ma25"] if ultima["ma25"] > 0 else 0
+    confirmado = spread >= 0.003
+    return direcao, confirmado
 
 
 # Controle de DCA, trailing stop e alertas
@@ -1090,14 +1088,9 @@ def calcular_adx(df: pd.DataFrame, periodo: int = 14) -> float:
 def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     """
     Estratégia multi-timeframe com filtros de qualidade:
-    4H:   tendência (MA7 x MA25) — verificado em tendencia_4h()
-    5min: confirmação — MA7 alinhada com direção do 4H
+    5min: tendência (MA7 x MA25) — verificado em tendencia_5min()
     M1:   gatilho — MA7 cruza MA25 + volume 1.5x + RSI não estendido + ADX > 20
     """
-    # Confirmação 5min — MA7 alinhada com direção do 4H
-    if not ma_alinhada_5min(client, symbol, direcao):
-        return None
-
     # Gatilho no M1
     df = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=60)
     df["ma7"]       = df["close"].rolling(7).mean()
@@ -2265,13 +2258,12 @@ def main() -> None:
 
                     def analisar_par(symbol):
                         try:
-                            direcao_4h, ma99_ok = tendencia_4h(client, symbol)
-                            if not camada2_ativa and not ma99_ok:
+                            direcao_5m, confirmado = tendencia_5min(client, symbol)
+                            if not camada2_ativa and not confirmado:
                                 return
-                            sinal = sinal_m1(client, symbol, direcao_4h)
+                            sinal = sinal_m1(client, symbol, direcao_5m)
                             if sinal:
                                 # Bloqueia SHORT em pares correlatos ao BTC apenas quando BTC em alta
-                                # Quando BTC em baixa, SHORT nesses pares é oportunidade
                                 if (sinal == "SHORT"
                                         and btc_tendencia == "alta"
                                         and symbol in PARES_BTC_CORRELATOS):
@@ -2284,9 +2276,9 @@ def main() -> None:
                                     log.debug(f"  {symbol}: LONG bloqueado (BTC em baixa + par correlato)")
                                     return
                                 preco = float(client.futures_symbol_ticker(symbol=symbol)["price"])
-                                qualidade = "PREMIUM" if ma99_ok else "NORMAL"
+                                qualidade = "PREMIUM" if confirmado else "NORMAL"
                                 with lock_sinais:
-                                    sinais_encontrados.append((symbol, sinal, direcao_4h, preco, qualidade))
+                                    sinais_encontrados.append((symbol, sinal, direcao_5m, preco, qualidade))
                         except Exception as e:
                             log.warning(f"Erro ao analisar {symbol}: {e}")
 
