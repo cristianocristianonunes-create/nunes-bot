@@ -712,6 +712,7 @@ posicao_abertura: dict[str, float] = {}   # timestamp de quando cada posição f
 ma_reverteu:      dict[str, float] = {}   # symbol -> ROI no momento em que a MA reverteu contra a posição
 alerta_80_log:         dict[str, float] = {}   # timestamp do último alerta de -80% por symbol
 sinal_ma_detectado:    dict[str, float] = {}   # timestamp da última vez que MA cruzou a favor por symbol
+roi_no_dca:            dict[str, float] = {}   # ROI no momento em que o DCA foi aplicado
 alerta_ciclo_risco_ts: float           = 0.0  # timestamp do último alerta de ciclo em risco
 posicoes_herdadas:     set[str]        = set() # symbols herdados de ciclos anteriores (negativos não fechados)
 margem_registrada:     dict[str, float] = {}  # margem inicial registrada por symbol para detectar DCA manual
@@ -902,6 +903,7 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
         telegram(msg)
         dca_aplicado.add(symbol)
         dca_log[symbol] = time.time()
+        roi_no_dca[symbol] = calcular_roi(posicao)  # registra ROI para stop pós-DCA -30%
         salvar_estado()
     except BinanceAPIException as e:
         log.error(f"Erro DCA {symbol}: {e}")
@@ -1832,18 +1834,38 @@ def main() -> None:
 
                 # --- POSIÇÕES QUE PASSARAM PELO DCA — SAÍDA RÁPIDA PARA RESTAURAR RÁCIO ---
                 if symbol in dca_aplicado:
-                    # Objetivo: sair assim que atingir +2% para liberar a margem duplicada
+                    roi_entrada_dca = roi_no_dca.get(symbol, roi)
+
+                    # Saída positiva — lucro realizado
                     if roi >= 2.0:
                         log.info(f"  {symbol}: [POS-DCA] ROI {roi:+.1f}% >= +2% -> fechando 100% para restaurar racio de margem")
                         fechar_parcial(client, p, 1.0, f"Saida pos-DCA +2% (ROI {roi:.1f}%)")
                         dca_aplicado.discard(symbol)
+                        roi_no_dca.pop(symbol, None)
                         peak_roi.pop(symbol, None)
                         ma_reverteu.pop(symbol, None)
                         if dca_ativo == symbol:
                             dca_ativo = None
                             log.info(f"  DCA encerrado para {symbol}. Racio de margem restaurado.")
+
+                    # Stop pós-DCA: caiu mais 30% após o DCA — DCA foi errado, corta
+                    elif roi < roi_entrada_dca - 30.0:
+                        log.warning(f"  {symbol}: [STOP POS-DCA] ROI {roi:+.1f}% | entrada DCA era {roi_entrada_dca:+.1f}% | caiu mais 30% -> fechando")
+                        telegram(
+                            f"<b>Stop pós-DCA: {symbol}</b>\n"
+                            f"{direcao} | ROI atual: {roi:+.1f}%\n"
+                            f"ROI no DCA: {roi_entrada_dca:+.1f}%\n"
+                            f"DCA errado — caiu mais 30% após aplicação."
+                        )
+                        fechar_parcial(client, p, 1.0, f"Stop pos-DCA -30% (ROI {roi:.1f}%)")
+                        dca_aplicado.discard(symbol)
+                        roi_no_dca.pop(symbol, None)
+                        peak_roi.pop(symbol, None)
+                        ma_reverteu.pop(symbol, None)
+                        if dca_ativo == symbol:
+                            dca_ativo = None
                     else:
-                        log.info(f"  {symbol}: [EM DCA] ROI {roi:+.1f}% | aguardando +2% para sair e restaurar racio")
+                        log.info(f"  {symbol}: [EM DCA] ROI {roi:+.1f}% | entrada DCA {roi_entrada_dca:+.1f}% | aguardando +2%")
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
                 elif roi > 0 and pico >= 50:
@@ -2012,12 +2034,38 @@ def main() -> None:
 
                         log.info(f"  {symbol}: ROI {roi:+.1f}% | monitorando")
                     else:
-                        # DCA antecipado em -80%: se MA cruzou a favor, entra agora para recuperar mais cedo
+                        # DCA antecipado em -80%
                         if roi <= -80 and symbol not in dca_aplicado:
                             if dca_ativo and dca_ativo != symbol and dca_ativo_tem_sinal(client, abertas):
                                 log.info(f"  {symbol}: ROI {roi:.1f}% | DCA -80% bloqueado ({dca_ativo} em recuperacao com sinal ativo)")
                             else:
                                 try:
+                                    df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+                                    df5["ma7"]  = df5["close"].rolling(7).mean()
+                                    df5["ma25"] = df5["close"].rolling(25).mean()
+                                    df5["diff"] = df5["ma7"] - df5["ma25"]
+                                    diff_atual  = df5["diff"].iloc[-1]
+                                    diff_prev   = df5["diff"].iloc[-3]
+
+                                    # MA acelerando contra — entrada claramente errada, fecha sem DCA
+                                    ma_acelerando_contra = (
+                                        (direcao == "LONG"  and diff_atual < diff_prev < 0) or
+                                        (direcao == "SHORT" and diff_atual > diff_prev > 0)
+                                    )
+                                    if ma_acelerando_contra:
+                                        log.warning(f"  {symbol}: ROI {roi:.1f}% | MA acelerando contra | stop -80% -> fechando")
+                                        telegram(
+                                            f"<b>Stop -80%: {symbol}</b>\n"
+                                            f"{direcao} | ROI: {roi:+.1f}%\n"
+                                            f"MA acelerando na direção errada.\n"
+                                            f"Entrada considerada errada — preservando capital."
+                                        )
+                                        fechar_parcial(client, p, 1.0, f"Stop -80% MA acelerando contra (ROI {roi:.1f}%)")
+                                        posicao_abertura.pop(symbol, None)
+                                        sinal_ma_detectado.pop(symbol, None)
+                                        peak_roi.pop(symbol, None)
+                                        continue
+
                                     ma_ok = ma_cruza_favor(client, symbol, direcao)
                                     if ma_ok:
                                         sinal_ma_detectado[symbol] = time.time()
@@ -2189,12 +2237,35 @@ def main() -> None:
                     # Ordena: PREMIUM primeiro
                     sinais_encontrados.sort(key=lambda x: 0 if x[4] == "PREMIUM" else 1)
 
-                    for symbol, sinal, direcao_4h, preco, qualidade in sinais_encontrados:
-                        if len(posicoes_abertas(client)) >= max_pos_dinamico:
-                            break
-                        log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | 4H: {direcao_4h} | Preco: {preco}")
-                        abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
-                        ultimo_entrada = time.time()
+                    vagas_disponiveis = max_pos_dinamico - len(abertas)
+                    MINIMO_SINAIS     = 3   # aguarda pelo menos 3 sinais antes de abrir
+                    TIMEOUT_SINAIS    = 15  # minutos aguardando acumular sinais
+
+                    if len(sinais_encontrados) >= MINIMO_SINAIS or vagas_disponiveis == 0:
+                        # Tem sinais suficientes — abre os melhores
+                        abertos_agora = 0
+                        for symbol, sinal, direcao_4h, preco, qualidade in sinais_encontrados:
+                            if len(posicoes_abertas(client)) >= max_pos_dinamico:
+                                break
+                            if abertos_agora >= MINIMO_SINAIS:
+                                break
+                            log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | 4H: {direcao_4h} | Preco: {preco}")
+                            abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
+                            ultimo_entrada = time.time()
+                            abertos_agora += 1
+                    elif len(sinais_encontrados) > 0:
+                        # Tem sinais mas menos que 3 — verifica timeout
+                        tempo_aguardando = (time.time() - ultimo_entrada) / 60
+                        if tempo_aguardando >= TIMEOUT_SINAIS:
+                            log.info(f"Timeout {TIMEOUT_SINAIS}min atingido com {len(sinais_encontrados)} sinal(is) — abrindo mesmo assim")
+                            for symbol, sinal, direcao_4h, preco, qualidade in sinais_encontrados:
+                                if len(posicoes_abertas(client)) >= max_pos_dinamico:
+                                    break
+                                log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | 4H: {direcao_4h} | Preco: {preco}")
+                                abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
+                                ultimo_entrada = time.time()
+                        else:
+                            log.info(f"Aguardando mais sinais: {len(sinais_encontrados)}/{MINIMO_SINAIS} | {TIMEOUT_SINAIS - tempo_aguardando:.0f}min para timeout")
 
                     log.info(f"Varredura concluida: {len(pares_filtrados)} pares | {len(sinais_encontrados)} sinais encontrados")
 
