@@ -994,14 +994,9 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     """
     Estratégia multi-timeframe com filtros de qualidade:
     4H:   tendência (MA7 x MA25) — verificado em tendencia_4h()
-    15min: confirmação intermediária — MA7 alinhada com direção do 4H
     5min: confirmação — MA7 alinhada com direção do 4H
     M1:   gatilho — MA7 cruza MA25 + volume 1.5x + RSI não estendido + ADX > 20
     """
-    # Filtro intermediário 15min — MA7 alinhada com 4H
-    if not ma_alinhada_15min(client, symbol, direcao):
-        return None
-
     # Confirmação 5min — MA7 alinhada com direção do 4H
     if not ma_alinhada_5min(client, symbol, direcao):
         return None
