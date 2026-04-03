@@ -40,17 +40,20 @@ MAX_POSICOES          = 30   # limite de segurança absoluto — controle dinâm
 
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
-    """Retorna (max_posicoes, risco_por_trade) baseado no saldo atual."""
-    if saldo < 100:
-        return 10, 0.02
-    elif saldo < 300:
-        return 12, 0.015
-    elif saldo < 600:
-        return 15, 0.01
-    elif saldo < 1000:
-        return 18, 0.01
-    else:
-        return 20, 0.01
+    """
+    Retorna (max_posicoes, risco_por_trade) baseado no saldo atual.
+    Estratégia de ciclos diários: menos posições, mais qualidade.
+    """
+    if saldo < 100:     # até R$518
+        return 4, 0.02
+    elif saldo < 300:   # até R$1.554
+        return 6, 0.015
+    elif saldo < 500:   # até R$2.590
+        return 8, 0.01
+    elif saldo < 1000:  # até R$5.180
+        return 10, 0.01
+    else:               # acima de R$5.180
+        return 12, 0.008
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
@@ -60,7 +63,8 @@ ROI_MIN_REVERSAO      = 20.0 # ROI mínimo para monitorar reversão (%)
 LIMITE_PERDA_DIARIA   = float(os.getenv("LIMITE_PERDA_DIARIA", "5.0"))  # % máximo de perda no dia
 RESUMO_HORA           = 22   # hora do resumo diário (horário local)
 DCA_ANTECIPADO_ROI    = -150.0  # ROI para DCA antecipado (com sinal de MA)
-STOP_TEMPO_HORAS      = 24.0    # horas sem recuperação para fechar posição
+STOP_TEMPO_HORAS      = 24.0    # horas sem recuperação após DCA para fechar
+STOP_SEM_SINAL_HORAS  = 12.0   # horas sem nenhum sinal de MA para fechar (sem DCA)
 META_CICLO_PCT        = float(os.getenv("META_CICLO_PCT", "5.0"))   # meta de lucro por ciclo (%)
 META_CICLO_FASE2_USD  = float(os.getenv("META_CICLO_FASE2_USD", "50.0"))  # meta fixa em USDT após $1.000
 META_CICLO_FASE2_MIN  = float(os.getenv("META_CICLO_FASE2_MIN", "1000.0")) # saldo para ativar fase 2
@@ -607,33 +611,54 @@ def get_candles(client: Client, symbol: str, interval: str, limit: int = 100) ->
 
 def get_top_pares(client: Client, n: int = TOP_PARES) -> list[str]:
     """
-    Retorna os N pares USDT de futuros mais voláteis agora.
-    Usa apenas uma chamada à API (futures_ticker) com dados recentes.
-    Critério: maior variação percentual absoluta nas últimas 24h
-    combinada com alto volume, filtrando ilíquidos.
+    Lista híbrida: pares de alto volume operacional primeiro, voláteis como complemento.
+    Pares líquidos têm padrões técnicos mais confiáveis e menor slippage.
     """
-    # Exclui BTC, ETH e commodities — foco em altcoins
     EXCLUIR = {"BTCUSDT", "ETHUSDT", "XAGUSDT", "XAUUSDT", "BTCDOMUSDT", "DEFIUSDT"}
+
+    # Pares prioritários — alta liquidez e volume operacional consistente
+    PARES_PRIORITARIOS = [
+        "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT",
+        "AVAXUSDT", "LINKUSDT", "DOTUSDT", "NEARUSDT", "SUIUSDT",
+        "APTUSDT", "INJUSDT", "ARBUSDT", "OPUSDT", "ATOMUSDT",
+        "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "ICPUSDT",
+        "AAVEUSDT", "UNIUSDT", "CRVUSDT", "MKRUSDT", "SNXUSDT",
+        "TRXUSDT", "XLMUSDT", "VETUSDT", "HBARUSDT", "TONUSDT",
+    ]
+
     tickers = client.futures_ticker()
-    usdt = [t for t in tickers
-            if t["symbol"].endswith("USDT") and t["symbol"] not in EXCLUIR]
+    ticker_map = {t["symbol"]: t for t in tickers if t["symbol"].endswith("USDT")}
 
     # Filtra ilíquidos (mínimo 5M USDT de volume nas 24h)
     VOLUME_MINIMO = 5_000_000
-    usdt = [t for t in usdt if float(t["quoteVolume"]) >= VOLUME_MINIMO]
 
-    # Score = variação% * (volume / volume médio esperado)
-    # Prioriza pares que estão se movendo muito E com volume alto agora
-    for t in usdt:
-        variacao = abs(float(t["priceChangePercent"]))
-        vol_24h  = float(t["quoteVolume"])
-        # Normaliza volume em relação à mediana para não privilegiar BTC/ETH
+    # 1. Prioritários disponíveis com volume suficiente
+    prioritarios = [
+        s for s in PARES_PRIORITARIOS
+        if s in ticker_map
+        and s not in EXCLUIR
+        and float(ticker_map[s]["quoteVolume"]) >= VOLUME_MINIMO
+    ]
+
+    # 2. Complementares — voláteis que não estão na lista prioritária
+    complementares = [
+        t for t in tickers
+        if t["symbol"].endswith("USDT")
+        and t["symbol"] not in EXCLUIR
+        and t["symbol"] not in PARES_PRIORITARIOS
+        and float(t["quoteVolume"]) >= VOLUME_MINIMO
+    ]
+    for t in complementares:
+        variacao    = abs(float(t["priceChangePercent"]))
+        vol_24h     = float(t["quoteVolume"])
         t["_score"] = variacao * (vol_24h / 1_000_000)
+    complementares.sort(key=lambda x: x["_score"], reverse=True)
+    complementares_symbols = [t["symbol"] for t in complementares]
 
-    usdt.sort(key=lambda x: x["_score"], reverse=True)
-
-    pares = [t["symbol"] for t in usdt[:n]]
-    log.info(f"Pares mais volateis agora: {pares}")
+    # Lista final: prioritários na frente, complementares completam até N
+    pares = prioritarios + [s for s in complementares_symbols if s not in prioritarios]
+    pares = pares[:n]
+    log.info(f"Pares selecionados: {len(prioritarios)} prioritarios + {len(pares)-len(prioritarios)} complementares | Total: {len(pares)}")
     return pares
 
 
@@ -686,6 +711,7 @@ alerta_dca_log:   dict[str, float] = {}   # timestamp do último alerta de aprox
 posicao_abertura: dict[str, float] = {}   # timestamp de quando cada posição foi detectada
 ma_reverteu:      dict[str, float] = {}   # symbol -> ROI no momento em que a MA reverteu contra a posição
 alerta_80_log:         dict[str, float] = {}   # timestamp do último alerta de -80% por symbol
+sinal_ma_detectado:    dict[str, float] = {}   # timestamp da última vez que MA cruzou a favor por symbol
 alerta_ciclo_risco_ts: float           = 0.0  # timestamp do último alerta de ciclo em risco
 posicoes_herdadas:     set[str]        = set() # symbols herdados de ciclos anteriores (negativos não fechados)
 margem_registrada:     dict[str, float] = {}  # margem inicial registrada por symbol para detectar DCA manual
@@ -1851,10 +1877,12 @@ def main() -> None:
                             dca_ativo = None
                         continue
                     else:
-                        # Sem DCA ainda — tenta DCA se houver sinal, senão avisa e aguarda decisão
+                        # Sem DCA ainda — tenta DCA se houver sinal
+                        # Se nunca houve sinal de MA em STOP_SEM_SINAL_HORAS, fecha
                         try:
                             ma_ok = ma_cruza_favor(client, symbol, direcao)
                             if ma_ok:
+                                sinal_ma_detectado[symbol] = time.time()
                                 if dca_bloqueado_por_racio:
                                     log.warning(f"  {symbol}: DCA bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
                                 else:
@@ -1862,19 +1890,32 @@ def main() -> None:
                                     aplicar_dca(client, p, banca)
                                     dca_ativo = symbol
                             else:
-                                ultimo_alerta_tempo = alerta_dca_log.get(f"tempo_{symbol}", 0)
-                                if time.time() - ultimo_alerta_tempo >= 1800:
+                                # Verifica se nunca houve sinal de MA desde a abertura
+                                ultimo_sinal = sinal_ma_detectado.get(symbol, 0)
+                                abertura_ts  = posicao_abertura.get(symbol, time.time())
+                                sem_sinal_horas = (time.time() - max(abertura_ts, ultimo_sinal)) / 3600
+                                if sem_sinal_horas >= STOP_SEM_SINAL_HORAS and symbol not in dca_aplicado:
+                                    log.warning(f"  {symbol}: {horas_aberta:.1f}h aberta | {sem_sinal_horas:.1f}h sem sinal de MA | entrada errada -> fechando")
                                     telegram(
-                                        f"<b>Atencao: {symbol} parado ha {horas_aberta:.1f}h</b>\n"
+                                        f"<b>Stop sem sinal: {symbol}</b>\n"
                                         f"{direcao} | ROI: {roi:+.1f}%\n"
-                                        f"MA ainda nao reverteu. Bot aguardando.\n\n"
-                                        f"<b>Opcoes:</b>\n"
-                                        f"• /dca {symbol} — forcar DCA agora\n"
-                                        f"• /dca {symbol} forcado — DCA sem verificar MA\n"
-                                        f"• /fechar {symbol} — aceitar perda e sair"
+                                        f"Aberta ha {horas_aberta:.1f}h sem nenhum sinal de reversao.\n"
+                                        f"Entrada considerada errada — preservando capital."
                                     )
-                                    alerta_dca_log[f"tempo_{symbol}"] = time.time()
-                                    log.warning(f"  {symbol}: {horas_aberta:.1f}h sem recuperacao | MA nao reverteu | alerta enviado")
+                                    fechar_parcial(client, p, 1.0, f"Stop sem sinal MA ({sem_sinal_horas:.1f}h)")
+                                    posicao_abertura.pop(symbol, None)
+                                    sinal_ma_detectado.pop(symbol, None)
+                                    peak_roi.pop(symbol, None)
+                                else:
+                                    ultimo_alerta_tempo = alerta_dca_log.get(f"tempo_{symbol}", 0)
+                                    if time.time() - ultimo_alerta_tempo >= 1800:
+                                        telegram(
+                                            f"<b>Atencao: {symbol} parado ha {horas_aberta:.1f}h</b>\n"
+                                            f"{direcao} | ROI: {roi:+.1f}%\n"
+                                            f"MA nao reverteu. Fecha automatico em {STOP_SEM_SINAL_HORAS:.0f}h sem sinal."
+                                        )
+                                        alerta_dca_log[f"tempo_{symbol}"] = time.time()
+                                        log.warning(f"  {symbol}: {horas_aberta:.1f}h sem recuperacao | MA nao reverteu | fecha em {STOP_SEM_SINAL_HORAS - sem_sinal_horas:.1f}h se nao aparecer sinal")
                         except Exception as e:
                             log.warning(f"  Erro stop-tempo {symbol}: {e}")
 
@@ -1979,6 +2020,7 @@ def main() -> None:
                                 try:
                                     ma_ok = ma_cruza_favor(client, symbol, direcao)
                                     if ma_ok:
+                                        sinal_ma_detectado[symbol] = time.time()
                                         if dca_bloqueado_por_racio:
                                             log.warning(f"  {symbol}: DCA -80% bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
                                         else:
