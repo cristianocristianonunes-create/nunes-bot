@@ -692,7 +692,17 @@ margem_registrada:     dict[str, float] = {}  # margem inicial registrada por sy
 
 ESTADO_FILE = "C:/robo-trade/estado_bot.json"
 
-def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None):
+def meta_formiguinha(ciclos_positivos: int) -> float:
+    """
+    Plano formiguinha: meta progressiva baseada em ciclos consecutivos positivos.
+    Começa em 2%, sobe 0.5% a cada 5 ciclos positivos, teto em 4%.
+    """
+    incrementos = ciclos_positivos // 5
+    meta = 2.0 + incrementos * 0.5
+    return min(meta, 4.0)
+
+
+def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None, ciclos_positivos=None):
     """Persiste peak_roi, dca_aplicado, herdadas e controle de ciclo em disco."""
     try:
         dados = {
@@ -704,6 +714,8 @@ def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None):
             dados["ciclo_num"] = ciclo_num
         if saldo_ciclo_inicio is not None:
             dados["saldo_ciclo_inicio"] = saldo_ciclo_inicio
+        if ciclos_positivos is not None:
+            dados["ciclos_positivos"] = ciclos_positivos
         with open(ESTADO_FILE, "w") as f:
             json.dump(dados, f)
     except Exception as e:
@@ -718,10 +730,11 @@ def carregar_estado():
         peak_roi          = dados.get("peak_roi", {})
         dca_aplicado      = set(dados.get("dca_aplicado", []))
         posicoes_herdadas = set(dados.get("posicoes_herdadas", []))
-        ciclo_salvo       = dados.get("ciclo_num", 1)
-        saldo_salvo       = dados.get("saldo_ciclo_inicio", None)
-        log.info(f"Estado restaurado: {len(peak_roi)} picos | {len(dca_aplicado)} DCAs | Ciclo {ciclo_salvo} | Herdadas: {len(posicoes_herdadas)}")
-        return ciclo_salvo, saldo_salvo
+        ciclo_salvo          = dados.get("ciclo_num", 1)
+        saldo_salvo          = dados.get("saldo_ciclo_inicio", None)
+        ciclos_pos_salvo     = dados.get("ciclos_positivos", 0)
+        log.info(f"Estado restaurado: {len(peak_roi)} picos | {len(dca_aplicado)} DCAs | Ciclo {ciclo_salvo} | Herdadas: {len(posicoes_herdadas)} | Ciclos positivos: {ciclos_pos_salvo}")
+        return ciclo_salvo, saldo_salvo, ciclos_pos_salvo
     except FileNotFoundError:
         return 1, None
     except Exception as e:
@@ -1417,7 +1430,7 @@ def main() -> None:
     log.info("=" * 50)
 
     client = Client(API_KEY, API_SECRET)
-    ciclo_salvo, saldo_ciclo_salvo = carregar_estado()
+    ciclo_salvo, saldo_ciclo_salvo, ciclos_positivos_salvos = carregar_estado()
 
     banca_inicial = get_banca(client)
     log.info(f"Saldo disponivel: ${banca_inicial:.2f} USDT")
@@ -1447,16 +1460,18 @@ def main() -> None:
     ultimo_entrada        = time.time()  # controla timeout sem entrada
 
     # Controle de ciclos
-    ciclo_num          = ciclo_salvo
-    saldo_total_atual  = get_saldo_total(client)
-    saldo_ciclo_inicio = saldo_ciclo_salvo if saldo_ciclo_salvo else saldo_total_atual
-    ultimo_check_ciclo = 0
-    meta_confirmacoes  = 0
-    _usd_brl_ini       = get_usd_brl(client)
-    _meta_ini_usdt     = saldo_ciclo_inicio * (META_CICLO_PCT / 100)
-    _meta_ini_brl      = _meta_ini_usdt * _usd_brl_ini if _usd_brl_ini > 0 else _meta_ini_usdt
-    log.info(f"Ciclo {ciclo_num} retomado | Saldo: ${saldo_ciclo_inicio:.2f} | Meta: ${_meta_ini_usdt:.2f} / R${_meta_ini_brl:.2f}")
-    telegram(f"<b>Ciclo {ciclo_num} retomado</b>\nSaldo: ${saldo_ciclo_inicio:.2f} USDT\nMeta: ${_meta_ini_usdt:.2f} USDT / R${_meta_ini_brl:.2f}")
+    ciclo_num                    = ciclo_salvo
+    ciclos_positivos_consecutivos = ciclos_positivos_salvos
+    saldo_total_atual            = get_saldo_total(client)
+    saldo_ciclo_inicio           = saldo_ciclo_salvo if saldo_ciclo_salvo else saldo_total_atual
+    ultimo_check_ciclo           = 0
+    meta_confirmacoes            = 0
+    _usd_brl_ini                 = get_usd_brl(client)
+    _meta_pct_ini                = meta_formiguinha(ciclos_positivos_consecutivos)
+    _meta_ini_usdt               = saldo_ciclo_inicio * (_meta_pct_ini / 100)
+    _meta_ini_brl                = _meta_ini_usdt * _usd_brl_ini if _usd_brl_ini > 0 else _meta_ini_usdt
+    log.info(f"Ciclo {ciclo_num} retomado | Saldo: ${saldo_ciclo_inicio:.2f} | Meta: {_meta_pct_ini:.1f}% (${_meta_ini_usdt:.2f} / R${_meta_ini_brl:.2f}) | Ciclos positivos: {ciclos_positivos_consecutivos}")
+    telegram(f"<b>Ciclo {ciclo_num} retomado</b>\nSaldo: ${saldo_ciclo_inicio:.2f} USDT\nMeta: {_meta_pct_ini:.1f}% = ${_meta_ini_usdt:.2f} / R${_meta_ini_brl:.2f}\nCiclos positivos consecutivos: {ciclos_positivos_consecutivos}")
 
     while bot_ativo:
         try:
@@ -1470,9 +1485,9 @@ def main() -> None:
                 try:
                     abertas_ciclo   = posicoes_abertas(client)
                     usd_brl_c       = get_usd_brl(client)
-                    # Sempre 5% do saldo do ciclo — composto em todas as fases
-                    meta_ciclo_usdt = saldo_ciclo_inicio * (META_CICLO_PCT / 100)
-                    fase_txt        = f"{META_CICLO_PCT:.0f}% | meta ${meta_ciclo_usdt:.2f}"
+                    meta_pct_atual  = meta_formiguinha(ciclos_positivos_consecutivos)
+                    meta_ciclo_usdt = saldo_ciclo_inicio * (meta_pct_atual / 100)
+                    fase_txt        = f"{meta_pct_atual:.1f}% | meta ${meta_ciclo_usdt:.2f}"
                     meta_brl        = meta_ciclo_usdt * usd_brl_c if usd_brl_c > 0 else meta_ciclo_usdt
                     if abertas_ciclo:
                         # PnL do ciclo = apenas posições do ciclo atual (exclui herdadas)
@@ -1572,7 +1587,13 @@ def main() -> None:
                             lucro_ciclo    = saldo_novo - saldo_ciclo_inicio
                             lucro_brl      = lucro_ciclo * usd_brl_c if usd_brl_c > 0 else lucro_ciclo
                             pct_real       = (lucro_ciclo / saldo_ciclo_inicio * 100) if saldo_ciclo_inicio > 0 else 0
-                            nova_meta_usdt = saldo_novo * (META_CICLO_PCT / 100)
+                            # Atualiza contador formiguinha
+                            if lucro_ciclo > 0:
+                                ciclos_positivos_consecutivos += 1
+                            else:
+                                ciclos_positivos_consecutivos = 0
+                            nova_meta_pct  = meta_formiguinha(ciclos_positivos_consecutivos)
+                            nova_meta_usdt = saldo_novo * (nova_meta_pct / 100)
                             nova_meta_brl  = nova_meta_usdt * usd_brl_c if usd_brl_c > 0 else nova_meta_usdt
                             sinal_lucro    = "+" if lucro_ciclo >= 0 else ""
 
@@ -1587,7 +1608,8 @@ def main() -> None:
                                 msg += f"\n\nHerdadas para o ciclo {ciclo_num + 1}:\n" + "\n".join(resultados_herdados)
                             msg += (
                                 f"\n\n<b>Ciclo {ciclo_num + 1} iniciado</b>\n"
-                                f"Meta: ${nova_meta_usdt:.2f} USDT / R${nova_meta_brl:.2f}"
+                                f"Meta: {nova_meta_pct:.1f}% = ${nova_meta_usdt:.2f} USDT / R${nova_meta_brl:.2f}\n"
+                                f"Ciclos positivos consecutivos: {ciclos_positivos_consecutivos}"
                             )
                             telegram(msg)
                             log.info(f"Ciclo {ciclo_num} encerrado! Lucro: {sinal_lucro}{lucro_ciclo:.2f} USDT | Ciclo {ciclo_num+1} | Meta: R${nova_meta_brl:.2f}")
@@ -1608,7 +1630,7 @@ def main() -> None:
                                 if sym not in posicoes_herdadas:
                                     posicao_abertura.pop(sym, None)
                             dca_ativo = None
-                            salvar_estado(ciclo_num=ciclo_num, saldo_ciclo_inicio=saldo_ciclo_inicio)
+                            salvar_estado(ciclo_num=ciclo_num, saldo_ciclo_inicio=saldo_ciclo_inicio, ciclos_positivos=ciclos_positivos_consecutivos)
                 except Exception as e:
                     log.warning(f"Erro verificacao ciclo: {e}")
 
