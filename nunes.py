@@ -736,10 +736,10 @@ def carregar_estado():
         log.info(f"Estado restaurado: {len(peak_roi)} picos | {len(dca_aplicado)} DCAs | Ciclo {ciclo_salvo} | Herdadas: {len(posicoes_herdadas)} | Ciclos positivos: {ciclos_pos_salvo}")
         return ciclo_salvo, saldo_salvo, ciclos_pos_salvo
     except FileNotFoundError:
-        return 1, None
+        return 1, None, 0
     except Exception as e:
         log.warning(f"Erro ao carregar estado: {e}")
-        return 1, None
+        return 1, None, 0
 
 def calcular_roi(posicao: dict) -> float:
     """
