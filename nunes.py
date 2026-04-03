@@ -2293,35 +2293,12 @@ def main() -> None:
                     # Ordena: PREMIUM primeiro
                     sinais_encontrados.sort(key=lambda x: 0 if x[4] == "PREMIUM" else 1)
 
-                    vagas_disponiveis = max_pos_dinamico - len(abertas)
-                    MINIMO_SINAIS     = 3   # aguarda pelo menos 3 sinais antes de abrir
-                    TIMEOUT_SINAIS    = 15  # minutos aguardando acumular sinais
-
-                    if len(sinais_encontrados) >= MINIMO_SINAIS or vagas_disponiveis == 0:
-                        # Tem sinais suficientes — abre os melhores
-                        abertos_agora = 0
-                        for symbol, sinal, direcao_4h, preco, qualidade in sinais_encontrados:
-                            if len(posicoes_abertas(client)) >= max_pos_dinamico:
-                                break
-                            if abertos_agora >= MINIMO_SINAIS:
-                                break
-                            log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | 4H: {direcao_4h} | Preco: {preco}")
-                            abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
-                            ultimo_entrada = time.time()
-                            abertos_agora += 1
-                    elif len(sinais_encontrados) > 0:
-                        # Tem sinais mas menos que 3 — verifica timeout
-                        tempo_aguardando = (time.time() - ultimo_entrada) / 60
-                        if tempo_aguardando >= TIMEOUT_SINAIS:
-                            log.info(f"Timeout {TIMEOUT_SINAIS}min atingido com {len(sinais_encontrados)} sinal(is) — abrindo mesmo assim")
-                            for symbol, sinal, direcao_4h, preco, qualidade in sinais_encontrados:
-                                if len(posicoes_abertas(client)) >= max_pos_dinamico:
-                                    break
-                                log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | 4H: {direcao_4h} | Preco: {preco}")
-                                abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
-                                ultimo_entrada = time.time()
-                        else:
-                            log.info(f"Aguardando mais sinais: {len(sinais_encontrados)}/{MINIMO_SINAIS} | {TIMEOUT_SINAIS - tempo_aguardando:.0f}min para timeout")
+                    for symbol, sinal, direcao_1h, preco, qualidade in sinais_encontrados:
+                        if len(posicoes_abertas(client)) >= max_pos_dinamico:
+                            break
+                        log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | 1H: {direcao_1h} | Preco: {preco}")
+                        abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
+                        ultimo_entrada = time.time()
 
                     log.info(f"Varredura concluida: {len(pares_filtrados)} pares | {len(sinais_encontrados)} sinais encontrados")
 
