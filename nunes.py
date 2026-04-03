@@ -766,6 +766,32 @@ def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
         return c2["ma7"] >= c2["ma25"] and c1["ma7"] < c1["ma25"]
 
 
+def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
+    """
+    Verifica se o dca_ativo atual ainda tem sinal de recuperação ativo.
+    Se MA7 não está se aproximando de MA25 na direção favorável, o bloqueio
+    da fila é liberado para quem tiver sinal.
+    """
+    if not dca_ativo:
+        return False
+    posicao = next((p for p in abertas if p["symbol"] == dca_ativo), None)
+    if not posicao:
+        return False
+    direcao = "LONG" if float(posicao["positionAmt"]) > 0 else "SHORT"
+    try:
+        df = get_candles(client, dca_ativo, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+        df["ma7"]  = df["close"].rolling(7).mean()
+        df["ma25"] = df["close"].rolling(25).mean()
+        c1 = df.iloc[-1]
+        # Sinal ativo = MA7 já está do lado correto (em recuperação)
+        if direcao == "LONG":
+            return c1["ma7"] > c1["ma25"]
+        else:
+            return c1["ma7"] < c1["ma25"]
+    except Exception:
+        return False
+
+
 def rsi_extremo(client: Client, symbol: str, direcao: str, periodo: int = 14) -> bool:
     """
     Retorna True se RSI estiver em extremo favorável ao DCA:
@@ -1830,8 +1856,8 @@ def main() -> None:
 
                 # --- DCA ANTECIPADO (-150% com sinal de MA) ---
                 elif roi <= DCA_ANTECIPADO_ROI and roi > -200.0 and symbol not in dca_aplicado:
-                    if dca_ativo and dca_ativo != symbol:
-                        log.info(f"  {symbol}: ROI {roi:.1f}% | DCA antecipado bloqueado ({dca_ativo} em recuperacao)")
+                    if dca_ativo and dca_ativo != symbol and dca_ativo_tem_sinal(client, abertas):
+                        log.info(f"  {symbol}: ROI {roi:.1f}% | DCA antecipado bloqueado ({dca_ativo} em recuperacao com sinal ativo)")
                     else:
                         try:
                             ma_ok  = ma_cruza_favor(client, symbol, direcao)
@@ -1861,8 +1887,8 @@ def main() -> None:
 
                 # --- AGUARDANDO SINAL PARA DCA ---
                 elif roi <= -200.0:
-                    if dca_ativo and dca_ativo != symbol:
-                        log.info(f"  {symbol}: ROI {roi:.1f}% | DCA bloqueado ({dca_ativo} em recuperacao)")
+                    if dca_ativo and dca_ativo != symbol and dca_ativo_tem_sinal(client, abertas):
+                        log.info(f"  {symbol}: ROI {roi:.1f}% | DCA bloqueado ({dca_ativo} em recuperacao com sinal ativo)")
                         continue
 
                     try:
@@ -1923,8 +1949,8 @@ def main() -> None:
                     else:
                         # DCA antecipado em -80%: se MA cruzou a favor, entra agora para recuperar mais cedo
                         if roi <= -80 and symbol not in dca_aplicado:
-                            if dca_ativo and dca_ativo != symbol:
-                                log.info(f"  {symbol}: ROI {roi:.1f}% | DCA -80% bloqueado ({dca_ativo} em recuperacao)")
+                            if dca_ativo and dca_ativo != symbol and dca_ativo_tem_sinal(client, abertas):
+                                log.info(f"  {symbol}: ROI {roi:.1f}% | DCA -80% bloqueado ({dca_ativo} em recuperacao com sinal ativo)")
                             else:
                                 try:
                                     ma_ok = ma_cruza_favor(client, symbol, direcao)
