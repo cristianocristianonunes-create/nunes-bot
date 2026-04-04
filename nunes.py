@@ -2282,8 +2282,28 @@ def main() -> None:
                                 dca_ativo = None
                         else:
                             log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% | meta {meta_saida:.0f}% ({motivo_meta}) | aguardando")
+                            # Envia análise de gráfico a cada 5 minutos
+                            alerta_key = f"3x_acomp_{symbol}"
+                            if time.time() - alerta_dca_log.get(alerta_key, 0) >= 300:
+                                grafico = analise_grafico_3x(client, symbol, direcao)
+                                telegram(
+                                    f"<b>Acompanhamento 3x: {symbol} (#{n_3x})</b>\n"
+                                    f"{direcao} | ROI: {roi:+.1f}% | Meta: +{meta_saida:.0f}% ({motivo_meta})"
+                                    f"{grafico}"
+                                )
+                                alerta_dca_log[alerta_key] = time.time()
                     else:
                         log.info(f"  {symbol}: [EM 3x #{n_3x}] ROI {roi:+.1f}% | aguardando virar positivo")
+                        # Envia análise de gráfico a cada 5 minutos
+                        alerta_key = f"3x_acomp_{symbol}"
+                        if time.time() - alerta_dca_log.get(alerta_key, 0) >= 300:
+                            grafico = analise_grafico_3x(client, symbol, direcao)
+                            telegram(
+                                f"<b>Acompanhamento 3x: {symbol} (#{n_3x})</b>\n"
+                                f"{direcao} | ROI: {roi:+.1f}% | Aguardando virar positivo"
+                                f"{grafico}"
+                            )
+                            alerta_dca_log[alerta_key] = time.time()
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ESCALONADO ---
                 elif roi > 0 and pico >= 5:
