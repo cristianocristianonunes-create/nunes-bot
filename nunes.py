@@ -45,12 +45,24 @@ MAX_POSICOES          = 30   # limite de segurança absoluto — controle dinâm
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
     Retorna (max_posicoes, risco_por_trade) baseado no saldo atual.
-    Scalping: 4 posições, margem menor. Swing: tabela progressiva.
+    Mais saldo = mais posições = mais proteção por diversificação.
+    Risco total máximo ~10% do saldo. Rácio de Margem é a trava final.
     """
     if ESTRATEGIA == "scalping":
-        return 4, 0.013  # 4 posições, 1.3% risco cada
-    # Híbrido e swing: sempre 14 posições
-    return 14, 0.007
+        return 4, 0.013
+    # Escala progressiva: mais saldo, mais ativos, menos risco por trade
+    if saldo < 50:
+        return 8, 0.012     # 8 posições, ~10% alocado
+    elif saldo < 100:
+        return 10, 0.010    # 10 posições, ~10% alocado
+    elif saldo < 300:
+        return 14, 0.007    # 14 posições, ~10% alocado
+    elif saldo < 500:
+        return 18, 0.005    # 18 posições, ~9% alocado
+    elif saldo < 1000:
+        return 22, 0.004    # 22 posições, ~9% alocado
+    else:
+        return 26, 0.003    # 26 posições, ~8% alocado
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
@@ -653,10 +665,20 @@ def get_top_pares(client: Client, n: int = TOP_PARES) -> list[str]:
     complementares.sort(key=lambda x: x["_score"], reverse=True)
     complementares_symbols = [t["symbol"] for t in complementares]
 
-    # Lista final: prioritários na frente, complementares completam até N
-    pares = prioritarios + [s for s in complementares_symbols if s not in prioritarios]
-    pares = pares[:n]
-    log.info(f"Pares selecionados: {len(prioritarios)} prioritarios + {len(pares)-len(prioritarios)} complementares | Total: {len(pares)}")
+    # Reordena TODOS por variação 24h (maior movimento = mais momentum)
+    todos = prioritarios + [s for s in complementares_symbols if s not in prioritarios]
+    todos_com_var = []
+    for s in todos:
+        if s in ticker_map:
+            var = abs(float(ticker_map[s]["priceChangePercent"]))
+            todos_com_var.append((s, var))
+    todos_com_var.sort(key=lambda x: x[1], reverse=True)
+
+    # Top movers primeiro — são os que têm tendência real
+    pares = [s for s, v in todos_com_var[:n]]
+    top5 = [(s, v) for s, v in todos_com_var[:5]]
+    top5_txt = " | ".join([f"{s} {v:.1f}%" for s, v in top5])
+    log.info(f"Pares selecionados: {len(pares)} | Top movers: {top5_txt}")
     return pares
 
 
