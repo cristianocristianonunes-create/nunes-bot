@@ -1138,10 +1138,11 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     cruzou_alta  = c_ant["ma7"] <= c_ant["ma25"] and c_ref["ma7"] > c_ref["ma25"]
     cruzou_baixa = c_ant["ma7"] >= c_ant["ma25"] and c_ref["ma7"] < c_ref["ma25"]
 
-    # Volume 1.5x a média — elimina falsos rompimentos com volume fraco
-    volume_ok = c_vol["volume"] >= c_vol["vol_media"] * 1.5
+    # Volume — scalping aceita volume normal, swing exige 1.5x
+    vol_mult = 1.0 if ESTRATEGIA == "scalping" else 1.5
+    volume_ok = c_vol["volume"] >= c_vol["vol_media"] * vol_mult
 
-    # RSI no M1 — restrito a 55/45 para evitar entrar em movimentos já esticados
+    # RSI no M1
     delta = df["close"].diff()
     gain  = delta.clip(lower=0).rolling(14).mean()
     loss  = (-delta.clip(upper=0)).rolling(14).mean()
@@ -1149,17 +1150,18 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     rsi_series = 100 - (100 / (1 + rs))
     rsi   = rsi_series.iloc[-2]  # RSI do candle fechado
 
-    # Filtro principal: RSI não pode estar esticado contra a entrada
-    rsi_ok = (direcao == "alta" and rsi < 55) or (direcao == "baixa" and rsi > 45)
+    # RSI — scalping mais flexível (65/35), swing mais restrito (55/45)
+    if ESTRATEGIA == "scalping":
+        rsi_ok = (direcao == "alta" and rsi < 65) or (direcao == "baixa" and rsi > 35)
+        retraction_ok = True  # sem filtro de retração no scalping
+    else:
+        rsi_ok = (direcao == "alta" and rsi < 55) or (direcao == "baixa" and rsi > 45)
+        retraction_ok = (direcao == "alta" and rsi >= 35) or (direcao == "baixa" and rsi <= 65)
 
-    # Filtro de retração: RSI não pode estar MUITO esticado na direção (evita entrar no impulso)
-    # Para LONG: RSI não deve estar abaixo de 35 (sobrevendido demais = impulso já aconteceu)
-    # Para SHORT: RSI não deve estar acima de 65 (sobrecomprado demais = impulso já aconteceu)
-    retraction_ok = (direcao == "alta" and rsi >= 35) or (direcao == "baixa" and rsi <= 65)
-
-    # ADX > 20 — só entra em mercado com tendência real, evita lateralização
+    # ADX — scalping aceita tendência mais fraca (12), swing exige 20
     adx       = calcular_adx(df)
-    adx_ok    = adx >= 20.0
+    adx_min   = 12.0 if ESTRATEGIA == "scalping" else 20.0
+    adx_ok    = adx >= adx_min
 
     if direcao == "alta" and cruzou_alta and volume_ok and rsi_ok and retraction_ok and adx_ok:
         return "LONG"
