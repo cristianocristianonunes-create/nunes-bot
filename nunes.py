@@ -1842,24 +1842,6 @@ def main() -> None:
 
                 pico = peak_roi.get(symbol, roi)
 
-                # --- STOP LOSS MÁXIMO ABSOLUTO ---
-                if roi <= ROI_STOP_LOSS_MAX:
-                    log.warning(f"  {symbol}: STOP LOSS MAX {roi:+.1f}% <= {ROI_STOP_LOSS_MAX:.0f}% -> fechando")
-                    telegram(
-                        f"<b>Stop Loss Maximo: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}%\n"
-                        f"Limite absoluto ({ROI_STOP_LOSS_MAX:.0f}%) atingido."
-                    )
-                    fechar_parcial(client, p, 1.0, f"Stop loss max ({roi:.0f}%)")
-                    peak_roi.pop(symbol, None)
-                    ma_reverteu.pop(symbol, None)
-                    posicao_abertura.pop(symbol, None)
-                    dca_aplicado.discard(symbol)
-                    roi_no_dca.pop(symbol, None)
-                    if dca_ativo == symbol:
-                        dca_ativo = None
-                    continue
-
                 # --- MODO SCALPING PURO: TP/SL rápido, sem DCA, sem trailing ---
                 # (modo híbrido usa trailing do swing, não entra aqui)
                 if ESTRATEGIA == "scalping" and ESTRATEGIA != "hibrido":
@@ -1953,22 +1935,6 @@ def main() -> None:
                             dca_ativo = None
                             log.info(f"  DCA encerrado para {symbol}. Racio de margem restaurado.")
 
-                    # Stop pós-DCA: caiu mais 30% após o DCA — DCA foi errado, corta
-                    elif roi < roi_entrada_dca - 30.0:
-                        log.warning(f"  {symbol}: [STOP POS-DCA] ROI {roi:+.1f}% | entrada DCA era {roi_entrada_dca:+.1f}% | caiu mais 30% -> fechando")
-                        telegram(
-                            f"<b>Stop pós-DCA: {symbol}</b>\n"
-                            f"{direcao} | ROI atual: {roi:+.1f}%\n"
-                            f"ROI no DCA: {roi_entrada_dca:+.1f}%\n"
-                            f"DCA errado — caiu mais 30% após aplicação."
-                        )
-                        fechar_parcial(client, p, 1.0, f"Stop pos-DCA -30% (ROI {roi:.1f}%)")
-                        dca_aplicado.discard(symbol)
-                        roi_no_dca.pop(symbol, None)
-                        peak_roi.pop(symbol, None)
-                        ma_reverteu.pop(symbol, None)
-                        if dca_ativo == symbol:
-                            dca_ativo = None
                     else:
                         log.info(f"  {symbol}: [EM DCA] ROI {roi:+.1f}% | entrada DCA {roi_entrada_dca:+.1f}% | aguardando +2%")
 
@@ -1992,91 +1958,9 @@ def main() -> None:
                     else:
                         log.info(f"  {symbol}: ROI {roi:+.1f}% | pico {pico:.0f}% | trailing ok (tol {tolerancia:.0%})")
 
-                # --- STOP -30% SEM SINAL DE MA ---
-                elif roi < -30.0 and symbol not in dca_aplicado:
-                    try:
-                        ma_ok = ma_cruza_favor(client, symbol, direcao)
-                    except Exception:
-                        ma_ok = False
-                    if ma_ok:
-                        sinal_ma_detectado[symbol] = time.time()
-                        log.info(f"  {symbol}: ROI {roi:+.1f}% < -30% mas MA cruzou a favor | aguardando DCA")
-                    else:
-                        log.warning(f"  {symbol}: ROI {roi:+.1f}% < -30% sem sinal de MA -> entrada errada, cortando")
-                        telegram(
-                            f"<b>Stop -30% sem sinal: {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}%\n"
-                            f"Sem cruzamento de MA a favor. Entrada errada."
-                        )
-                        fechar_parcial(client, p, 1.0, f"Stop -30% sem sinal MA ({roi:.0f}%)")
-                        peak_roi.pop(symbol, None)
-                        ma_reverteu.pop(symbol, None)
-                        posicao_abertura.pop(symbol, None)
-                        sinal_ma_detectado.pop(symbol, None)
-                        if dca_ativo == symbol:
-                            dca_ativo = None
-                        continue
-
-                # --- STOP POR TEMPO (3h sem recuperação) ---
-                elif roi < 0 and (time.time() - posicao_abertura.get(symbol, time.time())) / 3600 >= STOP_TEMPO_HORAS:
-                    horas_aberta = (time.time() - posicao_abertura.get(symbol, time.time())) / 3600
-                    if symbol in dca_aplicado:
-                        # Já fez DCA e ainda não recuperou — fecha para liberar margem
-                        log.info(f"  {symbol}: {horas_aberta:.1f}h pos-DCA sem recuperacao | ROI {roi:+.1f}% | fechando")
-                        telegram(
-                            f"<b>Stop por tempo pos-DCA: {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}%\n"
-                            f"Posicao aberta ha {horas_aberta:.1f}h sem recuperacao apos DCA."
-                        )
-                        fechar_parcial(client, p, 1.0, f"Stop por tempo pos-DCA ({horas_aberta:.1f}h)")
-                        posicao_abertura.pop(symbol, None)
-                        peak_roi.pop(symbol, None)
-                        dca_aplicado.discard(symbol)
-                        if dca_ativo == symbol:
-                            dca_ativo = None
-                        continue
-                    else:
-                        # Sem DCA ainda — tenta DCA se houver sinal
-                        # Se nunca houve sinal de MA em STOP_SEM_SINAL_HORAS, fecha
-                        try:
-                            ma_ok = ma_cruza_favor(client, symbol, direcao)
-                            if ma_ok:
-                                sinal_ma_detectado[symbol] = time.time()
-                                if dca_bloqueado_por_racio:
-                                    log.warning(f"  {symbol}: DCA bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
-                                else:
-                                    log.info(f"  {symbol}: {horas_aberta:.1f}h sem recuperacao | MA cruzou -> aplicando DCA antes de fechar")
-                                    aplicar_dca(client, p, banca)
-                                    dca_ativo = symbol
-                            else:
-                                # Verifica se nunca houve sinal de MA desde a abertura
-                                ultimo_sinal = sinal_ma_detectado.get(symbol, 0)
-                                abertura_ts  = posicao_abertura.get(symbol, time.time())
-                                sem_sinal_horas = (time.time() - max(abertura_ts, ultimo_sinal)) / 3600
-                                if sem_sinal_horas >= STOP_SEM_SINAL_HORAS and symbol not in dca_aplicado:
-                                    log.warning(f"  {symbol}: {horas_aberta:.1f}h aberta | {sem_sinal_horas:.1f}h sem sinal de MA | entrada errada -> fechando")
-                                    telegram(
-                                        f"<b>Stop sem sinal: {symbol}</b>\n"
-                                        f"{direcao} | ROI: {roi:+.1f}%\n"
-                                        f"Aberta ha {horas_aberta:.1f}h sem nenhum sinal de reversao.\n"
-                                        f"Entrada considerada errada — preservando capital."
-                                    )
-                                    fechar_parcial(client, p, 1.0, f"Stop sem sinal MA ({sem_sinal_horas:.1f}h)")
-                                    posicao_abertura.pop(symbol, None)
-                                    sinal_ma_detectado.pop(symbol, None)
-                                    peak_roi.pop(symbol, None)
-                                else:
-                                    ultimo_alerta_tempo = alerta_dca_log.get(f"tempo_{symbol}", 0)
-                                    if time.time() - ultimo_alerta_tempo >= 1800:
-                                        telegram(
-                                            f"<b>Atencao: {symbol} parado ha {horas_aberta:.1f}h</b>\n"
-                                            f"{direcao} | ROI: {roi:+.1f}%\n"
-                                            f"MA nao reverteu. Fecha automatico em {STOP_SEM_SINAL_HORAS:.0f}h sem sinal."
-                                        )
-                                        alerta_dca_log[f"tempo_{symbol}"] = time.time()
-                                        log.warning(f"  {symbol}: {horas_aberta:.1f}h sem recuperacao | MA nao reverteu | fecha em {STOP_SEM_SINAL_HORAS - sem_sinal_horas:.1f}h se nao aparecer sinal")
-                        except Exception as e:
-                            log.warning(f"  Erro stop-tempo {symbol}: {e}")
+                # --- MONITORAMENTO NEGATIVO (sem stop por ROI/tempo — Rácio de Margem protege) ---
+                elif roi < 0:
+                    log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando reversao (Racio protege)")
 
                 # --- DCA ANTECIPADO (-150% com sinal de MA) ---
                 elif roi <= DCA_ANTECIPADO_ROI and roi > -200.0 and symbol not in dca_aplicado:
