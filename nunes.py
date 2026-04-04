@@ -691,8 +691,7 @@ def tendencia_1h(client: Client, symbol: str) -> tuple[str, bool]:
     """
     Retorna ('alta'|'baixa', confirmado).
     confirmado = True se MA7 e MA25 estão claramente separadas no 1H (spread >= 0.3%).
-    Equilibra lag (4H era alto) e ruído (5min era alto).
-    Fluxo: 1H (direção) → 5min (alinhamento) → M1 (gatilho)
+    Usado no modo swing: 1H (direção) → 5min (alinhamento) → M1 (gatilho)
     """
     df = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
     df["ma7"]  = df["close"].rolling(7).mean()
@@ -701,6 +700,23 @@ def tendencia_1h(client: Client, symbol: str) -> tuple[str, bool]:
     direcao = "alta" if ultima["ma7"] > ultima["ma25"] else "baixa"
     spread = abs(ultima["ma7"] - ultima["ma25"]) / ultima["ma25"] if ultima["ma25"] > 0 else 0
     confirmado = spread >= 0.003
+    return direcao, confirmado
+
+
+def tendencia_5min(client: Client, symbol: str) -> tuple[str, bool]:
+    """
+    Retorna ('alta'|'baixa', confirmado).
+    confirmado = True se MA7 e MA25 estão separadas no 5min (spread >= 0.2%).
+    Usado no modo scalping: 5min (direção) → M1 (gatilho)
+    Spread menor (0.2%) que 1H (0.3%) para capturar mais sinais rápidos.
+    """
+    df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+    df["ma7"]  = df["close"].rolling(7).mean()
+    df["ma25"] = df["close"].rolling(25).mean()
+    ultima = df.iloc[-1]
+    direcao = "alta" if ultima["ma7"] > ultima["ma25"] else "baixa"
+    spread = abs(ultima["ma7"] - ultima["ma25"]) / ultima["ma25"] if ultima["ma25"] > 0 else 0
+    confirmado = spread >= 0.002
     return direcao, confirmado
 
 
@@ -1103,8 +1119,8 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     - Filtro de retração: RSI não pode estar muito esticado NA direção da entrada
       (evita entrar no topo/fundo do impulso inicial)
     """
-    # Confirmação 5min — MA7 alinhada com direção do 1H
-    if not ma_alinhada_5min(client, symbol, direcao):
+    # Confirmação 5min — MA7 alinhada com direção (pula no scalping, já vem do 5min)
+    if ESTRATEGIA != "scalping" and not ma_alinhada_5min(client, symbol, direcao):
         return None
 
     # Gatilho no M1
@@ -2320,10 +2336,13 @@ def main() -> None:
 
                     def analisar_par(symbol):
                         try:
-                            direcao_1h, confirmado = tendencia_1h(client, symbol)
+                            if ESTRATEGIA == "scalping":
+                                direcao_tf, confirmado = tendencia_5min(client, symbol)
+                            else:
+                                direcao_tf, confirmado = tendencia_1h(client, symbol)
                             if not camada2_ativa and not confirmado:
                                 return
-                            sinal = sinal_m1(client, symbol, direcao_1h)
+                            sinal = sinal_m1(client, symbol, direcao_tf)
                             if sinal:
                                 # Bloqueia SHORT em pares correlatos ao BTC apenas quando BTC em alta
                                 if (sinal == "SHORT"
@@ -2340,7 +2359,7 @@ def main() -> None:
                                 preco = float(client.futures_symbol_ticker(symbol=symbol)["price"])
                                 qualidade = "PREMIUM" if confirmado else "NORMAL"
                                 with lock_sinais:
-                                    sinais_encontrados.append((symbol, sinal, direcao_1h, preco, qualidade))
+                                    sinais_encontrados.append((symbol, sinal, direcao_tf, preco, qualidade))
                         except Exception as e:
                             log.warning(f"Erro ao analisar {symbol}: {e}")
 
