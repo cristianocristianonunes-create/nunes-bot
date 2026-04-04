@@ -882,6 +882,7 @@ roi_no_dca:            dict[str, float] = {}   # ROI no momento em que o DCA foi
 alerta_ciclo_risco_ts: float           = 0.0  # timestamp do último alerta de ciclo em risco
 posicoes_herdadas:     set[str]        = set() # symbols herdados de ciclos anteriores (negativos não fechados)
 margem_registrada:     dict[str, float] = {}  # margem inicial registrada por symbol para detectar DCA manual
+topup_recente:         dict[str, float] = {}  # symbols que tiveram topup recente (ignora na detecção DCA)
 posicoes_bruno:        set[str]        = set() # symbols que entraram pelo modo Bruno
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
 
@@ -2007,16 +2008,19 @@ def main() -> None:
                 roi     = calcular_roi(p)
                 margem_atual = float(p.get("positionInitialMargin", 0))
 
-                # Detecta DCA manual: margem aumentou > 15% desde o último registro
+                # Detecta DCA manual: margem aumentou > 100% desde o último registro
+                # Ignora topups recentes (< 5 min) — topup é pequeno, DCA real triplica
                 if symbol in margem_registrada:
                     margem_anterior = margem_registrada[symbol]
-                    if margem_anterior > 0 and margem_atual > margem_anterior * 1.15:
+                    foi_topup = symbol in topup_recente and time.time() - topup_recente[symbol] < 300
+                    if margem_anterior > 0 and margem_atual > margem_anterior * 2.0 and not foi_topup:
                         if symbol not in dca_aplicado:
                             dca_aplicado.add(symbol)
+                            dca_contagem[symbol] = dca_contagem.get(symbol, 0) + 1
                             if dca_ativo is None:
                                 dca_ativo = symbol
-                            log.info(f"  {symbol}: DCA manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f}) | marcado como DCA aplicado")
-                            telegram(f"<b>DCA manual detectado: {symbol}</b>\nMargem aumentou de ${margem_anterior:.2f} para ${margem_atual:.2f}\nBot vai aguardar +2% para fechar.")
+                            log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f})")
+                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nBot vai aguardar saida inteligente (+3%/+10%).")
                 margem_registrada[symbol] = margem_atual
 
                 # Registra horário de abertura da posição
@@ -2285,6 +2289,7 @@ def main() -> None:
                                             type="MARKET", quantity=qty_add
                                         )
                                         alerta_dca_log[f"topup_{symbol}"] = time.time()
+                                        topup_recente[symbol] = time.time()  # marca para não confundir com DCA
                                         log.info(f"  {symbol}: topup automatico +${margem_add:.2f} | margem era ${margem_atual:.2f}")
                                         telegram(f"<b>Topup automático: {symbol}</b>\n{direcao} | ROI {roi:+.1f}% | +${margem_add:.2f} adicionado")
                             except Exception as e:
