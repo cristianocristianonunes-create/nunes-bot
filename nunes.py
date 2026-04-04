@@ -890,12 +890,12 @@ ESTADO_FILE = "C:/robo-trade/estado_bot.json"
 
 def meta_formiguinha(ciclos_positivos: int) -> float:
     """
-    Plano formiguinha: meta progressiva baseada em ciclos consecutivos positivos.
-    Começa em 2%, sobe 0.5% a cada 5 ciclos positivos, teto em 4%.
+    Meta progressiva: começa no valor do .env, sobe 0.5% a cada 5 ciclos positivos.
+    Teto = META_CICLO_PCT + 2% (ex: se .env = 5%, teto = 7%).
     """
     incrementos = ciclos_positivos // 5
-    meta = 2.0 + incrementos * 0.5
-    return min(meta, 4.0)
+    meta = META_CICLO_PCT + incrementos * 0.5
+    return min(meta, META_CICLO_PCT + 2.0)
 
 
 def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None, ciclos_positivos=None):
