@@ -2505,7 +2505,11 @@ def main() -> None:
                                     saldo_tp   = get_saldo_total(client)
                                     preco_tp   = float(client.futures_ticker(symbol=symbol)["lastPrice"])
                                     alav_tp    = alavancagem_dinamica(saldo_tp)
-                                    margem_add = saldo_tp * 0.01
+                                    margem_add = max(saldo_tp * 0.01, 0.30)  # mínimo $0.30 margem = $6 notional
+                                    # Garante notional mínimo de $5.50 (Binance exige $5)
+                                    notional_add = margem_add * alav_tp
+                                    if notional_add < 5.50:
+                                        margem_add = 5.50 / alav_tp
                                     step_tp    = get_step_size(client, symbol)
                                     qty_add    = arredondar_quantidade((margem_add * alav_tp) / preco_tp, step_tp)
                                     if qty_add > 0 and MODO == "real":
