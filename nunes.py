@@ -56,7 +56,7 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
     elif saldo < 100:
         return 10, 0.010    # 10 posições, ~10% alocado
     elif saldo < 300:
-        return 14, 0.007    # 14 posições, ~10% alocado
+        return 15, 0.007    # 15 posições, ~10% alocado
     elif saldo < 500:
         return 18, 0.005    # 18 posições, ~9% alocado
     elif saldo < 1000:
