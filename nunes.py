@@ -66,8 +66,8 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
-INTERVALO_POSICOES    = 30   # segundos entre verificação de posições
-INTERVALO_ENTRADAS    = 60   # segundos entre busca de novas entradas (2H timeframe, não precisa ser rápido)
+INTERVALO_POSICOES    = 15   # segundos entre verificação de posições (rápido para pegar 3x)
+INTERVALO_ENTRADAS    = 60   # segundos entre busca de novas entradas (2H timeframe)
 ROI_MIN_REVERSAO      = 20.0 # ROI mínimo para monitorar reversão (%)
 LIMITE_PERDA_DIARIA   = float(os.getenv("LIMITE_PERDA_DIARIA", "5.0"))  # % máximo de perda no dia
 ROI_STOP_LOSS_MAX     = float(os.getenv("ROI_STOP_LOSS_MAX", "-100.0"))  # fecha posição se ROI abaixo disso
@@ -2508,7 +2508,11 @@ def main() -> None:
                 verificar_atualizacao(reiniciar=True)
                 ultimo_check_update = time.time()
 
-            time.sleep(INTERVALO_POSICOES)
+            # Check mais rápido quando tem 3x ativo ou posição perto do gatilho
+            if dca_aplicado or any(calcular_roi(p) <= -180 for p in abertas if float(p["positionAmt"]) != 0):
+                time.sleep(5)   # 5s — monitora de perto o 3x e oportunidade
+            else:
+                time.sleep(INTERVALO_POSICOES)
 
         except KeyboardInterrupt:
             log.info("Nunes encerrado pelo usuario.")
