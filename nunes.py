@@ -1601,9 +1601,9 @@ def proteger_racio(client: Client, abertas: list) -> bool:
         # Fecha posições até voltar a 15%
         if time.time() - RACIO_ALERTA_TS >= 300:
             telegram(
-                f"<b>EMERGENCIA: Racio de Margem {racio:.1f}%</b>\n"
-                f"Fechando posicoes automaticamente ate voltar a {RACIO_BLOQUEIA_ENTRADAS:.0f}%.\n"
-                f"Posicoes sem DCA: {len(sem_dca)}"
+                f"<b>Protecao ativa: Racio {racio:.1f}%</b>\n"
+                f"Reorganizando posicoes para liberar margem.\n"
+                f"Abrindo espaco para novas oportunidades."
             )
             RACIO_ALERTA_TS = time.time()
         for posicao in sem_dca:
@@ -2045,7 +2045,7 @@ def main() -> None:
                 # +500%: fecha 50% e deixa resto correr com trailing apertado 10%
                 if roi >= 500 and symbol not in parcial_500:
                     log.info(f"  {symbol}: ROI {roi:+.1f}% >= +500% -> fechando 50%, resto com trailing 10%")
-                    telegram(f"<b>TP +500%: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nFechando 50% — resto corre com trailing apertado.")
+                    telegram(f"<b>Lucro extraordinario: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nGarantindo 50% do lucro! Resto continua correndo.")
                     fechar_parcial(client, p, 0.50, f"TP parcial +500% ({roi:+.1f}%)")
                     parcial_500.add(symbol)
                     continue
@@ -2054,7 +2054,7 @@ def main() -> None:
                     queda_pct = (pico - roi) / pico if pico > 0 else 0
                     if queda_pct >= 0.10:
                         log.info(f"  {symbol}: trailing pos-500%! Pico {pico:.0f}% -> atual {roi:.0f}% (queda 10%) -> fechando resto")
-                        telegram(f"<b>Trailing pos-500%: {symbol}</b>\n{direcao} | Pico: {pico:.0f}% | Atual: {roi:+.1f}%\nFechando posicao restante.")
+                        telegram(f"<b>Lucro protegido: {symbol}</b>\n{direcao} | Pico: {pico:.0f}% | Atual: {roi:+.1f}%\nFechando restante com lucro garantido.")
                         fechar_parcial(client, p, 1.0, f"Trailing pos-500% (pico {pico:.0f}%)")
                         parcial_500.discard(symbol)
                         peak_roi.pop(symbol, None)
@@ -2065,7 +2065,7 @@ def main() -> None:
                         continue
                 if roi <= -200:
                     log.warning(f"  {symbol}: ROI {roi:+.1f}% <= -200% -> fechando 100%")
-                    telegram(f"<b>SL -200%: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nLimite de perda atingido.")
+                    telegram(f"<b>Reposicionando: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nLiberando margem para oportunidades melhores.")
                     fechar_parcial(client, p, 1.0, f"SL -200% ({roi:+.1f}%)")
                     peak_roi.pop(symbol, None)
                     ma_reverteu.pop(symbol, None)
@@ -2160,9 +2160,10 @@ def main() -> None:
                     if roi >= 2.0:
                         log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% >= +2% -> fechando 90%, mantendo 10%")
                         telegram(
-                            f"<b>3x recuperou: {symbol}</b>\n"
+                            f"<b>Lucro realizado: {symbol}</b>\n"
                             f"{direcao} | ROI: {roi:+.1f}% | 3x aplicados: {n_3x}\n"
-                            f"Fechando 90% — mantendo 10% na posicao."
+                            f"Fechando 90% com lucro! 10% continua na posicao.\n"
+                            f"Estrategia 3x entregou resultado!"
                         )
                         fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} (ROI {roi:.1f}%)")
                         dca_aplicado.discard(symbol)
@@ -2217,7 +2218,7 @@ def main() -> None:
 
                 # --- MONITORAMENTO NEGATIVO (sem stop por ROI/tempo — Rácio de Margem protege) ---
                 elif roi < 0:
-                    log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando reversao (Racio protege)")
+                    log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando oportunidade de 3x")
 
                 # --- ESTRATÉGIA 3x (DCA padrão Bruno) ---
                 # Gatilho: ROI <= -200% + MA7 cruzando a favor no 5min
@@ -2236,12 +2237,13 @@ def main() -> None:
                                 dca_contagem[symbol] = n_3x + 1
                                 dca_ativo = symbol
                                 telegram(
-                                    f"<b>3x aplicado: {symbol} (#{n_3x + 1})</b>\n"
+                                    f"<b>OBA! 3x ativado: {symbol} (#{n_3x + 1})</b>\n"
                                     f"{direcao} | ROI: {roi:+.1f}%\n"
-                                    f"MA7 cruzou a favor. Margem triplicada."
+                                    f"MA7 cruzou MA25 e MA99 a favor!\n"
+                                    f"Oportunidade de lucro com spread maior. Vamos la!"
                                 )
                         else:
-                            log.info(f"  {symbol}: ROI {roi:.1f}% | 3x #{n_3x + 1} pronto | aguardando MA cruzar a favor")
+                            log.info(f"  {symbol}: ROI {roi:.1f}% | 3x #{n_3x + 1} preparado | aguardando sinal de reversao para lucrar")
                     except Exception as e:
                         log.warning(f"  Erro 3x {symbol}: {e}")
                 # --- MONITORANDO (positivo mas abaixo do limiar de reversão) ---
