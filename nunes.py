@@ -29,6 +29,10 @@ API_SECRET         = os.getenv("BINANCE_API_SECRET")
 TELEGRAM_TOKEN     = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 
+# Copy trading: API read-only da conta master (opcional)
+MASTER_API_KEY     = os.getenv("MASTER_API_KEY", "")
+MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
+
 MODO               = os.getenv("MODO", "simulacao")
 ESTRATEGIA         = os.getenv("ESTRATEGIA", "swing")  # "swing", "scalping" ou "hibrido"
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
@@ -617,6 +621,52 @@ def get_candles(client: Client, symbol: str, interval: str, limit: int = 100) ->
     df["low"]    = df["low"].astype(float)
     df["volume"] = df["volume"].astype(float)
     return df
+
+
+# ---------------------------------------------------------------------------
+# Copy trading: consulta conta master
+# ---------------------------------------------------------------------------
+_master_client = None
+_master_cache: dict[str, dict] = {}   # symbol -> {"direcao": "LONG"/"SHORT", "roi": float}
+_master_cache_ts: float = 0
+
+def get_master_positions() -> dict[str, dict]:
+    """
+    Retorna posições abertas da conta master com ROI positivo.
+    Cache de 60 segundos para não sobrecarregar a API.
+    Retorna {} se MASTER_API_KEY não configurado.
+    """
+    global _master_client, _master_cache, _master_cache_ts
+    if not MASTER_API_KEY or not MASTER_API_SECRET:
+        return {}
+
+    if time.time() - _master_cache_ts < 60:
+        return _master_cache
+
+    try:
+        if _master_client is None:
+            _master_client = Client(MASTER_API_KEY, MASTER_API_SECRET)
+
+        posicoes = _master_client.futures_position_information()
+        resultado = {}
+        for p in posicoes:
+            amt = float(p["positionAmt"])
+            if amt == 0:
+                continue
+            symbol = p["symbol"]
+            direcao = "LONG" if amt > 0 else "SHORT"
+            pnl = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+            margem = float(p.get("initialMargin", p.get("positionInitialMargin", 0)))
+            roi = (pnl / margem * 100) if margem > 0 else 0
+            if roi > 0:  # só copia posições positivas
+                resultado[symbol] = {"direcao": direcao, "roi": roi}
+
+        _master_cache = resultado
+        _master_cache_ts = time.time()
+        return resultado
+    except Exception as e:
+        log.debug(f"Erro ao consultar master: {e}")
+        return _master_cache  # retorna cache anterior se der erro
 
 
 def get_top_pares(client: Client, n: int = TOP_PARES) -> list[str]:
@@ -2321,8 +2371,18 @@ def main() -> None:
                                         and symbol in PARES_BTC_CORRELATOS):
                                     log.debug(f"  {symbol}: LONG bloqueado (BTC em baixa + par correlato)")
                                     return
+                                # Copy trading: se master configurado, só entra se master tem posição positiva
+                                master_pos = get_master_positions()
+                                if master_pos:  # modo copy ativo
+                                    if symbol not in master_pos:
+                                        return  # master não tem esse par
+                                    if master_pos[symbol]["direcao"] != sinal:
+                                        return  # master está na direção oposta
+
                                 preco = float(client.futures_symbol_ticker(symbol=symbol)["price"])
                                 qualidade = "PREMIUM" if confirmado else "NORMAL"
+                                if master_pos:
+                                    qualidade = "COPY"  # marca como cópia do master
                                 with lock_sinais:
                                     sinais_encontrados.append((symbol, sinal, direcao_tf, preco, qualidade))
                         except Exception as e:
