@@ -49,8 +49,8 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
     if ESTRATEGIA == "scalping":
         return 4, 0.013  # 4 posições, 1.3% risco cada
-    # Híbrido e swing: sempre 12 posições
-    return 12, 0.008
+    # Híbrido e swing: sempre 14 posições
+    return 14, 0.007
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
