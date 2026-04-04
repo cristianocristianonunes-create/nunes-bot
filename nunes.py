@@ -950,23 +950,29 @@ def calcular_roi(posicao: dict) -> float:
 
 def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
     """
-    Verifica se MA7 cruzou MA25 na direção da posição no 5min.
-    Cruzamento CERTEIRO: cruzou E confirmou no candle seguinte (separando).
+    Verifica se MA7 cruzou MA25 E MA99 na direção da posição no 5min.
+    Critério do Bruno: MA7 tem que estar acima das duas (LONG) ou abaixo das duas (SHORT).
+    Cruzamento confirmado: MA7 separando da MA25 no candle seguinte.
     """
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+    df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=100)
     df["ma7"]  = df["close"].rolling(7).mean()
     df["ma25"] = df["close"].rolling(25).mean()
-    c3 = df.iloc[-3]  # antes do cruzamento
-    c2 = df.iloc[-2]  # cruzamento
-    c1 = df.iloc[-1]  # confirmação
+    df["ma99"] = df["close"].rolling(99).mean()
+    c3 = df.iloc[-3]
+    c2 = df.iloc[-2]
+    c1 = df.iloc[-1]
     if direcao == "LONG":
-        cruzou = c3["ma7"] <= c3["ma25"] and c2["ma7"] > c2["ma25"]
+        # MA7 cruzou acima da MA25 E está acima da MA99
+        cruzou_ma25 = c3["ma7"] <= c3["ma25"] and c2["ma7"] > c2["ma25"]
         confirmou = c1["ma7"] > c1["ma25"] and (c1["ma7"] - c1["ma25"]) >= (c2["ma7"] - c2["ma25"])
-        return cruzou and confirmou
+        acima_ma99 = c1["ma7"] > c1["ma99"]
+        return cruzou_ma25 and confirmou and acima_ma99
     else:
-        cruzou = c3["ma7"] >= c3["ma25"] and c2["ma7"] < c2["ma25"]
+        # MA7 cruzou abaixo da MA25 E está abaixo da MA99
+        cruzou_ma25 = c3["ma7"] >= c3["ma25"] and c2["ma7"] < c2["ma25"]
         confirmou = c1["ma7"] < c1["ma25"] and (c1["ma25"] - c1["ma7"]) >= (c2["ma25"] - c2["ma7"])
-        return cruzou and confirmou
+        abaixo_ma99 = c1["ma7"] < c1["ma99"]
+        return cruzou_ma25 and confirmou and abaixo_ma99
 
 
 def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
