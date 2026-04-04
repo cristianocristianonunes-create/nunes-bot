@@ -905,6 +905,7 @@ def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None, ciclos_positivos=None
             "peak_roi": peak_roi,
             "dca_aplicado": list(dca_aplicado),
             "dca_contagem": dca_contagem,
+            "margem_registrada": margem_registrada,
             "posicoes_herdadas": list(posicoes_herdadas),
         }
         if ciclo_num is not None:
@@ -969,13 +970,14 @@ def analise_grafico_3x(client: Client, symbol: str, direcao: str) -> str:
 
 def carregar_estado():
     """Restaura peak_roi, dca_aplicado, herdadas e ciclo do disco ao iniciar."""
-    global peak_roi, dca_aplicado, dca_contagem, posicoes_herdadas
+    global peak_roi, dca_aplicado, dca_contagem, margem_registrada, posicoes_herdadas
     try:
         with open(ESTADO_FILE, "r") as f:
             dados = json.load(f)
         peak_roi          = dados.get("peak_roi", {})
         dca_aplicado      = set(dados.get("dca_aplicado", []))
         dca_contagem      = dados.get("dca_contagem", {})
+        margem_registrada = dados.get("margem_registrada", {})
         posicoes_herdadas = set(dados.get("posicoes_herdadas", []))
         ciclo_salvo          = dados.get("ciclo_num", 1)
         saldo_salvo          = dados.get("saldo_ciclo_inicio", None)
