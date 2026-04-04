@@ -2143,30 +2143,45 @@ def main() -> None:
                         peak_roi.pop(symbol, None)
                         continue
 
-                # --- POSIÇÕES QUE PASSARAM PELO DCA — SAÍDA RÁPIDA PARA RESTAURAR RÁCIO ---
+                # --- SAÍDA PÓS-3x: +10% se MA forte, +3% se lateralizando ---
                 if symbol in dca_aplicado:
                     roi_entrada_dca = roi_no_dca.get(symbol, roi)
                     n_3x = dca_contagem.get(symbol, 1)
 
-                    # Saída pós-3x (padrão Bruno): fecha 90%, mantém 10% na posição
-                    if roi >= 2.0:
-                        log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% >= +2% -> fechando 90%, mantendo 10%")
-                        telegram(
-                            f"<b>Lucro realizado: {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}% | 3x aplicados: {n_3x}\n"
-                            f"Fechando 90% com lucro! 10% continua na posicao.\n"
-                            f"Estrategia 3x entregou resultado!"
-                        )
-                        fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} (ROI {roi:.1f}%)")
-                        dca_aplicado.discard(symbol)
-                        dca_contagem.pop(symbol, None)
-                        roi_no_dca.pop(symbol, None)
-                        # NÃO limpa peak_roi — os 10% restantes continuam com trailing
-                        if dca_ativo == symbol:
-                            dca_ativo = None
+                    if roi > 0:
+                        # Verifica se MA7 está com força ou lateralizando no 5min
+                        try:
+                            df5_dca = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+                            df5_dca["ma7"]  = df5_dca["close"].rolling(7).mean()
+                            df5_dca["ma25"] = df5_dca["close"].rolling(25).mean()
+                            diff_agora = abs(df5_dca["ma7"].iloc[-1] - df5_dca["ma25"].iloc[-1])
+                            diff_antes = abs(df5_dca["ma7"].iloc[-3] - df5_dca["ma25"].iloc[-3])
+                            ma_perdendo_forca = diff_agora <= diff_antes  # lateralizando ou convergindo
+                        except Exception:
+                            ma_perdendo_forca = False
 
+                        # Meta dinâmica: +10% se MA forte, +3% se perdendo força
+                        meta_saida = 3.0 if ma_perdendo_forca else 10.0
+                        motivo_meta = "MA lateralizando" if ma_perdendo_forca else "MA com forca"
+
+                        if roi >= meta_saida:
+                            log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% >= +{meta_saida:.0f}% ({motivo_meta}) -> fechando 90%")
+                            telegram(
+                                f"<b>Lucro realizado: {symbol}</b>\n"
+                                f"{direcao} | ROI: {roi:+.1f}% | 3x aplicados: {n_3x}\n"
+                                f"Saida em +{meta_saida:.0f}% ({motivo_meta})\n"
+                                f"Fechando 90% com lucro! 10% continua na posicao."
+                            )
+                            fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} +{meta_saida:.0f}% (ROI {roi:.1f}%)")
+                            dca_aplicado.discard(symbol)
+                            dca_contagem.pop(symbol, None)
+                            roi_no_dca.pop(symbol, None)
+                            if dca_ativo == symbol:
+                                dca_ativo = None
+                        else:
+                            log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% | meta {meta_saida:.0f}% ({motivo_meta}) | aguardando")
                     else:
-                        log.info(f"  {symbol}: [EM DCA] ROI {roi:+.1f}% | entrada DCA {roi_entrada_dca:+.1f}% | aguardando +2%")
+                        log.info(f"  {symbol}: [EM 3x #{n_3x}] ROI {roi:+.1f}% | aguardando virar positivo")
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ESCALONADO ---
                 elif roi > 0 and pico >= 5:
