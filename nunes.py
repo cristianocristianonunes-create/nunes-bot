@@ -1188,6 +1188,15 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     if ESTRATEGIA not in ("scalping", "hibrido") and not ma_alinhada_5min(client, symbol, direcao):
         return None
 
+    # Filtro de lateralização: range dos últimos 20 candles de 5min < 1% = lateral
+    try:
+        df5_lat = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=20)
+        range_pct = (df5_lat["high"].max() - df5_lat["low"].min()) / df5_lat["close"].iloc[-1]
+        if range_pct < 0.01:
+            return None  # lateralizando — não entra
+    except Exception:
+        pass
+
     # Gatilho no M1
     df = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=60)
     df["ma7"]       = df["close"].rolling(7).mean()
