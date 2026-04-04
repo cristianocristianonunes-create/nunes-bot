@@ -1842,6 +1842,25 @@ def main() -> None:
 
                 pico = peak_roi.get(symbol, roi)
 
+                # --- LIMITES ABSOLUTOS: +500% fecha lucro, -200% corta perda ---
+                if roi >= 500:
+                    log.info(f"  {symbol}: ROI {roi:+.1f}% >= +500% -> fechando 100%!")
+                    telegram(f"<b>TP +500%: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nLucro maximo atingido!")
+                    fechar_parcial(client, p, 1.0, f"TP +500% ({roi:+.1f}%)")
+                    peak_roi.pop(symbol, None)
+                    ma_reverteu.pop(symbol, None)
+                    continue
+                if roi <= -200:
+                    log.warning(f"  {symbol}: ROI {roi:+.1f}% <= -200% -> fechando 100%")
+                    telegram(f"<b>SL -200%: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nLimite de perda atingido.")
+                    fechar_parcial(client, p, 1.0, f"SL -200% ({roi:+.1f}%)")
+                    peak_roi.pop(symbol, None)
+                    ma_reverteu.pop(symbol, None)
+                    dca_aplicado.discard(symbol)
+                    if dca_ativo == symbol:
+                        dca_ativo = None
+                    continue
+
                 # --- MODO SCALPING PURO: TP/SL rápido, sem DCA, sem trailing ---
                 # (modo híbrido usa trailing do swing, não entra aqui)
                 if ESTRATEGIA == "scalping" and ESTRATEGIA != "hibrido":
