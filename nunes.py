@@ -54,8 +54,14 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
     if ESTRATEGIA == "scalping":
         return 4, 0.013
-    # Sem limite fixo de posições — Rácio de Margem é a trava
-    # Max alto (30) mas o bot para de abrir quando Rácio >= 8%
+    # Saldo baixo: menos posições, mais risco por trade (senão margem é irrisória)
+    if saldo < 20:
+        return 3, 0.08    # 3 posições, 8% risco (~$1.10 margem com $14)
+    elif saldo < 50:
+        return 5, 0.05    # 5 posições, 5% risco
+    elif saldo < 100:
+        return 8, 0.03    # 8 posições, 3% risco
+    # Saldo normal: Rácio de Margem é a trava
     return 30, 0.007
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
