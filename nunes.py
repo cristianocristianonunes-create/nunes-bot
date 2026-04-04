@@ -904,6 +904,7 @@ def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None, ciclos_positivos=None
         dados = {
             "peak_roi": peak_roi,
             "dca_aplicado": list(dca_aplicado),
+            "dca_contagem": dca_contagem,
             "posicoes_herdadas": list(posicoes_herdadas),
         }
         if ciclo_num is not None:
@@ -968,12 +969,13 @@ def analise_grafico_3x(client: Client, symbol: str, direcao: str) -> str:
 
 def carregar_estado():
     """Restaura peak_roi, dca_aplicado, herdadas e ciclo do disco ao iniciar."""
-    global peak_roi, dca_aplicado, posicoes_herdadas
+    global peak_roi, dca_aplicado, dca_contagem, posicoes_herdadas
     try:
         with open(ESTADO_FILE, "r") as f:
             dados = json.load(f)
         peak_roi          = dados.get("peak_roi", {})
         dca_aplicado      = set(dados.get("dca_aplicado", []))
+        dca_contagem      = dados.get("dca_contagem", {})
         posicoes_herdadas = set(dados.get("posicoes_herdadas", []))
         ciclo_salvo          = dados.get("ciclo_num", 1)
         saldo_salvo          = dados.get("saldo_ciclo_inicio", None)
@@ -2097,7 +2099,7 @@ def main() -> None:
                 if symbol in margem_registrada:
                     margem_anterior = margem_registrada[symbol]
                     foi_topup = symbol in topup_recente and time.time() - topup_recente[symbol] < 300
-                    if margem_anterior > 0 and margem_atual > margem_anterior * 2.0 and not foi_topup:
+                    if margem_anterior > 0 and margem_atual > margem_anterior * 1.5 and not foi_topup:
                         if symbol not in dca_aplicado:
                             dca_aplicado.add(symbol)
                             dca_contagem[symbol] = dca_contagem.get(symbol, 0) + 1
