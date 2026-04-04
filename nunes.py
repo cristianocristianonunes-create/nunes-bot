@@ -66,8 +66,8 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
-INTERVALO_POSICOES    = 10 if ESTRATEGIA in ("scalping", "hibrido") else 30   # segundos entre verificação
-INTERVALO_ENTRADAS    = 15 if ESTRATEGIA in ("scalping", "hibrido") else 30  # segundos entre busca
+INTERVALO_POSICOES    = 30   # segundos entre verificação de posições
+INTERVALO_ENTRADAS    = 60   # segundos entre busca de novas entradas (2H timeframe, não precisa ser rápido)
 ROI_MIN_REVERSAO      = 20.0 # ROI mínimo para monitorar reversão (%)
 LIMITE_PERDA_DIARIA   = float(os.getenv("LIMITE_PERDA_DIARIA", "5.0"))  # % máximo de perda no dia
 ROI_STOP_LOSS_MAX     = float(os.getenv("ROI_STOP_LOSS_MAX", "-100.0"))  # fecha posição se ROI abaixo disso
@@ -1260,48 +1260,81 @@ def calcular_adx(df: pd.DataFrame, periodo: int = 14) -> float:
     return float(adx.iloc[-1]) if not adx.empty else 0.0
 
 
-def sinal_bollinger(client: Client, symbol: str, direcao: str) -> str | None:
+def sinal_aguia_spread(client: Client, symbol: str) -> str | None:
     """
-    Estratégia Bollinger Band (padrão Bruno/Águia Spread):
-    30min: Preço rompe Banda de Bollinger + volume acima da média
-    1H:    MA7 > MA25 confirma tendência (já verificado antes)
+    Replica do sistema Águia Spread (Bruno Aguiar):
+    Detecta Bollinger Squeeze (compressão de volatilidade) + release.
 
-    Rompimento da banda superior = LONG
-    Rompimento da banda inferior = SHORT
+    Fluxo:
+    1. Bandas de Bollinger se contraem (bandwidth no mínimo de 20 períodos)
+    2. Volume abaixo da média (acumulação silenciosa)
+    3. Squeeze resolve: bandas começam a expandir + preço rompe
+    4. Preço rompe acima da banda superior = LONG
+    5. Preço rompe abaixo da banda inferior = SHORT
+
+    Timeframe: 2H (intervalos de 2h, alinhado com os alertas do Bruno)
     """
-    # Bollinger Bands no 30min (timeframe do Bruno)
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_30MINUTE, limit=30)
+    # Bollinger Bands no 2H (timeframe do Bruno)
+    df = get_candles(client, symbol, Client.KLINE_INTERVAL_2HOUR, limit=30)
     df["ma20"]      = df["close"].rolling(20).mean()
     df["std"]       = df["close"].rolling(20).std()
     df["bb_upper"]  = df["ma20"] + 2 * df["std"]
     df["bb_lower"]  = df["ma20"] - 2 * df["std"]
+    df["bandwidth"] = (df["bb_upper"] - df["bb_lower"]) / df["ma20"]
     df["vol_media"] = df["volume"].rolling(20).mean()
 
-    # Candles fechados: [-2] é o último fechado, [-1] está aberto
-    c_prev = df.iloc[-3]  # candle anterior ao rompimento
-    c_ref  = df.iloc[-2]  # candle do rompimento (fechado)
+    # Candles fechados
+    c_ref  = df.iloc[-2]   # último candle fechado
+    c_prev = df.iloc[-3]   # candle anterior
 
-    preco   = c_ref["close"]
-    bb_up   = c_ref["bb_upper"]
-    bb_low  = c_ref["bb_lower"]
-    ma20    = c_ref["ma20"]
+    preco  = c_ref["close"]
+    ma20   = c_ref["ma20"]
+    bb_up  = c_ref["bb_upper"]
+    bb_low = c_ref["bb_lower"]
 
-    # Rompimento: preço fechou FORA da banda
-    rompeu_alta  = preco > bb_up and c_prev["close"] <= c_prev["bb_upper"]
-    rompeu_baixa = preco < bb_low and c_prev["close"] >= c_prev["bb_lower"]
+    if ma20 <= 0:
+        return None
 
-    # Volume acima da média
-    volume_ok = c_ref["volume"] >= c_ref["vol_media"] * 1.2
+    # --- 1. DETECTA SQUEEZE: bandwidth nos últimos candles era mínima ---
+    # Bandwidth mínimo das últimas 20 velas = squeeze aconteceu recentemente
+    bw_atual  = c_ref["bandwidth"]
+    bw_prev   = c_prev["bandwidth"]
+    bw_min_20 = df["bandwidth"].iloc[-22:-2].min()  # mínimo recente (excluindo atuais)
 
-    # Spread da Bollinger: bandas devem estar se expandindo (não contraindo)
-    spread_atual = (c_ref["bb_upper"] - c_ref["bb_lower"]) / ma20 if ma20 > 0 else 0
-    spread_prev  = (c_prev["bb_upper"] - c_prev["bb_lower"]) / c_prev["ma20"] if c_prev["ma20"] > 0 else 0
-    bandas_expandindo = spread_atual >= spread_prev
+    # Squeeze: bandwidth anterior estava perto do mínimo (dentro de 20% do mínimo)
+    estava_em_squeeze = bw_prev <= bw_min_20 * 1.2
 
-    if direcao == "alta" and rompeu_alta and volume_ok and bandas_expandindo:
+    # Release: bandwidth atual é maior que o anterior (bandas expandindo)
+    squeeze_resolvendo = bw_atual > bw_prev
+
+    if not estava_em_squeeze or not squeeze_resolvendo:
+        return None
+
+    # --- 2. VOLUME: acumulação seguida de expansão ---
+    # Volume dos candles anteriores ao squeeze deve ser baixo (acumulação)
+    vol_media_recente = df["volume"].iloc[-6:-2].mean()  # média dos últimos 4 candles fechados
+    vol_media_geral   = c_ref["vol_media"]
+    acumulacao = vol_media_recente <= vol_media_geral * 1.0  # volume normal ou abaixo
+
+    # Volume do candle de release deve subir
+    vol_release = c_ref["volume"]
+    volume_subindo = vol_release >= vol_media_geral * 0.8  # aceita volume normal no release
+
+    if not (acumulacao or volume_subindo):
+        return None
+
+    # --- 3. DIREÇÃO DO ROMPIMENTO ---
+    # Posição do preço relativa às bandas
+    posicao_banda = (preco - bb_low) / (bb_up - bb_low) if (bb_up - bb_low) > 0 else 0.5
+
+    # LONG: preço rompeu acima da metade superior (>0.7) ou acima da banda
+    if preco >= bb_up or posicao_banda >= 0.75:
         return "LONG"
-    if direcao == "baixa" and rompeu_baixa and volume_ok and bandas_expandindo:
+
+    # SHORT: preço rompeu abaixo da metade inferior (<0.3) ou abaixo da banda
+    if preco <= bb_low or posicao_banda <= 0.25:
         return "SHORT"
+
     return None
 
 # ---------------------------------------------------------------------------
@@ -1695,10 +1728,9 @@ def main() -> None:
     verificar_atualizacao()
     log.info("=" * 50)
     log.info(f"Nunes iniciado | Modo: {MODO.upper()} | Estrategia: {ESTRATEGIA.upper()}")
+    log.info(f"Sistema Aguia Spread: Bollinger Squeeze 2H | DCA 3x | Trailing paciente")
     if ESTRATEGIA == "scalping":
-        log.info(f"SCALPING: TP +{SCALP_TP:.0f}% | SL {SCALP_SL:.0f}% | Max 4 posicoes | Scan 10s")
-    elif ESTRATEGIA == "hibrido":
-        log.info(f"HIBRIDO: entrada rapida (5min) + gestao swing (trailing + DCA) | Max 4 pos | Scan 15s")
+        log.info(f"SCALPING: TP +{SCALP_TP:.0f}% | SL {SCALP_SL:.0f}% | Max 4 posicoes")
     log.info(f"Risco: {RISCO_POR_TRADE*100}% | Alavancagem: {ALAVANCAGEM}x")
     log.info("=" * 50)
 
@@ -2404,40 +2436,28 @@ def main() -> None:
 
                     def analisar_par(symbol):
                         try:
-                            if ESTRATEGIA in ("scalping", "hibrido"):
-                                direcao_tf, confirmado = tendencia_5min(client, symbol)
-                            else:
-                                direcao_tf, confirmado = tendencia_1h(client, symbol)
-                            if not camada2_ativa and not confirmado:
+                            # Sistema Águia Spread: Bollinger Squeeze no 2H
+                            sinal = sinal_aguia_spread(client, symbol)
+                            if not sinal:
                                 return
-                            sinal = sinal_bollinger(client, symbol, direcao_tf)
-                            if sinal:
-                                # Bloqueia SHORT em pares correlatos ao BTC apenas quando BTC em alta
-                                if (sinal == "SHORT"
-                                        and btc_tendencia == "alta"
-                                        and symbol in PARES_BTC_CORRELATOS):
-                                    log.debug(f"  {symbol}: SHORT bloqueado (BTC em alta + par correlato)")
-                                    return
-                                # Bloqueia LONG em pares correlatos quando BTC em baixa forte
-                                if (sinal == "LONG"
-                                        and btc_tendencia == "baixa"
-                                        and symbol in PARES_BTC_CORRELATOS):
-                                    log.debug(f"  {symbol}: LONG bloqueado (BTC em baixa + par correlato)")
-                                    return
-                                # Copy trading: se master configurado, só entra se master tem posição positiva
-                                master_pos = get_master_positions()
-                                if master_pos:  # modo copy ativo
-                                    if symbol not in master_pos:
-                                        return  # master não tem esse par
-                                    if master_pos[symbol]["direcao"] != sinal:
-                                        return  # master está na direção oposta
 
-                                preco = float(client.futures_symbol_ticker(symbol=symbol)["price"])
-                                qualidade = "PREMIUM" if confirmado else "NORMAL"
-                                if master_pos:
-                                    qualidade = "COPY"  # marca como cópia do master
-                                with lock_sinais:
-                                    sinais_encontrados.append((symbol, sinal, direcao_tf, preco, qualidade))
+                            # Copy trading: se master configurado, só entra se master tem posição positiva
+                            master_pos = get_master_positions()
+                            if master_pos:
+                                if symbol not in master_pos:
+                                    return
+                                if master_pos[symbol]["direcao"] != sinal:
+                                    return
+
+                            preco = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+
+                            # Classifica: ativos do Bruno = AGUIA, outros = SPREAD
+                            qualidade = "AGUIA" if symbol in PARES_BRUNO else "SPREAD"
+                            if master_pos:
+                                qualidade = "COPY"
+
+                            with lock_sinais:
+                                sinais_encontrados.append((symbol, sinal, "squeeze", preco, qualidade))
                         except Exception as e:
                             log.warning(f"Erro ao analisar {symbol}: {e}")
 
@@ -2448,8 +2468,8 @@ def main() -> None:
                     sinais_bruno = detectar_sinais_bruno(client, simbolos_abertos)
                     sinais_encontrados.extend(sinais_bruno)
 
-                    # Ordena: BRUNO primeiro, depois PREMIUM, depois NORMAL
-                    ordem_qualidade = {"BRUNO": 0, "COPY": 1, "PREMIUM": 2, "NORMAL": 3}
+                    # Ordena: AGUIA (ativos Bruno) primeiro, depois COPY, depois SPREAD
+                    ordem_qualidade = {"AGUIA": 0, "BRUNO": 1, "COPY": 2, "SPREAD": 3, "PREMIUM": 4, "NORMAL": 5}
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
                     for symbol, sinal, direcao_tf, preco, qualidade in sinais_encontrados:
