@@ -2063,16 +2063,8 @@ def main() -> None:
                     else:
                         log.info(f"  {symbol}: ROI {roi:+.1f}% | pico {pico:.0f}% | pos-500% trailing 10%")
                         continue
-                if roi <= -200:
-                    log.warning(f"  {symbol}: ROI {roi:+.1f}% <= -200% -> fechando 100%")
-                    telegram(f"<b>Reposicionando: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nLiberando margem para oportunidades melhores.")
-                    fechar_parcial(client, p, 1.0, f"SL -200% ({roi:+.1f}%)")
-                    peak_roi.pop(symbol, None)
-                    ma_reverteu.pop(symbol, None)
-                    dca_aplicado.discard(symbol)
-                    if dca_ativo == symbol:
-                        dca_ativo = None
-                    continue
+                # SL -200% REMOVIDO — Rácio de Margem protege a conta
+                # Posições negativas aguardam oportunidade de 3x
 
                 # --- MODO SCALPING PURO: TP/SL rápido, sem DCA, sem trailing ---
                 # (modo híbrido usa trailing do swing, não entra aqui)
@@ -2298,24 +2290,8 @@ def main() -> None:
                                     diff_atual  = df5["diff"].iloc[-1]
                                     diff_prev   = df5["diff"].iloc[-3]
 
-                                    # MA acelerando contra — entrada claramente errada, fecha sem DCA
-                                    ma_acelerando_contra = (
-                                        (direcao == "LONG"  and diff_atual < diff_prev < 0) or
-                                        (direcao == "SHORT" and diff_atual > diff_prev > 0)
-                                    )
-                                    if ma_acelerando_contra:
-                                        log.warning(f"  {symbol}: ROI {roi:.1f}% | MA acelerando contra | stop -80% -> fechando")
-                                        telegram(
-                                            f"<b>Stop -80%: {symbol}</b>\n"
-                                            f"{direcao} | ROI: {roi:+.1f}%\n"
-                                            f"MA acelerando na direção errada.\n"
-                                            f"Entrada considerada errada — preservando capital."
-                                        )
-                                        fechar_parcial(client, p, 1.0, f"Stop -80% MA acelerando contra (ROI {roi:.1f}%)")
-                                        posicao_abertura.pop(symbol, None)
-                                        sinal_ma_detectado.pop(symbol, None)
-                                        peak_roi.pop(symbol, None)
-                                        continue
+                                    # Stop -80% REMOVIDO — aguarda oportunidade de 3x
+                                    # MA acelerando contra = não faz 3x agora, espera reverter
 
                                     ma_ok = ma_cruza_favor(client, symbol, direcao)
                                     if ma_ok:
