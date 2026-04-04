@@ -1036,23 +1036,22 @@ def get_precisao_quantidade(client: Client, symbol: str) -> int:
 
 def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     """
-    DCA: adiciona 30-40% da margem atual para acelerar recuperação.
-    Ordem a mercado imediata para evitar slippage.
+    Estratégia 3x (padrão Bruno): triplica a margem para acelerar recuperação.
+    Equivale a reentrar com o dobro da posição original.
     """
     symbol       = posicao["symbol"]
     amt          = float(posicao["positionAmt"])
     direcao      = "LONG" if amt > 0 else "SHORT"
-    # Calcula margem real (Cross ou Isolada)
     entry        = float(posicao["entryPrice"])
     amt_abs      = abs(float(posicao["positionAmt"]))
     leverage     = float(posicao.get("leverage", 20))
     margem_atual = round((entry * amt_abs) / leverage, 2)
-    adicional    = round(margem_atual * 0.35, 2)  # 35% da margem atual
+    adicional    = round(margem_atual * 2.0, 2)  # 3x: adiciona 2x a margem atual (fica com 3x total)
 
-    # Verifica se tem saldo suficiente
+    # Limita a 40% do saldo disponível para não comprometer a conta
     if adicional > banca * 0.40:
         adicional = round(banca * 0.40, 2)
-        log.info(f"  Saldo insuficiente para DCA ideal. Usando maximo disponivel: ${adicional:.2f}")
+        log.info(f"  Saldo insuficiente para 3x completo. Usando maximo disponivel: ${adicional:.2f}")
 
     preco      = float(client.futures_symbol_ticker(symbol=symbol)["price"])
     precisao   = get_precisao_quantidade(client, symbol)
@@ -1075,7 +1074,7 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
         msg = (
             f"<b>DCA aplicado!</b>\n"
             f"{direcao} {symbol}\n"
-            f"Margem adicional: ${adicional:.2f} USDT (35%)\n"
+            f"Margem adicional: ${adicional:.2f} USDT (3x)\n"
             f"Quantidade: {quantidade}"
         )
         log.info(msg.replace("<b>", "").replace("</b>", ""))
@@ -1261,120 +1260,47 @@ def calcular_adx(df: pd.DataFrame, periodo: int = 14) -> float:
     return float(adx.iloc[-1]) if not adx.empty else 0.0
 
 
-def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
+def sinal_bollinger(client: Client, symbol: str, direcao: str) -> str | None:
     """
-    Estratégia multi-timeframe com filtros de qualidade:
-    1H:   tendência (MA7 x MA25) — verificado em tendencia_1h()
-    5min: confirmação — MA7 alinhada com direção do 1H
-    M1:   gatilho — MA7 cruza MA25 + volume 1.5x + RSI restrito + ADX > 20
+    Estratégia Bollinger Band (padrão Bruno/Águia Spread):
+    30min: Preço rompe Banda de Bollinger + volume acima da média
+    1H:    MA7 > MA25 confirma tendência (já verificado antes)
 
-    Melhorias implementadas:
-    - RSI mais restrito (55/45) evita entrar em movimentos já esticados
-    - Cruzamento validado no candle FECHADO (iloc[-3] x iloc[-2]), não no candle atual aberto
-    - Filtro de retração: RSI não pode estar muito esticado NA direção da entrada
-      (evita entrar no topo/fundo do impulso inicial)
+    Rompimento da banda superior = LONG
+    Rompimento da banda inferior = SHORT
     """
-    # Confirmação 5min — MA7 alinhada com direção (pula no scalping/hibrido, já vem do 5min)
-    if ESTRATEGIA not in ("scalping", "hibrido") and not ma_alinhada_5min(client, symbol, direcao):
-        return None
-
-    # Filtro de lateralização: range dos últimos 20 candles de 5min < 1% = lateral
-    try:
-        df5_lat = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=20)
-        range_pct = (df5_lat["high"].max() - df5_lat["low"].min()) / df5_lat["close"].iloc[-1]
-        if range_pct < 0.01:
-            return None  # lateralizando — não entra
-    except Exception:
-        pass
-
-    # Gatilho no M1
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=60)
-    df["ma7"]       = df["close"].rolling(7).mean()
-    df["ma25"]      = df["close"].rolling(25).mean()
+    # Bollinger Bands no 30min (timeframe do Bruno)
+    df = get_candles(client, symbol, Client.KLINE_INTERVAL_30MINUTE, limit=30)
+    df["ma20"]      = df["close"].rolling(20).mean()
+    df["std"]       = df["close"].rolling(20).std()
+    df["bb_upper"]  = df["ma20"] + 2 * df["std"]
+    df["bb_lower"]  = df["ma20"] - 2 * df["std"]
     df["vol_media"] = df["volume"].rolling(20).mean()
 
-    # Usa candles FECHADOS para cruzamento CONFIRMADO:
-    # [-4] e [-3]: cruzamento inicial
-    # [-2]: confirmação (MA7 continua separando)
-    # [-1]: aberto, ignorado
-    c_cruz1 = df.iloc[-4]  # antes do cruzamento
-    c_cruz2 = df.iloc[-3]  # candle do cruzamento
-    c_conf  = df.iloc[-2]  # candle de confirmação
-    c_vol   = df.iloc[-2]  # volume do candle confirmado
-    preco_atual = df["close"].iloc[-2]
+    # Candles fechados: [-2] é o último fechado, [-1] está aberto
+    c_prev = df.iloc[-3]  # candle anterior ao rompimento
+    c_ref  = df.iloc[-2]  # candle do rompimento (fechado)
 
-    # Cruzamento: MA7 cruzou MA25 E confirmou no candle seguinte (separou mais)
-    cruzou_alta = (
-        c_cruz1["ma7"] <= c_cruz1["ma25"]     # antes: MA7 abaixo
-        and c_cruz2["ma7"] > c_cruz2["ma25"]   # cruzou: MA7 acima
-        and c_conf["ma7"] > c_conf["ma25"]     # confirmou: ainda acima
-        and (c_conf["ma7"] - c_conf["ma25"]) >= (c_cruz2["ma7"] - c_cruz2["ma25"])  # separando
-        and preco_atual > c_conf["ma7"]         # preço acima da MA7 (momentum)
-    )
-    cruzou_baixa = (
-        c_cruz1["ma7"] >= c_cruz1["ma25"]      # antes: MA7 acima
-        and c_cruz2["ma7"] < c_cruz2["ma25"]    # cruzou: MA7 abaixo
-        and c_conf["ma7"] < c_conf["ma25"]      # confirmou: ainda abaixo
-        and (c_conf["ma25"] - c_conf["ma7"]) >= (c_cruz2["ma25"] - c_cruz2["ma7"])  # separando
-        and preco_atual < c_conf["ma7"]          # preço abaixo da MA7 (momentum)
-    )
+    preco   = c_ref["close"]
+    bb_up   = c_ref["bb_upper"]
+    bb_low  = c_ref["bb_lower"]
+    ma20    = c_ref["ma20"]
 
-    # Volume — scalping/hibrido aceita 1.2x, swing exige 1.5x
-    vol_mult = 1.2 if ESTRATEGIA in ("scalping", "hibrido") else 1.5
-    volume_ok = c_vol["volume"] >= c_vol["vol_media"] * vol_mult
+    # Rompimento: preço fechou FORA da banda
+    rompeu_alta  = preco > bb_up and c_prev["close"] <= c_prev["bb_upper"]
+    rompeu_baixa = preco < bb_low and c_prev["close"] >= c_prev["bb_lower"]
 
-    # RSI no M1
-    delta = df["close"].diff()
-    gain  = delta.clip(lower=0).rolling(14).mean()
-    loss  = (-delta.clip(upper=0)).rolling(14).mean()
-    rs    = gain / loss.replace(0, float("inf"))
-    rsi_series = 100 - (100 / (1 + rs))
-    rsi   = rsi_series.iloc[-2]  # RSI do candle fechado
+    # Volume acima da média
+    volume_ok = c_ref["volume"] >= c_ref["vol_media"] * 1.2
 
-    # RSI — scalping/hibrido mais flexível (60/40), swing mais restrito (55/45)
-    if ESTRATEGIA in ("scalping", "hibrido"):
-        rsi_ok = (direcao == "alta" and rsi < 60) or (direcao == "baixa" and rsi > 40)
-        retraction_ok = True  # sem filtro de retração
-    else:
-        rsi_ok = (direcao == "alta" and rsi < 55) or (direcao == "baixa" and rsi > 45)
-        retraction_ok = (direcao == "alta" and rsi >= 35) or (direcao == "baixa" and rsi <= 65)
+    # Spread da Bollinger: bandas devem estar se expandindo (não contraindo)
+    spread_atual = (c_ref["bb_upper"] - c_ref["bb_lower"]) / ma20 if ma20 > 0 else 0
+    spread_prev  = (c_prev["bb_upper"] - c_prev["bb_lower"]) / c_prev["ma20"] if c_prev["ma20"] > 0 else 0
+    bandas_expandindo = spread_atual >= spread_prev
 
-    # ADX — scalping/hibrido aceita tendência mais fraca (15), swing exige 20
-    adx       = calcular_adx(df)
-    adx_min   = 15.0 if ESTRATEGIA in ("scalping", "hibrido") else 20.0
-    adx_ok    = adx >= adx_min
-
-    # --- MA99 inclinada a favor no 5min ---
-    # Se MA99 está lateral, mercado indeciso — não entra
-    try:
-        df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=100)
-        df5["ma99"] = df5["close"].rolling(99).mean()
-        df5["ma7"]  = df5["close"].rolling(7).mean()
-        df5["ma25"] = df5["close"].rolling(25).mean()
-        ma99_agora = df5["ma99"].iloc[-1]
-        ma99_antes = df5["ma99"].iloc[-4]  # 3 candles atrás (~15min)
-        variacao_ma99 = (ma99_agora - ma99_antes) / ma99_antes if ma99_antes > 0 else 0
-
-        if direcao == "alta" and variacao_ma99 < -0.0001:
-            return None  # MA99 caindo — não entra LONG
-        if direcao == "baixa" and variacao_ma99 > 0.0001:
-            return None  # MA99 subindo — não entra SHORT
-
-        # --- MA7 com momentum: separando da MA25, não apenas tocando ---
-        # Diferença entre MA7 e MA25 deve estar AUMENTANDO (acelerando)
-        diff_atual = df5["ma7"].iloc[-1] - df5["ma25"].iloc[-1]
-        diff_antes = df5["ma7"].iloc[-3] - df5["ma25"].iloc[-3]
-
-        if direcao == "alta" and diff_atual <= diff_antes:
-            return None  # MA7 não está acelerando acima da MA25
-        if direcao == "baixa" and diff_atual >= diff_antes:
-            return None  # MA7 não está acelerando abaixo da MA25
-    except Exception:
-        pass  # se falhar, deixa passar sem esse filtro
-
-    if direcao == "alta" and cruzou_alta and volume_ok and rsi_ok and retraction_ok and adx_ok:
+    if direcao == "alta" and rompeu_alta and volume_ok and bandas_expandindo:
         return "LONG"
-    if direcao == "baixa" and cruzou_baixa and volume_ok and rsi_ok and retraction_ok and adx_ok:
+    if direcao == "baixa" and rompeu_baixa and volume_ok and bandas_expandindo:
         return "SHORT"
     return None
 
@@ -2484,7 +2410,7 @@ def main() -> None:
                                 direcao_tf, confirmado = tendencia_1h(client, symbol)
                             if not camada2_ativa and not confirmado:
                                 return
-                            sinal = sinal_m1(client, symbol, direcao_tf)
+                            sinal = sinal_bollinger(client, symbol, direcao_tf)
                             if sinal:
                                 # Bloqueia SHORT em pares correlatos ao BTC apenas quando BTC em alta
                                 if (sinal == "SHORT"
