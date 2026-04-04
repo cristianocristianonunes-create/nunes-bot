@@ -2715,7 +2715,12 @@ def main() -> None:
                     ordem_qualidade = {"AGUIA": 0, "BRUNO": 1, "COPY": 2, "SPREAD": 3, "PREMIUM": 4, "NORMAL": 5}
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
+                    MAX_ENTRADAS_POR_SCAN = 10
+                    abertos_scan = 0
                     for symbol, sinal, direcao_tf, preco, qualidade in sinais_encontrados:
+                        if abertos_scan >= MAX_ENTRADAS_POR_SCAN:
+                            log.info(f"Limite de {MAX_ENTRADAS_POR_SCAN} entradas por varredura atingido.")
+                            break
                         if len(posicoes_abertas(client)) >= max_pos_dinamico:
                             break
                         if get_racio_margem(client) >= RACIO_MARGEM_MAX:
@@ -2724,6 +2729,7 @@ def main() -> None:
                         log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | Preco: {preco}")
                         abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
                         ultimo_entrada = time.time()
+                        abertos_scan += 1
 
                     n_bruno = len(sinais_bruno)
                     n_normal = len(sinais_encontrados) - n_bruno
