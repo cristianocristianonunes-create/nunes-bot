@@ -2088,8 +2088,20 @@ def main() -> None:
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ESCALONADO ---
                 elif roi > 0 and pico >= 5:
+                    # Detecta cripto com alta variação 24h (pump) — trailing mais apertado
+                    cripto_pump = False
+                    try:
+                        ticker_info = client.futures_symbol_ticker(symbol=symbol)
+                        ticker_24h = client.futures_ticker(symbol=symbol)
+                        var_24h = abs(float(ticker_24h["priceChangePercent"]))
+                        cripto_pump = var_24h >= 30.0  # variou mais de 30% em 24h
+                    except Exception:
+                        pass
+
                     # Tolerância escalonada: quanto maior o pico, mais apertado
-                    if pico >= 50:
+                    if cripto_pump:
+                        tolerancia = 0.05  # 5% do pico — pump pode despencar a qualquer momento
+                    elif pico >= 50:
                         tolerancia = 0.15  # 15% do pico — protege lucros grandes
                     elif pico >= 20:
                         tolerancia = 0.20  # 20% do pico
@@ -2098,13 +2110,14 @@ def main() -> None:
 
                     queda_do_pico = pico - roi
                     queda_pct = queda_do_pico / pico if pico > 0 else 0
+                    pump_tag = " [PUMP]" if cripto_pump else ""
                     if queda_pct >= tolerancia:
-                        log.info(f"  {symbol}: trailing stop! Pico {pico:.0f}% -> atual {roi:.0f}% (tolerancia {tolerancia:.0%}) -> fechando 90%")
-                        fechar_parcial(client, p, 0.90, f"Trailing stop (pico {pico:.0f}% tol {tolerancia:.0%})")
+                        log.info(f"  {symbol}{pump_tag}: trailing stop! Pico {pico:.0f}% -> atual {roi:.0f}% (tolerancia {tolerancia:.0%}) -> fechando 90%")
+                        fechar_parcial(client, p, 0.90, f"Trailing stop{pump_tag} (pico {pico:.0f}% tol {tolerancia:.0%})")
                         peak_roi.pop(symbol, None)
                         ma_reverteu.pop(symbol, None)
                     else:
-                        log.info(f"  {symbol}: ROI {roi:+.1f}% | pico {pico:.0f}% | trailing ok (tol {tolerancia:.0%})")
+                        log.info(f"  {symbol}{pump_tag}: ROI {roi:+.1f}% | pico {pico:.0f}% | trailing ok (tol {tolerancia:.0%})")
 
                 # --- MONITORAMENTO NEGATIVO (sem stop por ROI/tempo — Rácio de Margem protege) ---
                 elif roi < 0:
