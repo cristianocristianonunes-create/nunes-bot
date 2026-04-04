@@ -952,36 +952,45 @@ def calcular_roi(posicao: dict) -> float:
 def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
     """
     Critério do Bruno para 3x:
-    1. MA7 cruzou MA25 (candle 1)
-    2. Segundo candle CONFIRMA (MA7 continua separando, não lateralizou)
-    3. MA7 acima da MA99 (LONG) ou abaixo (SHORT)
-    4. Diferença MA7-MA25 está CRESCENDO (não lateral)
+    1. MA7 cruzou MA25 no 5min (candle 1)
+    2. Segundo candle CONFIRMA (MA7 separando, não lateralizou)
+    3. Fibonacci: preço acima de 38.2% de retração do último swing (tendência)
+    SEM exigir MA99 — no 3x precisa agir rápido na reversão.
     """
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=100)
+    df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
     df["ma7"]  = df["close"].rolling(7).mean()
     df["ma25"] = df["close"].rolling(25).mean()
-    df["ma99"] = df["close"].rolling(99).mean()
-    c4 = df.iloc[-4]  # antes do cruzamento
-    c3 = df.iloc[-3]  # candle 1: cruzamento
-    c2 = df.iloc[-2]  # candle 2: confirmação
-    c1 = df.iloc[-1]  # atual (pode estar aberto)
+    c4 = df.iloc[-4]
+    c3 = df.iloc[-3]
+    c2 = df.iloc[-2]
+    c1 = df.iloc[-1]
 
     if direcao == "LONG":
-        # Candle 1: MA7 cruzou acima da MA25
         cruzou = c4["ma7"] <= c4["ma25"] and c3["ma7"] > c3["ma25"]
-        # Candle 2: confirma (MA7 ainda acima E separou mais)
         confirmou = c2["ma7"] > c2["ma25"] and (c2["ma7"] - c2["ma25"]) > (c3["ma7"] - c3["ma25"])
-        # MA7 acima da MA99
-        acima_ma99 = c2["ma7"] > c2["ma99"]
-        # Anti-lateral: diferença continua crescendo no candle atual
         nao_lateral = (c1["ma7"] - c1["ma25"]) >= (c2["ma7"] - c2["ma25"])
-        return cruzou and confirmou and acima_ma99 and nao_lateral
     else:
         cruzou = c4["ma7"] >= c4["ma25"] and c3["ma7"] < c3["ma25"]
         confirmou = c2["ma7"] < c2["ma25"] and (c2["ma25"] - c2["ma7"]) > (c3["ma25"] - c3["ma7"])
-        abaixo_ma99 = c2["ma7"] < c2["ma99"]
         nao_lateral = (c1["ma25"] - c1["ma7"]) >= (c2["ma25"] - c2["ma7"])
-        return cruzou and confirmou and abaixo_ma99 and nao_lateral
+
+    if not (cruzou and confirmou and nao_lateral):
+        return False
+
+    # Fibonacci: confirma tendência
+    # Pega último swing (máxima e mínima dos últimos 20 candles)
+    high_20 = df["high"].iloc[-20:].max()
+    low_20  = df["low"].iloc[-20:].min()
+    fib_382 = low_20 + (high_20 - low_20) * 0.382  # nível 38.2%
+    fib_618 = low_20 + (high_20 - low_20) * 0.618  # nível 61.8%
+    preco   = df["close"].iloc[-1]
+
+    if direcao == "LONG":
+        # Para LONG: preço acima de 38.2% (retração saudável, tendência de alta)
+        return preco >= fib_382
+    else:
+        # Para SHORT: preço abaixo de 61.8% (retração saudável, tendência de baixa)
+        return preco <= fib_618
 
 
 def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
