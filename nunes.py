@@ -79,6 +79,21 @@ META_CICLO_PCT        = float(os.getenv("META_CICLO_PCT", "5.0"))   # meta de lu
 META_CICLO_FASE2_USD  = float(os.getenv("META_CICLO_FASE2_USD", "50.0"))  # meta fixa em USDT após $1.000
 META_CICLO_FASE2_MIN  = float(os.getenv("META_CICLO_FASE2_MIN", "1000.0")) # saldo para ativar fase 2
 
+# ---------------------------------------------------------------------------
+# Modo Bruno: ativos recorrentes do Bruno + detecção de volume anormal
+# ---------------------------------------------------------------------------
+PARES_BRUNO = [
+    "ATOMUSDT", "MASKUSDT", "ICXUSDT", "SKLUSDT", "ALICEUSDT",
+    "NEOUSDT", "QTUMUSDT", "FILUSDT", "APTUSDT", "JASMYUSDT",
+    "ETCUSDT", "ENJUSDT", "AXSUSDT", "KSMUSDT", "AVAXUSDT",
+    "GALAUSDT", "BATUSDT", "PEOPLEUSDT", "KNCUSDT", "XTZUSDT",
+    "ONDOUSDT", "ANKRUSDT", "DASHUSDT", "BONKUSDT", "SNXUSDT",
+    "STORJUSDT", "TONUSDT", "ZRXUSDT", "1INCHUSDT", "TRXUSDT",
+]
+BRUNO_VOLUME_MULT = 3.0   # volume atual >= 3x a média = spike
+BRUNO_HORARIO_INICIO = 1  # 01:00 BRT
+BRUNO_HORARIO_FIM    = 9  # 09:00 BRT
+
 # Pares correlacionados com BTC — SHORT bloqueado quando BTC em alta
 PARES_BTC_CORRELATOS  = {"DOGEUSDT", "XRPUSDT", "XLMUSDT", "SOLUSDT", "ADAUSDT",
                           "DOTUSDT", "MATICUSDT", "LINKUSDT", "AVAXUSDT", "BNBUSDT"}
@@ -625,6 +640,76 @@ def get_candles(client: Client, symbol: str, interval: str, limit: int = 100) ->
 _master_client = None
 _master_cache: dict[str, dict] = {}   # symbol -> {"direcao": "LONG"/"SHORT", "roi": float}
 _master_cache_ts: float = 0
+_bruno_alertados: dict[str, float] = {}  # symbol -> timestamp do último alerta Bruno
+
+
+def detectar_sinais_bruno(client: Client, simbolos_abertos: list[str]) -> list[tuple]:
+    """
+    Modo Bruno: detecta volume anormal nos ativos favoritos do Bruno.
+    Só opera LONG. Foca no horário 01:00-09:00 BRT.
+    Retorna lista de (symbol, "LONG", "alta", preco, "BRUNO").
+    """
+    global _bruno_alertados
+    hora_local = datetime.now().hour
+
+    sinais = []
+    for symbol in PARES_BRUNO:
+        if symbol in simbolos_abertos:
+            continue
+        # Não repetir alerta do mesmo ativo em menos de 4 horas
+        if symbol in _bruno_alertados and time.time() - _bruno_alertados[symbol] < 14400:
+            continue
+
+        try:
+            # Pega candles de 1H para comparar volume
+            df = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=25)
+            vol_media = df["volume"].iloc[:-1].mean()  # média das últimas 24h (excluindo atual)
+            vol_atual = df["volume"].iloc[-1]
+
+            if vol_media <= 0:
+                continue
+
+            # Volume spike: atual >= 3x a média
+            vol_ratio = vol_atual / vol_media
+            if vol_ratio < BRUNO_VOLUME_MULT:
+                continue
+
+            # Confirma que preço está acima da MA25 no 1H (tendência de alta)
+            df["ma7"]  = df["close"].rolling(7).mean()
+            df["ma25"] = df["close"].rolling(25).mean()
+            ma7  = df["ma7"].iloc[-1]
+            ma25 = df["ma25"].iloc[-1]
+            preco = df["close"].iloc[-1]
+
+            if ma7 <= ma25:
+                continue  # só LONG quando MA7 > MA25 no 1H
+
+            if preco <= ma7:
+                continue  # preço tem que estar acima da MA7
+
+            preco_ticker = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+
+            # Prioriza horário Bruno (01-09h BRT) mas aceita fora também se volume for muito alto
+            if BRUNO_HORARIO_INICIO <= hora_local <= BRUNO_HORARIO_FIM:
+                min_vol = BRUNO_VOLUME_MULT
+            else:
+                min_vol = BRUNO_VOLUME_MULT * 2  # fora do horário, exige 6x
+
+            if vol_ratio >= min_vol:
+                sinais.append((symbol, "LONG", "alta", preco_ticker, "BRUNO"))
+                _bruno_alertados[symbol] = time.time()
+                log.info(f"  [BRUNO] {symbol}: volume {vol_ratio:.1f}x a media | MA7 > MA25 1H | LONG")
+                telegram(
+                    f"<b>[BRUNO] Sinal detectado: {symbol}</b>\n"
+                    f"Volume: {vol_ratio:.1f}x a media horaria\n"
+                    f"MA7 > MA25 no 1H | Preco: {preco_ticker}\n"
+                    f"Padrao de acumulacao detectado."
+                )
+
+        except Exception:
+            continue
+
+    return sinais
 
 def get_master_positions() -> dict[str, dict]:
     """
@@ -796,6 +881,7 @@ roi_no_dca:            dict[str, float] = {}   # ROI no momento em que o DCA foi
 alerta_ciclo_risco_ts: float           = 0.0  # timestamp do último alerta de ciclo em risco
 posicoes_herdadas:     set[str]        = set() # symbols herdados de ciclos anteriores (negativos não fechados)
 margem_registrada:     dict[str, float] = {}  # margem inicial registrada por symbol para detectar DCA manual
+posicoes_bruno:        set[str]        = set() # symbols que entraram pelo modo Bruno
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
 
 ESTADO_FILE = "C:/robo-trade/estado_bot.json"
@@ -1637,6 +1723,9 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
         )
         log.info(msg.replace("<b>", "").replace("</b>", ""))
         telegram(msg)
+        # Marca posição Bruno para trailing mais paciente
+        if qualidade == "BRUNO":
+            posicoes_bruno.add(symbol)
 
     except BinanceAPIException as e:
         log.error(f"Erro ao abrir posicao {symbol}: {e}")
@@ -2105,14 +2194,21 @@ def main() -> None:
                         pass
 
                     # Tolerância escalonada: quanto maior o pico, mais apertado
-                    if cripto_pump:
-                        tolerancia = 0.05  # 5% do pico — pump pode despencar a qualquer momento
+                    is_bruno = symbol in posicoes_bruno
+                    if cripto_pump and not is_bruno:
+                        tolerancia = 0.05  # 5% do pico — pump pode despencar
+                    elif is_bruno:
+                        # Bruno: segura por dias, trailing largo
+                        if pico >= 100:
+                            tolerancia = 0.20  # 20% — só protege lucro grande
+                        else:
+                            tolerancia = 0.50  # 50% — muita paciência, deixa crescer
                     elif pico >= 50:
-                        tolerancia = 0.15  # 15% do pico — protege lucros grandes
+                        tolerancia = 0.15  # 15% do pico
                     elif pico >= 20:
                         tolerancia = 0.20  # 20% do pico
                     else:
-                        tolerancia = 0.40  # 40% do pico — dá espaço para crescer
+                        tolerancia = 0.40  # 40% do pico
 
                     queda_do_pico = pico - roi
                     queda_pct = queda_do_pico / pico if pico > 0 else 0
@@ -2422,17 +2518,27 @@ def main() -> None:
                     with ThreadPoolExecutor(max_workers=THREADS_VARREDURA) as executor:
                         executor.map(analisar_par, pares_filtrados)
 
-                    # Ordena: PREMIUM primeiro
-                    sinais_encontrados.sort(key=lambda x: 0 if x[4] == "PREMIUM" else 1)
+                    # --- Modo Bruno: detecta volume anormal nos ativos do Bruno ---
+                    sinais_bruno = detectar_sinais_bruno(client, simbolos_abertos)
+                    sinais_encontrados.extend(sinais_bruno)
 
-                    for symbol, sinal, direcao_1h, preco, qualidade in sinais_encontrados:
+                    # Ordena: BRUNO primeiro, depois PREMIUM, depois NORMAL
+                    ordem_qualidade = {"BRUNO": 0, "COPY": 1, "PREMIUM": 2, "NORMAL": 3}
+                    sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
+
+                    for symbol, sinal, direcao_tf, preco, qualidade in sinais_encontrados:
                         if len(posicoes_abertas(client)) >= max_pos_dinamico:
                             break
-                        log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | 1H: {direcao_1h} | Preco: {preco}")
+                        if get_racio_margem(client) >= RACIO_MARGEM_MAX:
+                            log.info(f"Racio limite atingido — parando entradas.")
+                            break
+                        log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | Preco: {preco}")
                         abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
                         ultimo_entrada = time.time()
 
-                    log.info(f"Varredura concluida: {len(pares_filtrados)} pares | {len(sinais_encontrados)} sinais encontrados")
+                    n_bruno = len(sinais_bruno)
+                    n_normal = len(sinais_encontrados) - n_bruno
+                    log.info(f"Varredura concluida: {len(pares_filtrados)} pares | {n_normal} sinais MA | {n_bruno} sinais BRUNO")
 
             # Resumo horário
             if time.time() - ultimo_resumo_hora >= 3600:
