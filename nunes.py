@@ -868,7 +868,8 @@ def tendencia_5min(client: Client, symbol: str) -> tuple[str, bool]:
 # Controle de DCA, trailing stop e alertas
 dca_log:          dict[str, float] = {}
 dca_ativo:        str | None = None
-dca_aplicado:     set = set()
+dca_aplicado:     set = set()       # symbols com pelo menos 1 DCA
+dca_contagem:     dict[str, int] = {}  # quantos 3x já foram aplicados por symbol
 peak_roi:         dict[str, float] = {}
 roi_anterior:     dict[str, float] = {}   # ROI do ciclo anterior para detectar queda acelerada
 alerta_liq_log:   dict[str, float] = {}   # timestamp do último alerta de liquidação por symbol
@@ -2123,18 +2124,24 @@ def main() -> None:
                 # --- POSIÇÕES QUE PASSARAM PELO DCA — SAÍDA RÁPIDA PARA RESTAURAR RÁCIO ---
                 if symbol in dca_aplicado:
                     roi_entrada_dca = roi_no_dca.get(symbol, roi)
+                    n_3x = dca_contagem.get(symbol, 1)
 
-                    # Saída positiva — lucro realizado
+                    # Saída positiva pós-3x — lucro realizado
                     if roi >= 2.0:
-                        log.info(f"  {symbol}: [POS-DCA] ROI {roi:+.1f}% >= +2% -> fechando 100% para restaurar racio de margem")
-                        fechar_parcial(client, p, 1.0, f"Saida pos-DCA +2% (ROI {roi:.1f}%)")
+                        log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% >= +2% -> fechando 100%")
+                        telegram(
+                            f"<b>3x recuperou: {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}% | 3x aplicados: {n_3x}\n"
+                            f"Estrategia 3x funcionou!"
+                        )
+                        fechar_parcial(client, p, 1.0, f"Saida pos-3x #{n_3x} (ROI {roi:.1f}%)")
                         dca_aplicado.discard(symbol)
+                        dca_contagem.pop(symbol, None)
                         roi_no_dca.pop(symbol, None)
                         peak_roi.pop(symbol, None)
                         ma_reverteu.pop(symbol, None)
                         if dca_ativo == symbol:
                             dca_ativo = None
-                            log.info(f"  DCA encerrado para {symbol}. Racio de margem restaurado.")
 
                     else:
                         log.info(f"  {symbol}: [EM DCA] ROI {roi:+.1f}% | entrada DCA {roi_entrada_dca:+.1f}% | aguardando +2%")
@@ -2183,48 +2190,31 @@ def main() -> None:
                 elif roi < 0:
                     log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando reversao (Racio protege)")
 
-                # --- DCA: aplica quando MA cruza a favor (qualquer ROI negativo) ---
-                elif roi <= DCA_ANTECIPADO_ROI and symbol not in dca_aplicado:
-                    if dca_ativo and dca_ativo != symbol and dca_ativo_tem_sinal(client, abertas):
-                        log.info(f"  {symbol}: ROI {roi:.1f}% | DCA bloqueado ({dca_ativo} em recuperacao com sinal ativo)")
-                    else:
-                        try:
-                            ma_ok = ma_cruza_favor(client, symbol, direcao)
-                            if ma_ok:
-                                if dca_bloqueado_por_racio:
-                                    log.warning(f"  {symbol}: DCA bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
-                                else:
-                                    log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou a favor -> DCA")
-                                    aplicar_dca(client, p, banca)
-                                    dca_ativo = symbol
-                            else:
-                                log.info(f"  {symbol}: ROI {roi:.1f}% | aguardando MA cruzar a favor para DCA")
-                        except Exception as e:
-                            log.warning(f"  Erro DCA {symbol}: {e}")
-
-                # --- AGUARDANDO SINAL PARA DCA ---
+                # --- ESTRATÉGIA 3x (DCA padrão Bruno) ---
+                # Gatilho: ROI <= -200% + MA7 cruzando a favor no 5min
+                # Repetível: pode fazer 3x múltiplas vezes no mesmo ativo
                 elif roi <= -200.0:
-                    if dca_ativo and dca_ativo != symbol and dca_ativo_tem_sinal(client, abertas):
-                        log.info(f"  {symbol}: ROI {roi:.1f}% | DCA bloqueado ({dca_ativo} em recuperacao com sinal ativo)")
-                        continue
-
+                    n_3x = dca_contagem.get(symbol, 0)
                     try:
-                        ma_ok  = ma_cruza_favor(client, symbol, direcao)
-                        rsi_ok = rsi_extremo(client, symbol, direcao)
-                        if ma_ok and rsi_ok:
+                        ma_ok = ma_cruza_favor(client, symbol, direcao)
+                        if ma_ok:
                             if dca_bloqueado_por_racio:
-                                log.warning(f"  {symbol}: DCA bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                                log.warning(f"  {symbol}: 3x bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
                             else:
-                                log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou + RSI extremo -> aplicando DCA")
+                                log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou a favor -> 3x #{n_3x + 1}")
                                 aplicar_dca(client, p, banca)
+                                dca_aplicado.add(symbol)
+                                dca_contagem[symbol] = n_3x + 1
                                 dca_ativo = symbol
+                                telegram(
+                                    f"<b>3x aplicado: {symbol} (#{n_3x + 1})</b>\n"
+                                    f"{direcao} | ROI: {roi:+.1f}%\n"
+                                    f"MA7 cruzou a favor. Margem triplicada."
+                                )
                         else:
-                            motivo = []
-                            if not ma_ok:  motivo.append("MA nao cruzou")
-                            if not rsi_ok: motivo.append("RSI nao extremo")
-                            log.info(f"  {symbol}: ROI {roi:.1f}% | aguardando {' | '.join(motivo)}")
+                            log.info(f"  {symbol}: ROI {roi:.1f}% | 3x #{n_3x + 1} pronto | aguardando MA cruzar a favor")
                     except Exception as e:
-                        log.warning(f"  Erro DCA {symbol}: {e}")
+                        log.warning(f"  Erro 3x {symbol}: {e}")
                 # --- MONITORANDO (positivo mas abaixo do limiar de reversão) ---
                 else:
                     # Saída apenas pelo trailing stop (sem reversão de MA)
