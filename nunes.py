@@ -47,8 +47,10 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
     Retorna (max_posicoes, risco_por_trade) baseado no saldo atual.
     Scalping: 4 posições, margem menor. Swing: tabela progressiva.
     """
-    if ESTRATEGIA in ("scalping", "hibrido"):
-        return 4, 0.013  # 4 posições, 1.3% risco cada = 5.2% total
+    if ESTRATEGIA == "scalping":
+        return 4, 0.013  # 4 posições, 1.3% risco cada
+    if ESTRATEGIA == "hibrido":
+        return 10, 0.01  # 10 posições, 1% risco cada = 10% total
     if saldo < 100:     # até R$518
         return 4, 0.02
     elif saldo < 300:   # até R$1.554
