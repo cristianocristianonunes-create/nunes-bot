@@ -1156,6 +1156,34 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     adx_min   = 15.0 if ESTRATEGIA in ("scalping", "hibrido") else 20.0
     adx_ok    = adx >= adx_min
 
+    # --- MA99 inclinada a favor no 5min ---
+    # Se MA99 está lateral, mercado indeciso — não entra
+    try:
+        df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=100)
+        df5["ma99"] = df5["close"].rolling(99).mean()
+        df5["ma7"]  = df5["close"].rolling(7).mean()
+        df5["ma25"] = df5["close"].rolling(25).mean()
+        ma99_agora = df5["ma99"].iloc[-1]
+        ma99_antes = df5["ma99"].iloc[-4]  # 3 candles atrás (~15min)
+        variacao_ma99 = (ma99_agora - ma99_antes) / ma99_antes if ma99_antes > 0 else 0
+
+        if direcao == "alta" and variacao_ma99 < -0.0001:
+            return None  # MA99 caindo — não entra LONG
+        if direcao == "baixa" and variacao_ma99 > 0.0001:
+            return None  # MA99 subindo — não entra SHORT
+
+        # --- MA7 com momentum: separando da MA25, não apenas tocando ---
+        # Diferença entre MA7 e MA25 deve estar AUMENTANDO (acelerando)
+        diff_atual = df5["ma7"].iloc[-1] - df5["ma25"].iloc[-1]
+        diff_antes = df5["ma7"].iloc[-3] - df5["ma25"].iloc[-3]
+
+        if direcao == "alta" and diff_atual <= diff_antes:
+            return None  # MA7 não está acelerando acima da MA25
+        if direcao == "baixa" and diff_atual >= diff_antes:
+            return None  # MA7 não está acelerando abaixo da MA25
+    except Exception:
+        pass  # se falhar, deixa passar sem esse filtro
+
     if direcao == "alta" and cruzou_alta and volume_ok and rsi_ok and retraction_ok and adx_ok:
         return "LONG"
     if direcao == "baixa" and cruzou_baixa and volume_ok and rsi_ok and retraction_ok and adx_ok:
