@@ -61,8 +61,8 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
         return 5, 0.05    # 5 posições, 5% risco
     elif saldo < 100:
         return 8, 0.03    # 8 posições, 3% risco
-    # Saldo normal: Rácio de Margem é a trava
-    return 30, 0.007
+    # Saldo normal: 1% por trade (padrão Bruno), Rácio é a trava
+    return 30, 0.01
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
@@ -1838,7 +1838,7 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
     saldo_total    = get_saldo_total(client)
     alav_ideal     = alavancagem_dinamica(saldo_total)
     _risco_base    = risco_base if risco_base is not None else RISCO_POR_TRADE
-    risco          = 0.02 if qualidade == "PREMIUM" else _risco_base
+    risco          = _risco_base  # 1% fixo para todas as entradas (padrão Bruno)
     margem         = round(banca * risco, 2)
     side           = "BUY" if direcao == "LONG" else "SELL"
     side_close     = "SELL" if direcao == "LONG" else "BUY"
