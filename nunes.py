@@ -919,6 +919,96 @@ def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None, ciclos_positivos=None
     except Exception as e:
         log.warning(f"Erro ao salvar estado: {e}")
 
+
+APRENDIZADOS_FILE = "C:/robo-trade/aprendizados.json"
+
+def registrar_aprendizado(client: Client, symbol: str, direcao: str, tipo: str, roi_final: float, detalhes: str = ""):
+    """
+    Registra caso de estudo (sucesso ou fracasso) para aprendizado do bot.
+    Inclui snapshot completo de 1min, 5min, 1H e Fibonacci no momento.
+    """
+    try:
+        df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
+        df5["ma7"] = df5["close"].rolling(7).mean()
+        df5["ma25"] = df5["close"].rolling(25).mean()
+        df5["ma99"] = df5["close"].rolling(99).mean()
+
+        df1 = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=30)
+        df1["ma7"] = df1["close"].rolling(7).mean()
+        df1["ma25"] = df1["close"].rolling(25).mean()
+
+        df1h = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
+        df1h["ma7"] = df1h["close"].rolling(7).mean()
+        df1h["ma25"] = df1h["close"].rolling(25).mean()
+
+        preco = df5["close"].iloc[-1]
+        high_20 = df5["high"].iloc[-20:].max()
+        low_20 = df5["low"].iloc[-20:].min()
+
+        caso = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "symbol": symbol,
+            "direcao": direcao,
+            "tipo": tipo,  # "3x_sucesso", "3x_fracasso", "entrada_sucesso", "entrada_fracasso"
+            "roi_final": roi_final,
+            "preco": float(preco),
+            "detalhes": detalhes,
+            "snapshot": {
+                "1min": {
+                    "ma7": float(df1["ma7"].iloc[-1]),
+                    "ma25": float(df1["ma25"].iloc[-1]),
+                    "ma7_acima_ma25": bool(df1["ma7"].iloc[-1] > df1["ma25"].iloc[-1]),
+                },
+                "5min": {
+                    "ma7": float(df5["ma7"].iloc[-1]),
+                    "ma25": float(df5["ma25"].iloc[-1]),
+                    "ma99": float(df5["ma99"].iloc[-1]) if pd.notna(df5["ma99"].iloc[-1]) else None,
+                    "ma7_acima_ma25": bool(df5["ma7"].iloc[-1] > df5["ma25"].iloc[-1]),
+                    "ma7_acima_ma99": bool(df5["ma7"].iloc[-1] > df5["ma99"].iloc[-1]) if pd.notna(df5["ma99"].iloc[-1]) else None,
+                },
+                "1h": {
+                    "ma7": float(df1h["ma7"].iloc[-1]),
+                    "ma25": float(df1h["ma25"].iloc[-1]),
+                    "ma7_acima_ma25": bool(df1h["ma7"].iloc[-1] > df1h["ma25"].iloc[-1]),
+                },
+                "fibonacci": {
+                    "suporte": float(low_20),
+                    "topo": float(high_20),
+                    "fib_382": float(low_20 + (high_20 - low_20) * 0.382),
+                    "fib_500": float(low_20 + (high_20 - low_20) * 0.500),
+                    "fib_618": float(low_20 + (high_20 - low_20) * 0.618),
+                    "preco_zona": "acima_618" if preco >= low_20 + (high_20 - low_20) * 0.618 else
+                                  "382_618" if preco >= low_20 + (high_20 - low_20) * 0.382 else
+                                  "abaixo_382"
+                }
+            }
+        }
+
+        # Carrega aprendizados existentes e adiciona
+        try:
+            with open(APRENDIZADOS_FILE, "r") as f:
+                aprendizados = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            aprendizados = []
+
+        aprendizados.append(caso)
+        with open(APRENDIZADOS_FILE, "w") as f:
+            json.dump(aprendizados, f, indent=2)
+
+        resultado = "SUCESSO" if "sucesso" in tipo else "FRACASSO"
+        log.info(f"  [APRENDIZADO] {resultado}: {symbol} {direcao} | ROI: {roi_final:+.1f}% | {detalhes}")
+        telegram(
+            f"<b>Aprendizado registrado: {resultado}</b>\n"
+            f"{symbol} {direcao} | ROI final: {roi_final:+.1f}%\n"
+            f"1min: MA7 {'>' if caso['snapshot']['1min']['ma7_acima_ma25'] else '<'} MA25\n"
+            f"5min: MA7 {'>' if caso['snapshot']['5min']['ma7_acima_ma25'] else '<'} MA25\n"
+            f"1H: MA7 {'>' if caso['snapshot']['1h']['ma7_acima_ma25'] else '<'} MA25\n"
+            f"Fib: {caso['snapshot']['fibonacci']['preco_zona']}\n"
+            f"{detalhes}"
+        )
+    except Exception as e:
+        log.warning(f"  Erro ao registrar aprendizado: {e}")
+
 def analise_grafico_3x(client: Client, symbol: str, direcao: str) -> str:
     """
     Gera análise detalhada de 1min e 5min para acompanhar o 3x.
@@ -1690,6 +1780,8 @@ def proteger_racio(client: Client, abertas: list) -> bool:
             ma_reverteu.pop(symbol, None)
             posicao_abertura.pop(symbol, None)
             log.warning(f"  [RACIO {racio:.1f}%] Fechando {symbol} {lado} | PnL ${pnl:+.2f} | ROI {roi:+.1f}%")
+            registrar_aprendizado(client, symbol, lado, "racio_fechamento", roi,
+                f"Racio {racio:.1f}% forcou fechamento | PnL ${pnl:+.2f}")
             return True
         except BinanceAPIException as e:
             log.error(f"  Erro ao fechar {symbol} por rácio: {e}")
@@ -2274,6 +2366,8 @@ def main() -> None:
                                 f"Saida em +{meta_saida:.0f}% ({motivo_meta})\n"
                                 f"Fechando 90% com lucro! 10% continua na posicao."
                             )
+                            registrar_aprendizado(client, symbol, direcao, "3x_sucesso", roi,
+                                f"3x #{n_3x} | Meta {meta_saida:.0f}% ({motivo_meta}) | Entrada DCA ROI: {roi_entrada_dca:+.1f}%")
                             fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} +{meta_saida:.0f}% (ROI {roi:.1f}%)")
                             dca_aplicado.discard(symbol)
                             dca_contagem.pop(symbol, None)
@@ -2339,6 +2433,8 @@ def main() -> None:
                     pump_tag = " [PUMP]" if cripto_pump else ""
                     if queda_pct >= tolerancia:
                         log.info(f"  {symbol}{pump_tag}: trailing stop! Pico {pico:.0f}% -> atual {roi:.0f}% (tolerancia {tolerancia:.0%}) -> fechando 90%")
+                        registrar_aprendizado(client, symbol, direcao, "trailing_sucesso", roi,
+                            f"Pico {pico:.0f}% | Saida {roi:+.1f}% | Tolerancia {tolerancia:.0%}{pump_tag}")
                         fechar_parcial(client, p, 0.90, f"Trailing stop{pump_tag} (pico {pico:.0f}% tol {tolerancia:.0%})")
                         peak_roi.pop(symbol, None)
                         ma_reverteu.pop(symbol, None)
