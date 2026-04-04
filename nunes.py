@@ -2116,6 +2116,7 @@ def main() -> None:
                             dca_contagem[symbol] = dca_contagem.get(symbol, 0) + 1
                             if dca_ativo is None:
                                 dca_ativo = symbol
+                            salvar_estado()  # salva IMEDIATAMENTE para não perder no reinício
                             log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f})")
                             telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nBot vai aguardar saida inteligente (+3%/+10%).")
                 margem_registrada[symbol] = margem_atual
