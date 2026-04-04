@@ -738,6 +738,7 @@ roi_no_dca:            dict[str, float] = {}   # ROI no momento em que o DCA foi
 alerta_ciclo_risco_ts: float           = 0.0  # timestamp do último alerta de ciclo em risco
 posicoes_herdadas:     set[str]        = set() # symbols herdados de ciclos anteriores (negativos não fechados)
 margem_registrada:     dict[str, float] = {}  # margem inicial registrada por symbol para detectar DCA manual
+parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
 
 ESTADO_FILE = "C:/robo-trade/estado_bot.json"
 
@@ -1842,14 +1843,28 @@ def main() -> None:
 
                 pico = peak_roi.get(symbol, roi)
 
-                # --- LIMITES ABSOLUTOS: +500% fecha lucro, -200% corta perda ---
-                if roi >= 500:
-                    log.info(f"  {symbol}: ROI {roi:+.1f}% >= +500% -> fechando 100%!")
-                    telegram(f"<b>TP +500%: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nLucro maximo atingido!")
-                    fechar_parcial(client, p, 1.0, f"TP +500% ({roi:+.1f}%)")
-                    peak_roi.pop(symbol, None)
-                    ma_reverteu.pop(symbol, None)
+                # --- LIMITES ABSOLUTOS ---
+                # +500%: fecha 50% e deixa resto correr com trailing apertado 10%
+                if roi >= 500 and symbol not in parcial_500:
+                    log.info(f"  {symbol}: ROI {roi:+.1f}% >= +500% -> fechando 50%, resto com trailing 10%")
+                    telegram(f"<b>TP +500%: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nFechando 50% — resto corre com trailing apertado.")
+                    fechar_parcial(client, p, 0.50, f"TP parcial +500% ({roi:+.1f}%)")
+                    parcial_500.add(symbol)
                     continue
+                # Após parcial de 500%, trailing apertado de 10% do pico
+                if symbol in parcial_500:
+                    queda_pct = (pico - roi) / pico if pico > 0 else 0
+                    if queda_pct >= 0.10:
+                        log.info(f"  {symbol}: trailing pos-500%! Pico {pico:.0f}% -> atual {roi:.0f}% (queda 10%) -> fechando resto")
+                        telegram(f"<b>Trailing pos-500%: {symbol}</b>\n{direcao} | Pico: {pico:.0f}% | Atual: {roi:+.1f}%\nFechando posicao restante.")
+                        fechar_parcial(client, p, 1.0, f"Trailing pos-500% (pico {pico:.0f}%)")
+                        parcial_500.discard(symbol)
+                        peak_roi.pop(symbol, None)
+                        ma_reverteu.pop(symbol, None)
+                        continue
+                    else:
+                        log.info(f"  {symbol}: ROI {roi:+.1f}% | pico {pico:.0f}% | pos-500% trailing 10%")
+                        continue
                 if roi <= -200:
                     log.warning(f"  {symbol}: ROI {roi:+.1f}% <= -200% -> fechando 100%")
                     telegram(f"<b>SL -200%: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nLimite de perda atingido.")
