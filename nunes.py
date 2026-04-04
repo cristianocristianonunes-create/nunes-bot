@@ -2625,7 +2625,7 @@ def main() -> None:
 
             # Check mais rápido quando tem 3x ativo ou posição perto do gatilho
             if dca_aplicado or any(calcular_roi(p) <= -180 for p in abertas if float(p["positionAmt"]) != 0):
-                time.sleep(5)   # 5s — monitora de perto o 3x e oportunidade
+                time.sleep(2)   # 2s — monitora de perto o 3x e saída rápida
             else:
                 time.sleep(INTERVALO_POSICOES)
 
