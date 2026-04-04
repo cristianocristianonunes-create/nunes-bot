@@ -1000,46 +1000,72 @@ def calcular_roi(posicao: dict) -> float:
 
 def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
     """
-    Critério do Bruno para 3x:
-    1. MA7 cruzou MA25 no 5min (candle 1)
-    2. Segundo candle CONFIRMA (MA7 separando, não lateralizou)
-    3. Fibonacci: preço acima de 38.2% de retração do último swing (tendência)
-    SEM exigir MA99 — no 3x precisa agir rápido na reversão.
+    Critério do Bruno para 3x — compara 1min E 5min antes de aplicar:
+    1. 5min: MA7 cruzou MA25 (confirmado, separando, não lateral)
+    2. 1min: MA7 TAMBÉM acima da MA25 (ambos timeframes concordam)
+    3. Fibonacci: preço acima de 38.2% do swing (tendência)
+    Só aplica 3x quando 1min E 5min estão alinhados.
     """
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
-    df["ma7"]  = df["close"].rolling(7).mean()
-    df["ma25"] = df["close"].rolling(25).mean()
-    c4 = df.iloc[-4]
-    c3 = df.iloc[-3]
-    c2 = df.iloc[-2]
-    c1 = df.iloc[-1]
+    # --- 5min: cruzamento confirmado ---
+    df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
+    df5["ma7"]  = df5["close"].rolling(7).mean()
+    df5["ma25"] = df5["close"].rolling(25).mean()
+    c4 = df5.iloc[-4]
+    c3 = df5.iloc[-3]
+    c2 = df5.iloc[-2]
+    c1 = df5.iloc[-1]
 
     if direcao == "LONG":
-        cruzou = c4["ma7"] <= c4["ma25"] and c3["ma7"] > c3["ma25"]
-        confirmou = c2["ma7"] > c2["ma25"] and (c2["ma7"] - c2["ma25"]) > (c3["ma7"] - c3["ma25"])
-        nao_lateral = (c1["ma7"] - c1["ma25"]) >= (c2["ma7"] - c2["ma25"])
+        cruzou_5m = c4["ma7"] <= c4["ma25"] and c3["ma7"] > c3["ma25"]
+        confirmou_5m = c2["ma7"] > c2["ma25"] and (c2["ma7"] - c2["ma25"]) > (c3["ma7"] - c3["ma25"])
+        nao_lateral_5m = (c1["ma7"] - c1["ma25"]) >= (c2["ma7"] - c2["ma25"])
+        alinhado_5m = c1["ma7"] > c1["ma25"]  # MA7 acima agora
     else:
-        cruzou = c4["ma7"] >= c4["ma25"] and c3["ma7"] < c3["ma25"]
-        confirmou = c2["ma7"] < c2["ma25"] and (c2["ma25"] - c2["ma7"]) > (c3["ma25"] - c3["ma7"])
-        nao_lateral = (c1["ma25"] - c1["ma7"]) >= (c2["ma25"] - c2["ma7"])
+        cruzou_5m = c4["ma7"] >= c4["ma25"] and c3["ma7"] < c3["ma25"]
+        confirmou_5m = c2["ma7"] < c2["ma25"] and (c2["ma25"] - c2["ma7"]) > (c3["ma25"] - c3["ma7"])
+        nao_lateral_5m = (c1["ma25"] - c1["ma7"]) >= (c2["ma25"] - c2["ma7"])
+        alinhado_5m = c1["ma7"] < c1["ma25"]
 
-    if not (cruzou and confirmou and nao_lateral):
+    # 5min precisa ter cruzado OU estar alinhado (cruzamento pode ter sido há alguns candles)
+    ok_5m = (cruzou_5m and confirmou_5m and nao_lateral_5m) or alinhado_5m
+
+    if not ok_5m:
         return False
 
-    # Fibonacci: confirma tendência
-    # Pega último swing (máxima e mínima dos últimos 20 candles)
-    high_20 = df["high"].iloc[-20:].max()
-    low_20  = df["low"].iloc[-20:].min()
-    fib_382 = low_20 + (high_20 - low_20) * 0.382  # nível 38.2%
-    fib_618 = low_20 + (high_20 - low_20) * 0.618  # nível 61.8%
-    preco   = df["close"].iloc[-1]
+    # --- 1min: MA7 também alinhada na mesma direção ---
+    df1 = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=30)
+    df1["ma7"]  = df1["close"].rolling(7).mean()
+    df1["ma25"] = df1["close"].rolling(25).mean()
+    m1 = df1.iloc[-1]
+    m2 = df1.iloc[-2]
 
     if direcao == "LONG":
-        # Para LONG: preço acima de 38.2% (retração saudável, tendência de alta)
-        return preco >= fib_382
+        alinhado_1m = m1["ma7"] > m1["ma25"]
+        acelerando_1m = (m1["ma7"] - m1["ma25"]) > (m2["ma7"] - m2["ma25"])
     else:
-        # Para SHORT: preço abaixo de 61.8% (retração saudável, tendência de baixa)
-        return preco <= fib_618
+        alinhado_1m = m1["ma7"] < m1["ma25"]
+        acelerando_1m = (m1["ma25"] - m1["ma7"]) > (m2["ma25"] - m2["ma7"])
+
+    if not alinhado_1m:
+        return False  # 1min não confirma — espera
+
+    # --- Fibonacci: confirma tendência ---
+    high_20 = df5["high"].iloc[-20:].max()
+    low_20  = df5["low"].iloc[-20:].min()
+    fib_382 = low_20 + (high_20 - low_20) * 0.382
+    fib_618 = low_20 + (high_20 - low_20) * 0.618
+    preco   = df5["close"].iloc[-1]
+
+    if direcao == "LONG":
+        fib_ok = preco >= fib_382
+    else:
+        fib_ok = preco <= fib_618
+
+    if not fib_ok:
+        return False
+
+    log.info(f"  {symbol}: 3x confirmado | 5min MA7{'>' if direcao=='LONG' else '<'}MA25 | 1min MA7{'>' if direcao=='LONG' else '<'}MA25{' acelerando' if acelerando_1m else ''} | Fib OK")
+    return True
 
 
 def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
