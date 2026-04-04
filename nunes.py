@@ -66,7 +66,7 @@ ROI_MIN_REVERSAO      = 20.0 # ROI mínimo para monitorar reversão (%)
 LIMITE_PERDA_DIARIA   = float(os.getenv("LIMITE_PERDA_DIARIA", "5.0"))  # % máximo de perda no dia
 ROI_STOP_LOSS_MAX     = float(os.getenv("ROI_STOP_LOSS_MAX", "-100.0"))  # fecha posição se ROI abaixo disso
 RESUMO_HORA           = 22   # hora do resumo diário (horário local)
-DCA_ANTECIPADO_ROI    = -150.0  # ROI para DCA antecipado (com sinal de MA)
+DCA_ANTECIPADO_ROI    = -5.0  # ROI mínimo para DCA (qualquer negativo com sinal de MA)
 STOP_TEMPO_HORAS      = 24.0    # horas sem recuperação após DCA para fechar
 STOP_SEM_SINAL_HORAS  = 12.0   # horas sem nenhum sinal de MA para fechar (sem DCA)
 META_CICLO_PCT        = float(os.getenv("META_CICLO_PCT", "5.0"))   # meta de lucro por ciclo (%)
@@ -2085,36 +2085,24 @@ def main() -> None:
                 elif roi < 0:
                     log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando reversao (Racio protege)")
 
-                # --- DCA ANTECIPADO (-150% com sinal de MA) ---
-                elif roi <= DCA_ANTECIPADO_ROI and roi > -200.0 and symbol not in dca_aplicado:
+                # --- DCA: aplica quando MA cruza a favor (qualquer ROI negativo) ---
+                elif roi <= DCA_ANTECIPADO_ROI and symbol not in dca_aplicado:
                     if dca_ativo and dca_ativo != symbol and dca_ativo_tem_sinal(client, abertas):
-                        log.info(f"  {symbol}: ROI {roi:.1f}% | DCA antecipado bloqueado ({dca_ativo} em recuperacao com sinal ativo)")
+                        log.info(f"  {symbol}: ROI {roi:.1f}% | DCA bloqueado ({dca_ativo} em recuperacao com sinal ativo)")
                     else:
                         try:
-                            ma_ok  = ma_cruza_favor(client, symbol, direcao)
-                            rsi_ok = rsi_extremo(client, symbol, direcao)
-                            if ma_ok and rsi_ok:
+                            ma_ok = ma_cruza_favor(client, symbol, direcao)
+                            if ma_ok:
                                 if dca_bloqueado_por_racio:
-                                    log.warning(f"  {symbol}: DCA antecipado bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                                    log.warning(f"  {symbol}: DCA bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
                                 else:
-                                    log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou + RSI extremo -> DCA antecipado")
+                                    log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou a favor -> DCA")
                                     aplicar_dca(client, p, banca)
                                     dca_ativo = symbol
                             else:
-                                motivo = []
-                                if not ma_ok:  motivo.append("MA nao cruzou")
-                                if not rsi_ok: motivo.append("RSI nao extremo")
-                                ultimo_alerta_dca = alerta_dca_log.get(symbol, 0)
-                                if time.time() - ultimo_alerta_dca >= 600:
-                                    telegram(
-                                        f"<b>ATENCAO: {symbol} em {roi:.1f}%</b>\n"
-                                        f"{direcao} | Aguardando: {' | '.join(motivo)}\n"
-                                        f"DCA automatico em -200% | Manual: /dca {symbol}"
-                                    )
-                                    alerta_dca_log[symbol] = time.time()
-                                log.info(f"  {symbol}: ROI {roi:.1f}% | aguardando {' | '.join(motivo)}")
+                                log.info(f"  {symbol}: ROI {roi:.1f}% | aguardando MA cruzar a favor para DCA")
                         except Exception as e:
-                            log.warning(f"  Erro DCA antecipado {symbol}: {e}")
+                            log.warning(f"  Erro DCA {symbol}: {e}")
 
                 # --- AGUARDANDO SINAL PARA DCA ---
                 elif roi <= -200.0:
