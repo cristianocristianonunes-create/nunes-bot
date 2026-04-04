@@ -54,19 +54,9 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
     if ESTRATEGIA == "scalping":
         return 4, 0.013
-    # Escala progressiva: mais saldo, mais ativos, menos risco por trade
-    if saldo < 50:
-        return 8, 0.012     # 8 posições, ~10% alocado
-    elif saldo < 100:
-        return 10, 0.010    # 10 posições, ~10% alocado
-    elif saldo < 300:
-        return 15, 0.007    # 15 posições, ~10% alocado
-    elif saldo < 500:
-        return 18, 0.005    # 18 posições, ~9% alocado
-    elif saldo < 1000:
-        return 22, 0.004    # 22 posições, ~9% alocado
-    else:
-        return 26, 0.003    # 26 posições, ~8% alocado
+    # Sem limite fixo de posições — Rácio de Margem é a trava
+    # Max alto (30) mas o bot para de abrir quando Rácio >= 8%
+    return 30, 0.007
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
