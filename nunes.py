@@ -30,11 +30,14 @@ TELEGRAM_TOKEN     = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 
 MODO               = os.getenv("MODO", "simulacao")
+ESTRATEGIA         = os.getenv("ESTRATEGIA", "swing")  # "swing" (padrão) ou "scalping"
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
 RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.02"))
 RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "6.0"))  # % máximo do Rácio de Margem da Binance
 STOP_LOSS_ROI      = float(os.getenv("STOP_LOSS_ROI", "2.0"))
 TAKE_PROFIT_ROI    = float(os.getenv("TAKE_PROFIT_ROI", "5.0"))
+SCALP_TP           = float(os.getenv("SCALP_TP", "5.0"))    # take profit scalping (% ROI)
+SCALP_SL           = float(os.getenv("SCALP_SL", "-3.0"))   # stop loss scalping (% ROI)
 
 MAX_POSICOES          = 30   # limite de segurança absoluto — controle dinâmico abaixo
 
@@ -42,8 +45,10 @@ MAX_POSICOES          = 30   # limite de segurança absoluto — controle dinâm
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
     Retorna (max_posicoes, risco_por_trade) baseado no saldo atual.
-    Estratégia de ciclos diários: menos posições, mais qualidade.
+    Scalping: 4 posições, margem menor. Swing: tabela progressiva.
     """
+    if ESTRATEGIA == "scalping":
+        return 4, 0.013  # 4 posições, 1.3% risco cada = 5.2% total
     if saldo < 100:     # até R$518
         return 4, 0.02
     elif saldo < 300:   # até R$1.554
@@ -57,8 +62,8 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
-INTERVALO_POSICOES    = 30   # segundos entre verificação de posições abertas
-INTERVALO_ENTRADAS    = 30   # segundos entre busca de novas entradas
+INTERVALO_POSICOES    = 10 if ESTRATEGIA == "scalping" else 30   # segundos entre verificação
+INTERVALO_ENTRADAS    = 10 if ESTRATEGIA == "scalping" else 30  # segundos entre busca
 ROI_MIN_REVERSAO      = 20.0 # ROI mínimo para monitorar reversão (%)
 LIMITE_PERDA_DIARIA   = float(os.getenv("LIMITE_PERDA_DIARIA", "5.0"))  # % máximo de perda no dia
 ROI_STOP_LOSS_MAX     = float(os.getenv("ROI_STOP_LOSS_MAX", "-100.0"))  # fecha posição se ROI abaixo disso
@@ -1533,7 +1538,9 @@ def verificar_atualizacao(reiniciar: bool = False) -> None:
 def main() -> None:
     verificar_atualizacao()
     log.info("=" * 50)
-    log.info(f"Nunes iniciado | Modo: {MODO.upper()}")
+    log.info(f"Nunes iniciado | Modo: {MODO.upper()} | Estrategia: {ESTRATEGIA.upper()}")
+    if ESTRATEGIA == "scalping":
+        log.info(f"SCALPING: TP +{SCALP_TP:.0f}% | SL {SCALP_SL:.0f}% | Max 4 posicoes | Scan 10s")
     log.info(f"Risco: {RISCO_POR_TRADE*100}% | Alavancagem: {ALAVANCAGEM}x")
     log.info("=" * 50)
 
@@ -1830,6 +1837,32 @@ def main() -> None:
                     if dca_ativo == symbol:
                         dca_ativo = None
                     continue
+
+                # --- MODO SCALPING: TP/SL rápido, sem DCA, sem trailing ---
+                if ESTRATEGIA == "scalping":
+                    if roi >= SCALP_TP:
+                        log.info(f"  {symbol}: SCALP TP! ROI {roi:+.1f}% >= {SCALP_TP:.0f}% -> fechando 100%")
+                        telegram(
+                            f"<b>Scalp TP: {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}%\n"
+                            f"Lucro rapido garantido."
+                        )
+                        fechar_parcial(client, p, 1.0, f"Scalp TP ({roi:+.1f}%)")
+                        peak_roi.pop(symbol, None)
+                        posicao_abertura.pop(symbol, None)
+                    elif roi <= SCALP_SL:
+                        log.info(f"  {symbol}: SCALP SL! ROI {roi:+.1f}% <= {SCALP_SL:.0f}% -> fechando 100%")
+                        telegram(
+                            f"<b>Scalp SL: {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}%\n"
+                            f"Stop rapido — proxima entrada."
+                        )
+                        fechar_parcial(client, p, 1.0, f"Scalp SL ({roi:+.1f}%)")
+                        peak_roi.pop(symbol, None)
+                        posicao_abertura.pop(symbol, None)
+                    else:
+                        log.info(f"  {symbol}: ROI {roi:+.1f}% | scalping (TP {SCALP_TP:.0f}% / SL {SCALP_SL:.0f}%)")
+                    continue  # pula toda lógica de swing
 
                 # Alertas de risco para todas as posições
                 verificar_alertas_risco(client, p, roi)
