@@ -917,6 +917,55 @@ def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None, ciclos_positivos=None
     except Exception as e:
         log.warning(f"Erro ao salvar estado: {e}")
 
+def analise_grafico_3x(client: Client, symbol: str, direcao: str) -> str:
+    """
+    Gera análise detalhada de 1min e 5min para acompanhar o 3x.
+    Retorna texto formatado para Telegram.
+    """
+    try:
+        # 5min
+        df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+        df5["ma7"]  = df5["close"].rolling(7).mean()
+        df5["ma25"] = df5["close"].rolling(25).mean()
+        ma7_5  = df5["ma7"].iloc[-1]
+        ma25_5 = df5["ma25"].iloc[-1]
+        diff_5 = ma7_5 - ma25_5
+        preco  = df5["close"].iloc[-1]
+        trend_5 = "subindo" if diff_5 > 0 else "caindo"
+
+        # 1min
+        df1 = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=30)
+        df1["ma7"]  = df1["close"].rolling(7).mean()
+        df1["ma25"] = df1["close"].rolling(25).mean()
+        ma7_1  = df1["ma7"].iloc[-1]
+        ma25_1 = df1["ma25"].iloc[-1]
+        diff_1 = ma7_1 - ma25_1
+        trend_1 = "subindo" if diff_1 > 0 else "caindo"
+
+        # Fibonacci
+        high_20 = df5["high"].iloc[-20:].max()
+        low_20  = df5["low"].iloc[-20:].min()
+        fib_382 = low_20 + (high_20 - low_20) * 0.382
+        fib_500 = low_20 + (high_20 - low_20) * 0.500
+        fib_618 = low_20 + (high_20 - low_20) * 0.618
+
+        return (
+            f"\n<b>Grafico 5min:</b>\n"
+            f"  MA7: {ma7_5:.6f} | MA25: {ma25_5:.6f}\n"
+            f"  MA7 {'>' if ma7_5 > ma25_5 else '<'} MA25 ({trend_5})\n"
+            f"\n<b>Grafico 1min:</b>\n"
+            f"  MA7: {ma7_1:.6f} | MA25: {ma25_1:.6f}\n"
+            f"  MA7 {'>' if ma7_1 > ma25_1 else '<'} MA25 ({trend_1})\n"
+            f"\n<b>Fibonacci:</b>\n"
+            f"  38.2%: {fib_382:.6f}\n"
+            f"  50.0%: {fib_500:.6f}\n"
+            f"  61.8%: {fib_618:.6f}\n"
+            f"  Preco: {preco:.6f}"
+        )
+    except Exception:
+        return "\n(erro ao gerar analise de grafico)"
+
+
 def carregar_estado():
     """Restaura peak_roi, dca_aplicado, herdadas e ciclo do disco ao iniciar."""
     global peak_roi, dca_aplicado, posicoes_herdadas
@@ -2238,6 +2287,17 @@ def main() -> None:
 
                 # --- MONITORAMENTO NEGATIVO (sem stop por ROI/tempo — Rácio de Margem protege) ---
                 elif roi < 0:
+                    # Alerta quando se aproxima do gatilho de 3x (-180%)
+                    if roi <= -180 and roi > -200:
+                        alerta_key = f"perto3x_{symbol}"
+                        if time.time() - alerta_dca_log.get(alerta_key, 0) >= 600:
+                            grafico = analise_grafico_3x(client, symbol, direcao)
+                            telegram(
+                                f"<b>Preparando 3x: {symbol}</b>\n"
+                                f"{direcao} | ROI: {roi:+.1f}%\n"
+                                f"Proximo do gatilho (-200%). Acompanhe:{grafico}"
+                            )
+                            alerta_dca_log[alerta_key] = time.time()
                     log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando oportunidade de 3x")
 
                 # --- ESTRATÉGIA 3x (DCA padrão Bruno) ---
@@ -2256,11 +2316,12 @@ def main() -> None:
                                 dca_aplicado.add(symbol)
                                 dca_contagem[symbol] = n_3x + 1
                                 dca_ativo = symbol
+                                grafico = analise_grafico_3x(client, symbol, direcao)
                                 telegram(
                                     f"<b>OBA! 3x ativado: {symbol} (#{n_3x + 1})</b>\n"
                                     f"{direcao} | ROI: {roi:+.1f}%\n"
-                                    f"MA7 cruzou MA25 e MA99 a favor!\n"
-                                    f"Oportunidade de lucro com spread maior. Vamos la!"
+                                    f"MA7 cruzou MA25 + Fibonacci confirmou!\n"
+                                    f"Oportunidade de lucro com spread maior.{grafico}"
                                 )
                         else:
                             log.info(f"  {symbol}: ROI {roi:.1f}% | 3x #{n_3x + 1} preparado | aguardando sinal de reversao para lucrar")
