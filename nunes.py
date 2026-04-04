@@ -856,16 +856,24 @@ def calcular_roi(posicao: dict) -> float:
 
 
 def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
-    """Verifica se MA7 cruzou MA25 na direção da posição no 5min."""
+    """
+    Verifica se MA7 cruzou MA25 na direção da posição no 5min.
+    Cruzamento CERTEIRO: cruzou E confirmou no candle seguinte (separando).
+    """
     df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
     df["ma7"]  = df["close"].rolling(7).mean()
     df["ma25"] = df["close"].rolling(25).mean()
-    c2 = df.iloc[-2]
-    c1 = df.iloc[-1]
+    c3 = df.iloc[-3]  # antes do cruzamento
+    c2 = df.iloc[-2]  # cruzamento
+    c1 = df.iloc[-1]  # confirmação
     if direcao == "LONG":
-        return c2["ma7"] <= c2["ma25"] and c1["ma7"] > c1["ma25"]
+        cruzou = c3["ma7"] <= c3["ma25"] and c2["ma7"] > c2["ma25"]
+        confirmou = c1["ma7"] > c1["ma25"] and (c1["ma7"] - c1["ma25"]) >= (c2["ma7"] - c2["ma25"])
+        return cruzou and confirmou
     else:
-        return c2["ma7"] >= c2["ma25"] and c1["ma7"] < c1["ma25"]
+        cruzou = c3["ma7"] >= c3["ma25"] and c2["ma7"] < c2["ma25"]
+        confirmou = c1["ma7"] < c1["ma25"] and (c1["ma25"] - c1["ma7"]) >= (c2["ma25"] - c2["ma7"])
+        return cruzou and confirmou
 
 
 def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
@@ -1193,14 +1201,31 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     df["ma25"]      = df["close"].rolling(25).mean()
     df["vol_media"] = df["volume"].rolling(20).mean()
 
-    # Usa candles FECHADOS: [-3] e [-2] para detectar cruzamento confirmado
-    # O candle [-1] está ainda aberto e pode gerar falsos sinais
-    c_ant  = df.iloc[-3]   # candle fechado anterior
-    c_ref  = df.iloc[-2]   # candle fechado de referência (confirmação)
-    c_vol  = df.iloc[-2]   # volume do candle confirmado
+    # Usa candles FECHADOS para cruzamento CONFIRMADO:
+    # [-4] e [-3]: cruzamento inicial
+    # [-2]: confirmação (MA7 continua separando)
+    # [-1]: aberto, ignorado
+    c_cruz1 = df.iloc[-4]  # antes do cruzamento
+    c_cruz2 = df.iloc[-3]  # candle do cruzamento
+    c_conf  = df.iloc[-2]  # candle de confirmação
+    c_vol   = df.iloc[-2]  # volume do candle confirmado
+    preco_atual = df["close"].iloc[-2]
 
-    cruzou_alta  = c_ant["ma7"] <= c_ant["ma25"] and c_ref["ma7"] > c_ref["ma25"]
-    cruzou_baixa = c_ant["ma7"] >= c_ant["ma25"] and c_ref["ma7"] < c_ref["ma25"]
+    # Cruzamento: MA7 cruzou MA25 E confirmou no candle seguinte (separou mais)
+    cruzou_alta = (
+        c_cruz1["ma7"] <= c_cruz1["ma25"]     # antes: MA7 abaixo
+        and c_cruz2["ma7"] > c_cruz2["ma25"]   # cruzou: MA7 acima
+        and c_conf["ma7"] > c_conf["ma25"]     # confirmou: ainda acima
+        and (c_conf["ma7"] - c_conf["ma25"]) >= (c_cruz2["ma7"] - c_cruz2["ma25"])  # separando
+        and preco_atual > c_conf["ma7"]         # preço acima da MA7 (momentum)
+    )
+    cruzou_baixa = (
+        c_cruz1["ma7"] >= c_cruz1["ma25"]      # antes: MA7 acima
+        and c_cruz2["ma7"] < c_cruz2["ma25"]    # cruzou: MA7 abaixo
+        and c_conf["ma7"] < c_conf["ma25"]      # confirmou: ainda abaixo
+        and (c_conf["ma25"] - c_conf["ma7"]) >= (c_cruz2["ma25"] - c_cruz2["ma7"])  # separando
+        and preco_atual < c_conf["ma7"]          # preço abaixo da MA7 (momentum)
+    )
 
     # Volume — scalping/hibrido aceita 1.2x, swing exige 1.5x
     vol_mult = 1.2 if ESTRATEGIA in ("scalping", "hibrido") else 1.5
