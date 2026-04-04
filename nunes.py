@@ -950,29 +950,37 @@ def calcular_roi(posicao: dict) -> float:
 
 def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
     """
-    Verifica se MA7 cruzou MA25 E MA99 na direção da posição no 5min.
-    Critério do Bruno: MA7 tem que estar acima das duas (LONG) ou abaixo das duas (SHORT).
-    Cruzamento confirmado: MA7 separando da MA25 no candle seguinte.
+    Critério do Bruno para 3x:
+    1. MA7 cruzou MA25 (candle 1)
+    2. Segundo candle CONFIRMA (MA7 continua separando, não lateralizou)
+    3. MA7 acima da MA99 (LONG) ou abaixo (SHORT)
+    4. Diferença MA7-MA25 está CRESCENDO (não lateral)
     """
     df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=100)
     df["ma7"]  = df["close"].rolling(7).mean()
     df["ma25"] = df["close"].rolling(25).mean()
     df["ma99"] = df["close"].rolling(99).mean()
-    c3 = df.iloc[-3]
-    c2 = df.iloc[-2]
-    c1 = df.iloc[-1]
+    c4 = df.iloc[-4]  # antes do cruzamento
+    c3 = df.iloc[-3]  # candle 1: cruzamento
+    c2 = df.iloc[-2]  # candle 2: confirmação
+    c1 = df.iloc[-1]  # atual (pode estar aberto)
+
     if direcao == "LONG":
-        # MA7 cruzou acima da MA25 E está acima da MA99
-        cruzou_ma25 = c3["ma7"] <= c3["ma25"] and c2["ma7"] > c2["ma25"]
-        confirmou = c1["ma7"] > c1["ma25"] and (c1["ma7"] - c1["ma25"]) >= (c2["ma7"] - c2["ma25"])
-        acima_ma99 = c1["ma7"] > c1["ma99"]
-        return cruzou_ma25 and confirmou and acima_ma99
+        # Candle 1: MA7 cruzou acima da MA25
+        cruzou = c4["ma7"] <= c4["ma25"] and c3["ma7"] > c3["ma25"]
+        # Candle 2: confirma (MA7 ainda acima E separou mais)
+        confirmou = c2["ma7"] > c2["ma25"] and (c2["ma7"] - c2["ma25"]) > (c3["ma7"] - c3["ma25"])
+        # MA7 acima da MA99
+        acima_ma99 = c2["ma7"] > c2["ma99"]
+        # Anti-lateral: diferença continua crescendo no candle atual
+        nao_lateral = (c1["ma7"] - c1["ma25"]) >= (c2["ma7"] - c2["ma25"])
+        return cruzou and confirmou and acima_ma99 and nao_lateral
     else:
-        # MA7 cruzou abaixo da MA25 E está abaixo da MA99
-        cruzou_ma25 = c3["ma7"] >= c3["ma25"] and c2["ma7"] < c2["ma25"]
-        confirmou = c1["ma7"] < c1["ma25"] and (c1["ma25"] - c1["ma7"]) >= (c2["ma25"] - c2["ma7"])
-        abaixo_ma99 = c1["ma7"] < c1["ma99"]
-        return cruzou_ma25 and confirmou and abaixo_ma99
+        cruzou = c4["ma7"] >= c4["ma25"] and c3["ma7"] < c3["ma25"]
+        confirmou = c2["ma7"] < c2["ma25"] and (c2["ma25"] - c2["ma7"]) > (c3["ma25"] - c3["ma7"])
+        abaixo_ma99 = c2["ma7"] < c2["ma99"]
+        nao_lateral = (c1["ma25"] - c1["ma7"]) >= (c2["ma25"] - c2["ma7"])
+        return cruzou and confirmou and abaixo_ma99 and nao_lateral
 
 
 def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
@@ -1043,8 +1051,8 @@ def get_precisao_quantidade(client: Client, symbol: str) -> int:
 
 def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     """
-    Estratégia 3x (padrão Bruno): triplica a margem para acelerar recuperação.
-    Equivale a reentrar com o dobro da posição original.
+    Estratégia 3x (padrão Bruno): escala o 3x pela profundidade da perda.
+    Quanto mais negativo, mais agressivo — para recuperar rápido.
     """
     symbol       = posicao["symbol"]
     amt          = float(posicao["positionAmt"])
@@ -1053,12 +1061,28 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     amt_abs      = abs(float(posicao["positionAmt"]))
     leverage     = float(posicao.get("leverage", 20))
     margem_atual = round((entry * amt_abs) / leverage, 2)
-    adicional    = round(margem_atual * 2.0, 2)  # 3x: adiciona 2x a margem atual (fica com 3x total)
+    roi          = calcular_roi(posicao)
 
-    # Limita a 40% do saldo disponível para não comprometer a conta
-    if adicional > banca * 0.40:
+    # 3x escalado pela profundidade (padrão Bruno)
+    # Quanto mais negativo, mais agressivo para sair rápido
+    if roi <= -1000:
+        # Audacioso: usa 80% da margem disponível
+        adicional = round(banca * 0.80, 2)
+        modo_3x = "AUDACIOSO (80% banca)"
+    elif roi <= -500:
+        # Agressivo: usa 40% da margem disponível
         adicional = round(banca * 0.40, 2)
-        log.info(f"  Saldo insuficiente para 3x completo. Usando maximo disponivel: ${adicional:.2f}")
+        modo_3x = "AGRESSIVO (40% banca)"
+    else:
+        # Normal: triplica a margem atual
+        adicional = round(margem_atual * 2.0, 2)
+        modo_3x = "NORMAL (3x margem)"
+        # Limita a 40% do saldo
+        if adicional > banca * 0.40:
+            adicional = round(banca * 0.40, 2)
+            modo_3x = "NORMAL (max 40% banca)"
+
+    log.info(f"  {symbol}: 3x {modo_3x} | ROI {roi:+.1f}% | Adicional: ${adicional:.2f}")
 
     preco      = float(client.futures_symbol_ticker(symbol=symbol)["price"])
     precisao   = get_precisao_quantidade(client, symbol)
@@ -2132,20 +2156,19 @@ def main() -> None:
                     roi_entrada_dca = roi_no_dca.get(symbol, roi)
                     n_3x = dca_contagem.get(symbol, 1)
 
-                    # Saída positiva pós-3x — lucro realizado
+                    # Saída pós-3x (padrão Bruno): fecha 90%, mantém 10% na posição
                     if roi >= 2.0:
-                        log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% >= +2% -> fechando 100%")
+                        log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% >= +2% -> fechando 90%, mantendo 10%")
                         telegram(
                             f"<b>3x recuperou: {symbol}</b>\n"
                             f"{direcao} | ROI: {roi:+.1f}% | 3x aplicados: {n_3x}\n"
-                            f"Estrategia 3x funcionou!"
+                            f"Fechando 90% — mantendo 10% na posicao."
                         )
-                        fechar_parcial(client, p, 1.0, f"Saida pos-3x #{n_3x} (ROI {roi:.1f}%)")
+                        fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} (ROI {roi:.1f}%)")
                         dca_aplicado.discard(symbol)
                         dca_contagem.pop(symbol, None)
                         roi_no_dca.pop(symbol, None)
-                        peak_roi.pop(symbol, None)
-                        ma_reverteu.pop(symbol, None)
+                        # NÃO limpa peak_roi — os 10% restantes continuam com trailing
                         if dca_ativo == symbol:
                             dca_ativo = None
 
