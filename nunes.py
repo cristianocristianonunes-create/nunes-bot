@@ -30,7 +30,7 @@ TELEGRAM_TOKEN     = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 
 MODO               = os.getenv("MODO", "simulacao")
-ESTRATEGIA         = os.getenv("ESTRATEGIA", "swing")  # "swing" (padrão) ou "scalping"
+ESTRATEGIA         = os.getenv("ESTRATEGIA", "swing")  # "swing", "scalping" ou "hibrido"
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
 RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.02"))
 RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "6.0"))  # % máximo do Rácio de Margem da Binance
@@ -47,7 +47,7 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
     Retorna (max_posicoes, risco_por_trade) baseado no saldo atual.
     Scalping: 4 posições, margem menor. Swing: tabela progressiva.
     """
-    if ESTRATEGIA == "scalping":
+    if ESTRATEGIA in ("scalping", "hibrido"):
         return 4, 0.013  # 4 posições, 1.3% risco cada = 5.2% total
     if saldo < 100:     # até R$518
         return 4, 0.02
@@ -62,8 +62,8 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
-INTERVALO_POSICOES    = 10 if ESTRATEGIA == "scalping" else 30   # segundos entre verificação
-INTERVALO_ENTRADAS    = 10 if ESTRATEGIA == "scalping" else 30  # segundos entre busca
+INTERVALO_POSICOES    = 10 if ESTRATEGIA in ("scalping", "hibrido") else 30   # segundos entre verificação
+INTERVALO_ENTRADAS    = 15 if ESTRATEGIA in ("scalping", "hibrido") else 30  # segundos entre busca
 ROI_MIN_REVERSAO      = 20.0 # ROI mínimo para monitorar reversão (%)
 LIMITE_PERDA_DIARIA   = float(os.getenv("LIMITE_PERDA_DIARIA", "5.0"))  # % máximo de perda no dia
 ROI_STOP_LOSS_MAX     = float(os.getenv("ROI_STOP_LOSS_MAX", "-100.0"))  # fecha posição se ROI abaixo disso
@@ -1119,8 +1119,8 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     - Filtro de retração: RSI não pode estar muito esticado NA direção da entrada
       (evita entrar no topo/fundo do impulso inicial)
     """
-    # Confirmação 5min — MA7 alinhada com direção (pula no scalping, já vem do 5min)
-    if ESTRATEGIA != "scalping" and not ma_alinhada_5min(client, symbol, direcao):
+    # Confirmação 5min — MA7 alinhada com direção (pula no scalping/hibrido, já vem do 5min)
+    if ESTRATEGIA not in ("scalping", "hibrido") and not ma_alinhada_5min(client, symbol, direcao):
         return None
 
     # Gatilho no M1
@@ -1138,8 +1138,8 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     cruzou_alta  = c_ant["ma7"] <= c_ant["ma25"] and c_ref["ma7"] > c_ref["ma25"]
     cruzou_baixa = c_ant["ma7"] >= c_ant["ma25"] and c_ref["ma7"] < c_ref["ma25"]
 
-    # Volume — scalping aceita volume normal, swing exige 1.5x
-    vol_mult = 1.0 if ESTRATEGIA == "scalping" else 1.5
+    # Volume — scalping/hibrido aceita 1.2x, swing exige 1.5x
+    vol_mult = 1.2 if ESTRATEGIA in ("scalping", "hibrido") else 1.5
     volume_ok = c_vol["volume"] >= c_vol["vol_media"] * vol_mult
 
     # RSI no M1
@@ -1150,17 +1150,17 @@ def sinal_m1(client: Client, symbol: str, direcao: str) -> str | None:
     rsi_series = 100 - (100 / (1 + rs))
     rsi   = rsi_series.iloc[-2]  # RSI do candle fechado
 
-    # RSI — scalping mais flexível (65/35), swing mais restrito (55/45)
-    if ESTRATEGIA == "scalping":
-        rsi_ok = (direcao == "alta" and rsi < 65) or (direcao == "baixa" and rsi > 35)
-        retraction_ok = True  # sem filtro de retração no scalping
+    # RSI — scalping/hibrido mais flexível (60/40), swing mais restrito (55/45)
+    if ESTRATEGIA in ("scalping", "hibrido"):
+        rsi_ok = (direcao == "alta" and rsi < 60) or (direcao == "baixa" and rsi > 40)
+        retraction_ok = True  # sem filtro de retração
     else:
         rsi_ok = (direcao == "alta" and rsi < 55) or (direcao == "baixa" and rsi > 45)
         retraction_ok = (direcao == "alta" and rsi >= 35) or (direcao == "baixa" and rsi <= 65)
 
-    # ADX — scalping aceita tendência mais fraca (12), swing exige 20
+    # ADX — scalping/hibrido aceita tendência mais fraca (15), swing exige 20
     adx       = calcular_adx(df)
-    adx_min   = 12.0 if ESTRATEGIA == "scalping" else 20.0
+    adx_min   = 15.0 if ESTRATEGIA in ("scalping", "hibrido") else 20.0
     adx_ok    = adx >= adx_min
 
     if direcao == "alta" and cruzou_alta and volume_ok and rsi_ok and retraction_ok and adx_ok:
@@ -1559,6 +1559,8 @@ def main() -> None:
     log.info(f"Nunes iniciado | Modo: {MODO.upper()} | Estrategia: {ESTRATEGIA.upper()}")
     if ESTRATEGIA == "scalping":
         log.info(f"SCALPING: TP +{SCALP_TP:.0f}% | SL {SCALP_SL:.0f}% | Max 4 posicoes | Scan 10s")
+    elif ESTRATEGIA == "hibrido":
+        log.info(f"HIBRIDO: entrada rapida (5min) + gestao swing (trailing + DCA) | Max 4 pos | Scan 15s")
     log.info(f"Risco: {RISCO_POR_TRADE*100}% | Alavancagem: {ALAVANCAGEM}x")
     log.info("=" * 50)
 
@@ -1856,8 +1858,9 @@ def main() -> None:
                         dca_ativo = None
                     continue
 
-                # --- MODO SCALPING: TP/SL rápido, sem DCA, sem trailing ---
-                if ESTRATEGIA == "scalping":
+                # --- MODO SCALPING PURO: TP/SL rápido, sem DCA, sem trailing ---
+                # (modo híbrido usa trailing do swing, não entra aqui)
+                if ESTRATEGIA == "scalping" and ESTRATEGIA != "hibrido":
                     if roi >= SCALP_TP:
                         log.info(f"  {symbol}: SCALP TP! ROI {roi:+.1f}% >= {SCALP_TP:.0f}% -> fechando 100%")
                         telegram(
@@ -2338,7 +2341,7 @@ def main() -> None:
 
                     def analisar_par(symbol):
                         try:
-                            if ESTRATEGIA == "scalping":
+                            if ESTRATEGIA in ("scalping", "hibrido"):
                                 direcao_tf, confirmado = tendencia_5min(client, symbol)
                             else:
                                 direcao_tf, confirmado = tendencia_1h(client, symbol)
