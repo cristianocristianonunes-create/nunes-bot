@@ -983,6 +983,15 @@ def carregar_estado():
         saldo_salvo          = dados.get("saldo_ciclo_inicio", None)
         ciclos_pos_salvo     = dados.get("ciclos_positivos", 0)
         log.info(f"Estado restaurado: {len(peak_roi)} picos | {len(dca_aplicado)} DCAs | Ciclo {ciclo_salvo} | Herdadas: {len(posicoes_herdadas)} | Ciclos positivos: {ciclos_pos_salvo}")
+        if dca_aplicado:
+            for s in dca_aplicado:
+                n = dca_contagem.get(s, 1)
+                log.info(f"  3x ativo: {s} (#{n})")
+            telegram(
+                f"<b>3x ativos restaurados:</b>\n"
+                + "\n".join([f"  {s} (#{dca_contagem.get(s, 1)})" for s in dca_aplicado])
+                + "\nBot vai monitorar saida inteligente (+3%/+10%)."
+            )
         return ciclo_salvo, saldo_salvo, ciclos_pos_salvo
     except FileNotFoundError:
         return 1, None, 0
