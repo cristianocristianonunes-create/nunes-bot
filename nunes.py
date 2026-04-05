@@ -1929,15 +1929,22 @@ def main() -> None:
                         # PnL das herdadas (informativo)
                         pnl_herd  = sum(float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))) for p in abertas_ciclo if p["symbol"] in posicoes_herdadas)
                         herd_str  = f" | Herdadas: {pnl_herd:+.2f} USDT" if posicoes_herdadas else ""
-                        meta_rapida_usdt = saldo_ciclo_inicio * 0.08  # 8% fecha imediatamente
-                        if pnl_ciclo >= meta_rapida_usdt:
-                            meta_confirmacoes = 2  # força fechamento imediato
-                            log.info(f"Ciclo {ciclo_num} [{fase_txt}] | PnL ciclo: {pnl_brl:+.2f} BRL{herd_str} | Meta rapida 8% atingida")
-                        elif pnl_ciclo >= meta_ciclo_usdt:
+
+                        # META CNS: só dispara quando as posições vencedoras sozinhas (ROI >= +10%)
+                        # já pagam a meta — garante que fechamos SÓ positivas, sem cortar negativas
+                        ROI_META = 10.0
+                        pnl_vencedoras = sum(
+                            float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                            for p in pos_ciclo_atual if calcular_roi(p) >= ROI_META
+                        )
+                        pnl_venc_brl = pnl_vencedoras * usd_brl_c if usd_brl_c > 0 else pnl_vencedoras
+
+                        if pnl_vencedoras >= meta_ciclo_usdt:
                             meta_confirmacoes += 1
                         else:
                             meta_confirmacoes = 0
-                        log.info(f"Ciclo {ciclo_num} [{fase_txt}] | PnL ciclo: {pnl_brl:+.2f} BRL{herd_str} | Meta: R${meta_brl:.2f} | Confirmacoes: {meta_confirmacoes}/2")
+
+                        log.info(f"Ciclo {ciclo_num} [{fase_txt}] | PnL ciclo: {pnl_brl:+.2f} BRL{herd_str} | Vencedoras >= +10%: R${pnl_venc_brl:+.2f} | Meta: R${meta_brl:.2f} | Confirmacoes: {meta_confirmacoes}/2")
 
                         # --- ALERTA DE CICLO EM RISCO ---
                         drenos = [(p["symbol"], calcular_roi(p), float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))))
@@ -1970,47 +1977,18 @@ def main() -> None:
                         if meta_confirmacoes >= 2:
                             meta_confirmacoes = 0
 
-                            # Estratégia CNS na meta:
-                            # 1. Fecha positivas com ROI >= +10% (lucro realizado grande)
-                            # 2. Calcula PnL não realizado das restantes
-                            # 3. Se negativo, fecha negativas de menor impacto em $
-                            #    até equilibrar (PnL não realizado >= 0)
-                            # 4. Mantém positivas pequenas + negativas fortes (aguardam 3x)
-                            ROI_FECHA_POSITIVA = 10.0
-
-                            pos_fechar = [p for p in pos_ciclo_atual if calcular_roi(p) >= ROI_FECHA_POSITIVA]
-                            pos_restantes = [p for p in pos_ciclo_atual if calcular_roi(p) < ROI_FECHA_POSITIVA]
-
-                            # Calcula PnL não realizado das restantes
-                            def pnl_pos(p):
-                                return float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-
-                            pnl_restantes = sum(pnl_pos(p) for p in pos_restantes)
-
-                            # Se negativo, fecha negativas menos impactantes até equilibrar
-                            pos_equilibrio = []
-                            if pnl_restantes < 0:
-                                # Ordena negativas por |PnL| ascendente (menor impacto primeiro)
-                                negativas = [p for p in pos_restantes if pnl_pos(p) < 0]
-                                negativas.sort(key=lambda p: abs(pnl_pos(p)))
-                                pnl_atual = pnl_restantes
-                                for n in negativas:
-                                    if pnl_atual >= 0:
-                                        break
-                                    pnl_atual -= pnl_pos(n)  # remover negativa melhora o PnL
-                                    pos_equilibrio.append(n)
-
-                            pos_fechar += pos_equilibrio
-                            # Todas as restantes (positivas pequenas + negativas fortes) são herdadas
-                            pos_herdar = [p for p in pos_restantes if p not in pos_equilibrio]
+                            # Meta CNS: so fecha as vencedoras (ROI >= +10%)
+                            # Nada e cortado no prejuizo — negativas aguardam 3x
+                            pos_fechar = [p for p in pos_ciclo_atual if calcular_roi(p) >= ROI_META]
+                            pos_herdar = [p for p in pos_ciclo_atual if calcular_roi(p) < ROI_META]
 
                             telegram(
                                 f"<b>Meta do Ciclo {ciclo_num} confirmada!</b>\n"
-                                f"PnL ciclo: R${pnl_brl:.2f}\n"
-                                f"Fechando {len(pos_fechar)} (positivas >= +10% + equilibrio)\n"
+                                f"Lucro realizado: R${pnl_venc_brl:.2f}\n"
+                                f"Fechando {len(pos_fechar)} vencedoras (>= +{ROI_META:.0f}% ROI)\n"
                                 f"Mantendo {len(pos_herdar)} em andamento"
                             )
-                            log.info(f"Meta atingida! Fechando {len(pos_fechar)} | Mantendo {len(pos_herdar)}")
+                            log.info(f"Meta atingida! Fechando {len(pos_fechar)} vencedoras | Mantendo {len(pos_herdar)}")
 
                             resultados_fechados = []
                             resultados_herdados = []
