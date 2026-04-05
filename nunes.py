@@ -66,22 +66,24 @@ META_CICLO_FASE2_MIN  = float(os.getenv("META_CICLO_FASE2_MIN", "1000.0")) # sal
 # Modo CNS: ativos prioritários + detecção de volume anormal
 # ---------------------------------------------------------------------------
 PARES_CNS = [
-    # 38 ativos filtrados por qualidade: volume 24h >= $20M + range saudável
-    # Liquidez real = execução rápida + spread baixo + sem whipsaw por poucos traders
-    # Layer 1 estabelecidos (alta liquidez)
-    "SOLUSDT", "BNBUSDT", "ADAUSDT", "AVAXUSDT", "SUIUSDT",
-    "NEARUSDT", "ETCUSDT", "LINKUSDT", "DOTUSDT", "FILUSDT",
-    # Moedas com narrativa forte
-    "ZECUSDT", "HYPEUSDT", "TAOUSDT", "BERAUSDT", "SAHARAUSDT",
-    "ENAUSDT", "TRUMPUSDT", "ALGOUSDT", "WLDUSDT", "KITEUSDT",
-    # DeFi líquido
-    "UNIUSDT", "AAVEUSDT", "JTOUSDT", "FETUSDT", "ZKUSDT",
-    # Narrativa 2024/2025
-    "POLYXUSDT", "NIGHTUSDT", "SKYAIUSDT", "PUMPUSDT", "MONUSDT",
+    # Perfil Bruno: volume $15M-$250M (nem top-cap, nem micro-cap)
+    # + range saudavel + potencial de pump/dump explosivo
+    # EXCLUIDOS: top-caps (SOL, BNB, ADA, AVAX, LINK, DOT, NEAR, ETC, FIL, UNI, AAVE)
+    # Altcoins com narrativa forte
+    "HYPEUSDT", "TAOUSDT", "BERAUSDT", "SAHARAUSDT", "ENAUSDT",
+    "ALGOUSDT", "WLDUSDT", "KITEUSDT", "POLYXUSDT", "NIGHTUSDT",
+    # Voláteis explosivos (range 7d > 40%)
+    "RIVERUSDT", "XPLUSDT", "HEMIUSDT", "BEATUSDT", "PLAYUSDT",
+    "KERNELUSDT", "SKYAIUSDT", "COSUSDT",
+    # DeFi/Infra nicho
+    "FETUSDT", "JTOUSDT", "ZKUSDT", "ZETAUSDT", "RENDERUSDT",
+    # Narrativa nova (2024/25)
+    "MONUSDT", "SIGNUSDT", "HUSDT", "VVVUSDT", "MUSDT",
+    "CUSDT", "GIGGLEUSDT", "LITUSDT", "GASUSDT",
     # Memecoins com volume real
-    "1000PEPEUSDT", "FARTCOINUSDT", "WIFUSDT",
-    # Voláteis com liquidez
-    "COSUSDT", "XMRUSDT", "HUSDT", "PAXGUSDT", "SIGNUSDT",
+    "FARTCOINUSDT",
+    # Oscilladores clássicos que ainda têm volume
+    "CRVUSDT", "DASHUSDT", "APTUSDT",
 ]
 CNS_VOLUME_MULT = 3.0   # volume atual >= 3x a média = spike
 CNS_HORARIO_INICIO = 1  # 01:00 BRT
