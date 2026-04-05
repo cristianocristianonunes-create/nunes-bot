@@ -1969,22 +1969,48 @@ def main() -> None:
 
                         if meta_confirmacoes >= 2:
                             meta_confirmacoes = 0
-                            MAX_HERDADAS = 3
 
-                            # Separa posições do ciclo atual em positivas e negativas
-                            pos_fechar   = [p for p in pos_ciclo_atual if calcular_roi(p) >= 0]
-                            pos_herdar   = [p for p in pos_ciclo_atual if calcular_roi(p) < 0]
+                            # Estratégia CNS na meta:
+                            # 1. Fecha positivas com ROI >= +10% (lucro realizado grande)
+                            # 2. Calcula PnL não realizado das restantes
+                            # 3. Se negativo, fecha negativas de menor impacto em $
+                            #    até equilibrar (PnL não realizado >= 0)
+                            # 4. Mantém positivas pequenas + negativas fortes (aguardam 3x)
+                            ROI_FECHA_POSITIVA = 10.0
 
-                            # Limita herança a MAX_HERDADAS (fecha as piores se passar do limite)
-                            vagas_herdadas = MAX_HERDADAS - len(posicoes_herdadas)
-                            if len(pos_herdar) > vagas_herdadas:
-                                # Ordena por ROI (piores primeiro) — os excedentes são fechados
-                                pos_herdar_sorted = sorted(pos_herdar, key=lambda p: calcular_roi(p))
-                                pos_fechar += pos_herdar_sorted[vagas_herdadas:]  # excedentes vão para fechar
-                                pos_herdar  = pos_herdar_sorted[:vagas_herdadas]
+                            pos_fechar = [p for p in pos_ciclo_atual if calcular_roi(p) >= ROI_FECHA_POSITIVA]
+                            pos_restantes = [p for p in pos_ciclo_atual if calcular_roi(p) < ROI_FECHA_POSITIVA]
 
-                            telegram(f"<b>Meta do Ciclo {ciclo_num} confirmada!</b>\nPnL ciclo: R${pnl_brl:.2f}\nFechando {len(pos_fechar)} posicoes | Herdando {len(pos_herdar)} negativas...")
-                            log.info(f"Meta atingida! Fechando {len(pos_fechar)} | Herdando {len(pos_herdar)}")
+                            # Calcula PnL não realizado das restantes
+                            def pnl_pos(p):
+                                return float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+
+                            pnl_restantes = sum(pnl_pos(p) for p in pos_restantes)
+
+                            # Se negativo, fecha negativas menos impactantes até equilibrar
+                            pos_equilibrio = []
+                            if pnl_restantes < 0:
+                                # Ordena negativas por |PnL| ascendente (menor impacto primeiro)
+                                negativas = [p for p in pos_restantes if pnl_pos(p) < 0]
+                                negativas.sort(key=lambda p: abs(pnl_pos(p)))
+                                pnl_atual = pnl_restantes
+                                for n in negativas:
+                                    if pnl_atual >= 0:
+                                        break
+                                    pnl_atual -= pnl_pos(n)  # remover negativa melhora o PnL
+                                    pos_equilibrio.append(n)
+
+                            pos_fechar += pos_equilibrio
+                            # Todas as restantes (positivas pequenas + negativas fortes) são herdadas
+                            pos_herdar = [p for p in pos_restantes if p not in pos_equilibrio]
+
+                            telegram(
+                                f"<b>Meta do Ciclo {ciclo_num} confirmada!</b>\n"
+                                f"PnL ciclo: R${pnl_brl:.2f}\n"
+                                f"Fechando {len(pos_fechar)} (positivas >= +10% + equilibrio)\n"
+                                f"Mantendo {len(pos_herdar)} em andamento"
+                            )
+                            log.info(f"Meta atingida! Fechando {len(pos_fechar)} | Mantendo {len(pos_herdar)}")
 
                             resultados_fechados = []
                             resultados_herdados = []
