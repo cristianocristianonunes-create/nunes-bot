@@ -1,7 +1,7 @@
 [
   {
     "timestamp": "2026-04-04T17:39:41.474671+00:00",
-    "symbol": "\u5e01\u5b89\u4eba\u751fUSDT",
+    "symbol": "币安人生USDT",
     "direcao": "SHORT",
     "tipo": "racio_fechamento",
     "roi_final": -98.11308046791919,
@@ -321,6 +321,411 @@
         "fib_618": 0.00520844,
         "preco_zona": "abaixo_382"
       }
+    }
+  },
+  {
+    "timestamp": "2026-04-04T21:15:10.681859+00:00",
+    "symbol": "ONDOUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_sucesso",
+    "roi_final": 3.413567642830358,
+    "preco": 0.2551,
+    "detalhes": "3x #1 | Meta 3% (MA lateralizando) | Entrada DCA ROI: +3.4%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.25511428571428574,
+        "ma25": 0.255184,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.2551857142857143,
+        "ma25": 0.255896,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.2557285714285714,
+        "ma25": 0.257384,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.2547,
+        "topo": 0.2567,
+        "fib_382": 0.25546399999999997,
+        "fib_500": 0.2557,
+        "fib_618": 0.255936,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-04T21:17:04.187843+00:00",
+    "symbol": "KITEUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_sucesso",
+    "roi_final": 4.099230866221157,
+    "preco": 0.15864,
+    "detalhes": "3x #1 | Meta 3% (MA lateralizando) | Entrada DCA ROI: +4.1%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.15712285714285715,
+        "ma25": 0.156966,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.15713,
+        "ma25": 0.1563772,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.15251285714285714,
+        "ma25": 0.1435816,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.15365,
+        "topo": 0.15942,
+        "fib_382": 0.15585414,
+        "fib_500": 0.156535,
+        "fib_618": 0.15721586,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-04T21:38:17.489694+00:00",
+    "symbol": "NEARUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_sucesso",
+    "roi_final": 4.583138380781785,
+    "preco": 1.268,
+    "detalhes": "3x #1 | Meta 3% (MA lateralizando) | Entrada DCA ROI: +4.6%",
+    "snapshot": {
+      "1min": {
+        "ma7": 1.2662857142857145,
+        "ma25": 1.26568,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 1.2654285714285713,
+        "ma25": 1.26696,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 1.2677142857142856,
+        "ma25": 1.236,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 1.259,
+        "topo": 1.271,
+        "fib_382": 1.2635839999999998,
+        "fib_500": 1.265,
+        "fib_618": 1.266416,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-04T22:03:44.921644+00:00",
+    "symbol": "SOLVUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_sucesso",
+    "roi_final": 20.083213314130262,
+    "preco": 0.004992,
+    "detalhes": "3x #1 | Meta 3% (MA lateralizando) | Entrada DCA ROI: +20.1%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.004900571428571429,
+        "ma25": 0.00487148,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.004887571428571429,
+        "ma25": 0.00491836,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.0048922857142857145,
+        "ma25": 0.00443976,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.004785,
+        "topo": 0.005024,
+        "fib_382": 0.004876298,
+        "fib_500": 0.0049045,
+        "fib_618": 0.004932702,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-05T02:33:18.859544+00:00",
+    "symbol": "SOLVUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_sucesso",
+    "roi_final": 44.64638482813117,
+    "preco": 0.005062,
+    "detalhes": "3x #1 | Meta 10% (MA com forca) | Entrada DCA ROI: +44.6%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.005028571428571428,
+        "ma25": 0.00504212,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.005059,
+        "ma25": 0.00498484,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.004969,
+        "ma25": 0.00456268,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.004826,
+        "topo": 0.00517,
+        "fib_382": 0.004957408,
+        "fib_500": 0.004998000000000001,
+        "fib_618": 0.005038592000000001,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-05T06:17:32.791496+00:00",
+    "symbol": "RENDERUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_sucesso",
+    "roi_final": 10.198950002274248,
+    "preco": 1.861,
+    "detalhes": "3x #1 | Meta 10% (MA com forca) | Entrada DCA ROI: +10.2%",
+    "snapshot": {
+      "1min": {
+        "ma7": 1.8670000000000002,
+        "ma25": 1.87636,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 1.877857142857143,
+        "ma25": 1.89184,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 1.8795714285714287,
+        "ma25": 1.8894399999999998,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 1.859,
+        "topo": 1.908,
+        "fib_382": 1.877718,
+        "fib_500": 1.8835,
+        "fib_618": 1.889282,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-05T08:05:46.462018+00:00",
+    "symbol": "RENDERUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_sucesso",
+    "roi_final": 31.05334919716713,
+    "preco": 1.842,
+    "detalhes": "3x #1 | Meta 3% (MA lateralizando) | Entrada DCA ROI: +31.1%",
+    "snapshot": {
+      "1min": {
+        "ma7": 1.8448571428571428,
+        "ma25": 1.84712,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 1.846,
+        "ma25": 1.85848,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 1.8719999999999999,
+        "ma25": 1.8832399999999998,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 1.841,
+        "topo": 1.875,
+        "fib_382": 1.853988,
+        "fib_500": 1.858,
+        "fib_618": 1.862012,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-05T08:08:55.319490+00:00",
+    "symbol": "RENDERUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_sucesso",
+    "roi_final": 29.284156918612553,
+    "preco": 1.843,
+    "detalhes": "3x #1 | Meta 3% (MA lateralizando) | Entrada DCA ROI: +29.3%",
+    "snapshot": {
+      "1min": {
+        "ma7": 1.843,
+        "ma25": 1.8465200000000002,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 1.846142857142857,
+        "ma25": 1.85852,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 1.8724285714285713,
+        "ma25": 1.88336,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 1.841,
+        "topo": 1.875,
+        "fib_382": 1.853988,
+        "fib_500": 1.858,
+        "fib_618": 1.862012,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-05T21:16:41.013416+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_3x_nao_feito",
+    "roi_final": 0.0,
+    "preco": 0.067,
+    "detalhes": "Usuario cogitou 3x mas esperou. Caso de estudo da validacao de continuidade.",
+    "score_total": 76,
+    "score_criterios": {
+      "candle_1_cruzou": "recente",
+      "candle_2_separando": true,
+      "corpo_pct": 50.0,
+      "corpo_forte": "medio",
+      "candle_cor_ok": true,
+      "1min": "alinhado",
+      "fibonacci": "favoravel",
+      "vol_ratio": 0.09,
+      "volume_forte": false,
+      "vol_profile": "dentro_VA_neutro",
+      "score_total": 76
+    },
+    "decisao_bot": "BLOQUEADO por validacao de continuidade — preco nao confirmava movimento",
+    "decisao_humana": "AGUARDAR — instinto do usuario",
+    "movimento_recente": {
+      "2min_a_favor_pct": 0.0,
+      "5min_a_favor_pct": -0.45
+    },
+    "snapshots_timeframes": {
+      "1m": {
+        "preco_close": 0.067,
+        "preco_high": 0.0671,
+        "preco_low": 0.067,
+        "ma7": 0.06698571428571429,
+        "ma25": 0.067216,
+        "ma99": null,
+        "volume_atual": 12730.0,
+        "volume_media": 306133.7,
+        "ma7_vs_ma25": "abaixo",
+        "dist_pct": 0.343
+      },
+      "5m": {
+        "preco_close": 0.067,
+        "preco_high": 0.0672,
+        "preco_low": 0.067,
+        "ma7": 0.0672,
+        "ma25": 0.068236,
+        "ma99": null,
+        "volume_atual": 136935.0,
+        "volume_media": 1542997.1,
+        "ma7_vs_ma25": "abaixo",
+        "dist_pct": 1.518
+      },
+      "15m": {
+        "preco_close": 0.067,
+        "preco_high": 0.0672,
+        "preco_low": 0.067,
+        "ma7": 0.06802857142857142,
+        "ma25": 0.066968,
+        "ma99": null,
+        "volume_atual": 136935.0,
+        "volume_media": 3695626.25,
+        "ma7_vs_ma25": "acima",
+        "dist_pct": 1.584
+      },
+      "1h": {
+        "preco_close": 0.067,
+        "preco_high": 0.0677,
+        "preco_low": 0.0667,
+        "ma7": 0.06701428571428572,
+        "ma25": 0.067292,
+        "ma99": null,
+        "volume_atual": 4824678.0,
+        "volume_media": 16887607.75,
+        "ma7_vs_ma25": "abaixo",
+        "dist_pct": 0.413
+      },
+      "2h": {
+        "preco_close": 0.067,
+        "preco_high": 0.0704,
+        "preco_low": 0.0667,
+        "ma7": 0.06587142857142857,
+        "ma25": null,
+        "ma99": null,
+        "volume_atual": 25640159.0,
+        "volume_media": 33120455.85
+      },
+      "4h": {
+        "preco_close": 0.067,
+        "preco_high": 0.0704,
+        "preco_low": 0.0667,
+        "ma7": 0.06747142857142857,
+        "ma25": null,
+        "ma99": null,
+        "volume_atual": 25640159.0,
+        "volume_media": 59000089.2
+      }
+    },
+    "volume_profile": {
+      "poc": 0.06774167,
+      "val": 0.06618333,
+      "vah": 0.06838333,
+      "preco_vs_poc": "abaixo"
+    },
+    "fibonacci": {
+      "low_20": 0.0667,
+      "high_20": 0.0704,
+      "fib_382": 0.0681134,
+      "fib_500": 0.06855,
+      "fib_618": 0.0689866
+    },
+    "hipoteses": {
+      "cenario_acertou": "Preco cai mais 1-3% nas proximas horas → 3x teria lucrado",
+      "cenario_errou": "Preco sobe ou lateraliza → 3x teria aumentado o prejuizo",
+      "aprendizado_esperado": "Validar se score alto + movimento contra o trade = sinal de reversao falhando"
     }
   }
 ]
