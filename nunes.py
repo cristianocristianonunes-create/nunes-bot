@@ -2272,6 +2272,7 @@ def main() -> None:
     ultimo_scan_entradas  = 0
     ultimo_resumo_hora    = 0
     ultimo_check_update   = time.time()
+    ultimo_checkpoint_basedusdt = 0  # monitoramento de caso de estudo
     saldo_abertura        = banca_inicial
     saldo_abertura_dia    = get_saldo_total(client)
     resumo_diario_enviado = False
@@ -3074,6 +3075,48 @@ def main() -> None:
             if time.time() - ultimo_check_update >= 300:
                 verificar_atualizacao(reiniciar=True)
                 ultimo_check_update = time.time()
+
+            # --- CHECKPOINT AUTOMATICO BASEDUSDT (caso de estudo) ---
+            # Grava snapshot a cada 30 min enquanto o caso nao tiver veredicto
+            if time.time() - ultimo_checkpoint_basedusdt >= 1800:
+                try:
+                    ticker_bd = client.futures_symbol_ticker(symbol="BASEDUSDT")
+                    preco_bd = float(ticker_bd["price"])
+                    # Carrega aprendizados
+                    try:
+                        with open(APRENDIZADOS_FILE, "r", encoding="utf-8") as f:
+                            apr_dados = json.load(f)
+                    except (FileNotFoundError, json.JSONDecodeError):
+                        apr_dados = []
+
+                    # Pega o preco do primeiro checkpoint
+                    cps = [d for d in apr_dados if d.get("symbol") == "BASEDUSDT" and "caso_estudo" in d.get("tipo", "")]
+                    if cps:
+                        preco_inicial = cps[0]["preco"]
+                        mov_short = (preco_inicial - preco_bd) / preco_inicial * 100
+
+                        # Padrao adverso ainda ativo?
+                        bloqueado, motivo = detectar_padrao_reversao(client, "BASEDUSDT", "SHORT")
+
+                        checkpoint_auto = {
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "symbol": "BASEDUSDT",
+                            "direcao": "SHORT",
+                            "tipo": "caso_estudo_auto",
+                            "preco": preco_bd,
+                            "roi_final": 0.0,
+                            "detalhes": f"Checkpoint automatico a cada 30 min",
+                            "movimento_desde_inicio": round(mov_short, 3),
+                            "padrao_adverso_ativo": bloqueado,
+                            "motivo_padrao": motivo if bloqueado else "nenhum",
+                        }
+                        apr_dados.append(checkpoint_auto)
+                        with open(APRENDIZADOS_FILE, "w", encoding="utf-8") as f:
+                            json.dump(apr_dados, f, indent=2, ensure_ascii=False)
+                        log.info(f"  [CASO BASEDUSDT] checkpoint auto | preco {preco_bd} | mov SHORT {mov_short:+.2f}%")
+                except Exception as e:
+                    log.debug(f"Erro checkpoint BASEDUSDT: {e}")
+                ultimo_checkpoint_basedusdt = time.time()
 
             # Check mais rápido quando tem 3x ativo ou posição perto do gatilho
             if dca_aplicado or any(calcular_roi(p) <= -180 for p in abertas if float(p["positionAmt"]) != 0):
