@@ -354,6 +354,7 @@ def processar_comandos(client: Client) -> None:
                             quantity=abs(amt), reduceOnly=True
                         )
                         dca_aplicado.discard(symbol)
+                        pico_pos_3x.pop(symbol, None)
                         peak_roi.pop(symbol, None)
                         ma_reverteu.pop(symbol, None)
                         if dca_ativo == symbol:
@@ -889,6 +890,7 @@ score_historico:       dict[str, list] = {}  # symbol -> [(timestamp, score, pre
 posicoes_cns:        set[str]        = set() # symbols que entraram pelo modo CNS
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
 parcial_10pct:         set[str]        = set() # symbols que já fecharam 50% em +10% ROI
+pico_pos_3x:           dict[str, float] = {}  # pico de ROI apos o 3x (para trailing escalonado)
 
 ESTADO_FILE = "C:/robo-trade/estado_bot.json"
 
@@ -1631,6 +1633,7 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
         log.error(f"Erro DCA {symbol}: {e}")
         # Não marca como dca_ativo — a ordem não foi executada
         dca_aplicado.discard(symbol)
+        pico_pos_3x.pop(symbol, None)
 
 
 def fechar_parcial(client: Client, posicao: dict, pct: float, motivo: str) -> None:
@@ -2073,6 +2076,7 @@ def proteger_racio(client: Client, abertas: list) -> bool:
             peak_roi.pop(symbol, None)
             ma_reverteu.pop(symbol, None)
             posicao_abertura.pop(symbol, None)
+            pico_pos_3x.pop(symbol, None)
             log.warning(f"  [RACIO {racio:.1f}%] Fechando {symbol} {lado} | PnL ${pnl:+.2f} | ROI {roi:+.1f}%")
             registrar_aprendizado(client, symbol, lado, "racio_fechamento", roi,
                 f"Racio {racio:.1f}% forcou fechamento | PnL ${pnl:+.2f}")
@@ -2415,6 +2419,7 @@ def main() -> None:
                             for sym in list(dca_aplicado):
                                 if sym not in posicoes_herdadas:
                                     dca_aplicado.discard(sym)
+                                    pico_pos_3x.pop(sym, None)
                             for sym in list(peak_roi):
                                 if sym not in posicoes_herdadas:
                                     peak_roi.pop(sym, None)
@@ -2589,74 +2594,121 @@ def main() -> None:
                         peak_roi.pop(symbol, None)
                         continue
 
-                # --- SAÍDA PÓS-3x: +10% se MA forte, +3% se lateralizando ---
+                # --- SAIDA POS-3x: 2 camadas de protecao ---
+                # Camada 2 (prioridade): reversao tecnica -> fecha mesmo em ROI negativo
+                # Camada 1: trailing escalonado por faixa de pico + piso no zero
+                # Para AGRESSIVO/AUDACIOSO (3x em ROI muito profundo): saida rapida em +2%/+1%
                 if symbol in dca_aplicado:
                     roi_entrada_dca = roi_no_dca.get(symbol, roi)
                     n_3x = dca_contagem.get(symbol, 1)
 
-                    if roi > 0:
-                        # Verifica se MA7 está com força ou lateralizando no 5min
-                        try:
-                            df5_dca = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
-                            df5_dca["ma7"]  = df5_dca["close"].rolling(7).mean()
-                            df5_dca["ma25"] = df5_dca["close"].rolling(25).mean()
-                            diff_agora = abs(df5_dca["ma7"].iloc[-1] - df5_dca["ma25"].iloc[-1])
-                            diff_antes = abs(df5_dca["ma7"].iloc[-3] - df5_dca["ma25"].iloc[-3])
-                            ma_perdendo_forca = diff_agora <= diff_antes  # lateralizando ou convergindo
-                        except Exception:
-                            ma_perdendo_forca = False
+                    # Atualiza pico pos-3x
+                    pico_3x = pico_pos_3x.get(symbol, roi)
+                    if roi > pico_3x:
+                        pico_3x = roi
+                        pico_pos_3x[symbol] = pico_3x
 
-                        # Meta dinâmica baseada no modo do 3x:
-                        # - Audacioso (ROI DCA <= -1000%): saida MUITO rapida +1%
-                        # - Agressivo (ROI DCA <= -500%): saida rapida +2%
-                        # - Normal: +10% se MA forte, +3% se lateralizando
-                        if roi_entrada_dca <= -1000:
-                            meta_saida = 1.0
-                            motivo_meta = "AUDACIOSO — saida rapida"
-                        elif roi_entrada_dca <= -500:
-                            meta_saida = 2.0
-                            motivo_meta = "AGRESSIVO — saida rapida"
+                    fechou_pos_3x = False
+
+                    # --- CAMADA 2: REVERSAO TECNICA (prioridade sobre Camada 1) ---
+                    # Se o padrao virou contra, fecha imediato mesmo em ROI negativo
+                    try:
+                        rev_bloqueado, rev_motivo = detectar_padrao_reversao(client, symbol, direcao)
+                    except Exception:
+                        rev_bloqueado, rev_motivo = False, ""
+
+                    if rev_bloqueado:
+                        log.warning(f"  {symbol}: [POS-3x #{n_3x}] REVERSAO TECNICA -> fechando 90% | ROI {roi:+.1f}% | pico {pico_3x:+.1f}% | {rev_motivo}")
+                        telegram(
+                            f"<b>Saida tecnica pos-3x: {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}% | Pico: {pico_3x:+.1f}%\n"
+                            f"Padrao virou contra: {rev_motivo}\n"
+                            f"Fechando 90% para proteger a banca."
+                        )
+                        registrar_aprendizado(client, symbol, direcao, "3x_saida_reversao", roi,
+                            f"3x #{n_3x} | Pico {pico_3x:+.1f}% | Reversao: {rev_motivo}")
+                        fechar_parcial(client, p, 0.90, f"Reversao tecnica pos-3x #{n_3x} (ROI {roi:.1f}%)")
+                        fechou_pos_3x = True
+
+                    # --- MODO AGRESSIVO/AUDACIOSO: saida rapida em qualquer lucro pequeno ---
+                    # 3x em ROI muito profundo -> qualquer virada positiva ja compensa
+                    elif roi_entrada_dca <= -1000 and roi >= 1.0:
+                        log.info(f"  {symbol}: [POS-3x #{n_3x}] AUDACIOSO ROI {roi:+.1f}% >= +1% -> fechando 90%")
+                        telegram(
+                            f"<b>Lucro realizado (AUDACIOSO): {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}% | 3x #{n_3x} | Entrada: {roi_entrada_dca:+.0f}%\n"
+                            f"Saida rapida apos recuperacao profunda."
+                        )
+                        registrar_aprendizado(client, symbol, direcao, "3x_sucesso_audacioso", roi,
+                            f"3x #{n_3x} | Entrada DCA {roi_entrada_dca:+.0f}% | Saida +1%")
+                        fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} AUDACIOSO (ROI {roi:.1f}%)")
+                        fechou_pos_3x = True
+
+                    elif roi_entrada_dca <= -500 and roi >= 2.0:
+                        log.info(f"  {symbol}: [POS-3x #{n_3x}] AGRESSIVO ROI {roi:+.1f}% >= +2% -> fechando 90%")
+                        telegram(
+                            f"<b>Lucro realizado (AGRESSIVO): {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}% | 3x #{n_3x} | Entrada: {roi_entrada_dca:+.0f}%\n"
+                            f"Saida rapida apos recuperacao forte."
+                        )
+                        registrar_aprendizado(client, symbol, direcao, "3x_sucesso_agressivo", roi,
+                            f"3x #{n_3x} | Entrada DCA {roi_entrada_dca:+.0f}% | Saida +2%")
+                        fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} AGRESSIVO (ROI {roi:.1f}%)")
+                        fechou_pos_3x = True
+
+                    # --- CAMADA 1: TRAILING ESCALONADO POR FAIXA DE PICO (modo NORMAL) ---
+                    # So arma quando pico >= +1% (evita tremor lateral disparar)
+                    elif pico_3x >= 1.0:
+                        if pico_3x < 3.0:
+                            stop = 0.0
+                            faixa = "piso zero"
+                        elif pico_3x < 10.0:
+                            stop = pico_3x * 0.5
+                            faixa = f"metade do pico ({stop:.1f}%)"
+                        elif pico_3x < 20.0:
+                            stop = pico_3x - 6.0
+                            faixa = f"pico -6pp ({stop:.1f}%)"
+                        elif pico_3x < 30.0:
+                            stop = pico_3x - 8.0
+                            faixa = f"pico -8pp ({stop:.1f}%)"
                         else:
-                            meta_saida = 3.0 if ma_perdendo_forca else 10.0
-                            motivo_meta = "MA lateralizando" if ma_perdendo_forca else "MA com forca"
+                            stop = pico_3x - 10.0
+                            faixa = f"pico -10pp ({stop:.1f}%)"
 
-                        if roi >= meta_saida:
-                            log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% >= +{meta_saida:.0f}% ({motivo_meta}) -> fechando 90%")
+                        if roi <= stop:
+                            log.info(f"  {symbol}: [POS-3x #{n_3x}] TRAILING acionado! ROI {roi:+.1f}% <= stop {stop:+.1f}% | pico {pico_3x:+.1f}% | {faixa} -> fechando 90%")
                             telegram(
-                                f"<b>Lucro realizado: {symbol}</b>\n"
-                                f"{direcao} | ROI: {roi:+.1f}% | 3x aplicados: {n_3x}\n"
-                                f"Saida em +{meta_saida:.0f}% ({motivo_meta})\n"
-                                f"Fechando 90% com lucro! 10% continua na posicao."
+                                f"<b>Lucro travado: {symbol}</b>\n"
+                                f"{direcao} | ROI: {roi:+.1f}% | Pico: {pico_3x:+.1f}%\n"
+                                f"Trailing: {faixa}\n"
+                                f"Fechando 90%, 10% segue na posicao."
                             )
-                            registrar_aprendizado(client, symbol, direcao, "3x_sucesso", roi,
-                                f"3x #{n_3x} | Meta {meta_saida:.0f}% ({motivo_meta}) | Entrada DCA ROI: {roi_entrada_dca:+.1f}%")
-                            fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} +{meta_saida:.0f}% (ROI {roi:.1f}%)")
-                            dca_aplicado.discard(symbol)
-                            dca_contagem.pop(symbol, None)
-                            roi_no_dca.pop(symbol, None)
-                            if dca_ativo == symbol:
-                                dca_ativo = None
-                        else:
-                            log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% | meta {meta_saida:.0f}% ({motivo_meta}) | aguardando")
-                            # Envia análise de gráfico a cada 5 minutos
-                            alerta_key = f"3x_acomp_{symbol}"
-                            if time.time() - alerta_dca_log.get(alerta_key, 0) >= 300:
-                                grafico = analise_grafico_3x(client, symbol, direcao)
-                                telegram(
-                                    f"<b>Acompanhamento 3x: {symbol} (#{n_3x})</b>\n"
-                                    f"{direcao} | ROI: {roi:+.1f}% | Meta: +{meta_saida:.0f}% ({motivo_meta})"
-                                    f"{grafico}"
-                                )
-                                alerta_dca_log[alerta_key] = time.time()
+                            registrar_aprendizado(client, symbol, direcao, "3x_trailing", roi,
+                                f"3x #{n_3x} | Pico {pico_3x:+.1f}% | Stop {stop:+.1f}% ({faixa})")
+                            fechar_parcial(client, p, 0.90, f"Trailing pos-3x #{n_3x} pico {pico_3x:.1f}% (ROI {roi:.1f}%)")
+                            fechou_pos_3x = True
+
+                    if fechou_pos_3x:
+                        dca_aplicado.discard(symbol)
+                        dca_contagem.pop(symbol, None)
+                        roi_no_dca.pop(symbol, None)
+                        pico_pos_3x.pop(symbol, None)
+                        if dca_ativo == symbol:
+                            dca_ativo = None
                     else:
-                        log.info(f"  {symbol}: [EM 3x #{n_3x}] ROI {roi:+.1f}% | aguardando virar positivo")
-                        # Envia análise de gráfico a cada 5 minutos
+                        # Acompanhamento a cada 5 min
                         alerta_key = f"3x_acomp_{symbol}"
                         if time.time() - alerta_dca_log.get(alerta_key, 0) >= 300:
                             grafico = analise_grafico_3x(client, symbol, direcao)
+                            if roi > 0 and pico_3x >= 1.0:
+                                status_txt = f"ROI: {roi:+.1f}% | Pico: {pico_3x:+.1f}% | Trailing armado"
+                            elif roi > 0:
+                                status_txt = f"ROI: {roi:+.1f}% | Pico: {pico_3x:+.1f}% | aguardando pico >=+1% p/ armar trailing"
+                            else:
+                                status_txt = f"ROI: {roi:+.1f}% | aguardando virar positivo"
                             telegram(
                                 f"<b>Acompanhamento 3x: {symbol} (#{n_3x})</b>\n"
-                                f"{direcao} | ROI: {roi:+.1f}% | Aguardando virar positivo"
+                                f"{direcao} | {status_txt}"
                                 f"{grafico}"
                             )
                             alerta_dca_log[alerta_key] = time.time()
