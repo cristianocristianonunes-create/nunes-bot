@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Robô de trade - Binance Futuros
-Guardião CNS v2 — Sistema Cristiano Nunes Silva
-Evolução do Águia Spread (Bruno Aguiar) com aprimoramentos:
+Guardião CNS v2.1 — Sistema Cristiano Nunes Silva
+Evolução do Águia Spread (Bruno Aguiar) sem muletas psicológicas:
 
 ENTRADA:
 - Tendência H4 (EMA21) como filtro macro (multi-timeframe Bruno)
@@ -25,9 +25,16 @@ SAÍDA:
 - Timeout 30 dias (descarta dead trades)
 
 PROTEÇÃO:
-- Rácio de Margem 6% máximo
-- Circuit breaker diário (-2% drawdown congela 24h)
+- Rácio de Margem 6% máximo (única proteção técnica real)
 - Notional mínimo $5.50 garantido
+
+v2.1 REMOVEU (muletas psicológicas do curso Bruno):
+- Circuit breaker diário (bot não tem pânico)
+- Timeout 30 dias (não existe dead trade — DCA resolve)
+- Confirmação dupla da meta (latência desnecessária)
+- Alertas "ciclo em risco" com sugestões de ação
+- Separação contábil de posições herdadas
+- LIMITE_PERDA_DIARIA (era código morto)
 
 O que supera o Bruno:
 1. Squeeze + ATR (ele não filtra contração/tokens mortos)
@@ -86,7 +93,6 @@ TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercad
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 INTERVALO_POSICOES    = 15   # segundos entre verificação de posições (rápido para pegar 3x)
 INTERVALO_ENTRADAS    = 60   # segundos entre busca de novas entradas (2H timeframe)
-LIMITE_PERDA_DIARIA   = float(os.getenv("LIMITE_PERDA_DIARIA", "5.0"))  # % máximo de perda no dia
 RESUMO_HORA           = 22   # hora do resumo diário (horário local)
 META_CICLO_PCT        = float(os.getenv("META_CICLO_PCT", "5.0"))   # meta de lucro por ciclo (%)
 META_CICLO_FASE2_USD  = float(os.getenv("META_CICLO_FASE2_USD", "50.0"))  # meta fixa em USDT após $1.000
@@ -876,22 +882,18 @@ posicao_abertura: dict[str, float] = {}   # timestamp de quando cada posição f
 ma_reverteu:      dict[str, float] = {}   # symbol -> ROI no momento em que a MA reverteu contra a posição
 sinal_ma_detectado:    dict[str, float] = {}   # timestamp da última vez que MA cruzou a favor por symbol
 roi_no_dca:            dict[str, float] = {}   # ROI no momento em que o DCA foi aplicado
-alerta_ciclo_risco_ts: float           = 0.0  # timestamp do último alerta de ciclo em risco
 posicoes_herdadas:     set[str]        = set() # symbols herdados de ciclos anteriores (negativos não fechados)
 margem_registrada:     dict[str, float] = {}  # margem inicial registrada por symbol para detectar DCA manual
 topup_recente:         dict[str, float] = {}  # symbols que tiveram topup recente (ignora na detecção DCA)
 posicoes_cns:        set[str]        = set() # symbols que entraram pelo modo CNS
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
-parcial_10pct:         set[str]        = set() # symbols que já fecharam 50% em +10% (alvo mediano Bruno)
-# Circuit breaker diário (novo v2)
-saldo_dia_inicio:      float = 0.0
-circuit_breaker_ate:   float = 0.0  # timestamp até quando novas entradas estão congeladas
+parcial_10pct:         set[str]        = set() # symbols que já fecharam 50% em +10% ROI
 
 ESTADO_FILE = "C:/robo-trade/estado_bot.json"
 
-def meta_formiguinha(ciclos_positivos: int) -> float:
+def meta_dinamica(ciclos_positivos: int) -> float:
     """
-    Meta progressiva: começa no valor do .env, sobe 0.5% a cada 5 ciclos positivos.
+    Meta dinâmica: base META_CICLO_PCT, sobe 0.5% a cada 5 ciclos positivos.
     Teto = META_CICLO_PCT + 2% (ex: se .env = 5%, teto = 7%).
     """
     incrementos = ciclos_positivos // 5
@@ -1924,7 +1926,7 @@ def main() -> None:
     verificar_atualizacao()
     log.info("=" * 50)
     log.info(f"Nunes iniciado | Modo: {MODO.upper()}")
-    log.info(f"Sistema Guardiao (CNS): Bollinger Squeeze 2H | DCA 3x | Trailing paciente")
+    log.info(f"Guardiao CNS v2.1: Bollinger Squeeze H4+H2 | DCA 3x (-120%/-240%) | Trailing escalonado")
     log.info(f"Risco: {RISCO_POR_TRADE*100}% por trade | Max {MAX_POSICOES} posicoes | Alavancagem: {ALAVANCAGEM}x")
     log.info("=" * 50)
 
@@ -1965,9 +1967,8 @@ def main() -> None:
     saldo_total_atual            = get_saldo_total(client)
     saldo_ciclo_inicio           = saldo_ciclo_salvo if saldo_ciclo_salvo else saldo_total_atual
     ultimo_check_ciclo           = 0
-    meta_confirmacoes            = 0
     _usd_brl_ini                 = get_usd_brl(client)
-    _meta_pct_ini                = meta_formiguinha(ciclos_positivos_consecutivos)
+    _meta_pct_ini                = meta_dinamica(ciclos_positivos_consecutivos)
     _meta_ini_usdt               = saldo_ciclo_inicio * (_meta_pct_ini / 100)
     _meta_ini_brl                = _meta_ini_usdt * _usd_brl_ini if _usd_brl_ini > 0 else _meta_ini_usdt
     log.info(f"Ciclo {ciclo_num} retomado | Saldo: ${saldo_ciclo_inicio:.2f} | Meta: {_meta_pct_ini:.1f}% (${_meta_ini_usdt:.2f} / R${_meta_ini_brl:.2f}) | Ciclos positivos: {ciclos_positivos_consecutivos}")
@@ -1975,7 +1976,7 @@ def main() -> None:
 
     while bot_ativo:
         try:
-            global dca_ativo, alerta_ciclo_risco_ts, posicoes_herdadas
+            global dca_ativo, posicoes_herdadas
             processar_comandos(client)
             banca = get_banca(client)
 
@@ -1985,21 +1986,18 @@ def main() -> None:
                 try:
                     abertas_ciclo   = posicoes_abertas(client)
                     usd_brl_c       = get_usd_brl(client)
-                    meta_pct_atual  = meta_formiguinha(ciclos_positivos_consecutivos)
+                    meta_pct_atual  = meta_dinamica(ciclos_positivos_consecutivos)
                     meta_ciclo_usdt = saldo_ciclo_inicio * (meta_pct_atual / 100)
                     fase_txt        = f"{meta_pct_atual:.1f}% | meta ${meta_ciclo_usdt:.2f}"
                     meta_brl        = meta_ciclo_usdt * usd_brl_c if usd_brl_c > 0 else meta_ciclo_usdt
                     if abertas_ciclo:
-                        # PnL do ciclo = apenas posições do ciclo atual (exclui herdadas)
-                        pos_ciclo_atual = [p for p in abertas_ciclo if p["symbol"] not in posicoes_herdadas]
+                        # PnL do ciclo = todas as posições abertas (incluindo herdadas, unificado)
+                        pos_ciclo_atual = list(abertas_ciclo)
                         pnl_ciclo = sum(float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))) for p in pos_ciclo_atual)
                         pnl_brl   = pnl_ciclo * usd_brl_c if usd_brl_c > 0 else pnl_ciclo
-                        # PnL das herdadas (informativo)
-                        pnl_herd  = sum(float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))) for p in abertas_ciclo if p["symbol"] in posicoes_herdadas)
-                        herd_str  = f" | Herdadas: {pnl_herd:+.2f} USDT" if posicoes_herdadas else ""
 
                         # META CNS: só dispara quando as posições vencedoras sozinhas (ROI >= +10%)
-                        # já pagam a meta — garante que fechamos SÓ positivas, sem cortar negativas
+                        # já pagam a meta — fecha SÓ positivas, nada é cortado no prejuízo
                         ROI_META = 10.0
                         pnl_vencedoras = sum(
                             float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
@@ -2007,46 +2005,13 @@ def main() -> None:
                         )
                         pnl_venc_brl = pnl_vencedoras * usd_brl_c if usd_brl_c > 0 else pnl_vencedoras
 
-                        if pnl_vencedoras >= meta_ciclo_usdt:
-                            meta_confirmacoes += 1
-                        else:
-                            meta_confirmacoes = 0
+                        meta_atingida = pnl_vencedoras >= meta_ciclo_usdt
 
-                        log.info(f"Ciclo {ciclo_num} [{fase_txt}] | PnL ciclo: {pnl_brl:+.2f} BRL{herd_str} | Vencedoras >= +10%: R${pnl_venc_brl:+.2f} | Meta: R${meta_brl:.2f} | Confirmacoes: {meta_confirmacoes}/2")
+                        log.info(f"Ciclo {ciclo_num} [{fase_txt}] | PnL: {pnl_brl:+.2f} BRL | Vencedoras >= +10%: R${pnl_venc_brl:+.2f} | Meta: R${meta_brl:.2f}")
 
-                        # --- ALERTA DE CICLO EM RISCO ---
-                        drenos = [(p["symbol"], calcular_roi(p), float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))))
-                                  for p in abertas_ciclo if calcular_roi(p) <= -150]
-                        if pnl_ciclo < 0 and drenos and time.time() - alerta_ciclo_risco_ts >= 1800:
-                            alerta_ciclo_risco_ts = time.time()
-                            linhas_drenos = "\n".join(
-                                f"🔴 {sym} ROI {roi:+.1f}% ({pnl:+.2f} USDT)"
-                                for sym, roi, pnl in sorted(drenos, key=lambda x: x[1])
-                            )
-                            vencedores = sorted(
-                                [(p["symbol"], calcular_roi(p)) for p in abertas_ciclo if calcular_roi(p) > 0],
-                                key=lambda x: -x[1]
-                            )
-                            linha_venc = ", ".join(f"{s} {r:+.1f}%" for s, r in vencedores[:3]) if vencedores else "nenhum"
-                            msg = (
-                                f"<b>Ciclo {ciclo_num} em risco</b>\n\n"
-                                f"PnL atual: {pnl_brl:+.2f} BRL\n"
-                                f"Meta: R${meta_brl:.2f}\n\n"
-                                f"<b>Drenos principais:</b>\n{linhas_drenos}\n\n"
-                                f"<b>Segurando o ciclo:</b> {linha_venc}\n\n"
-                                f"<b>O que voce pode fazer:</b>\n"
-                                + "\n".join(f"• /fechar {sym} — aceitar perda e liberar margem" for sym, _, _ in drenos)
-                                + "\n• /fechartudo — encerrar tudo e reiniciar ciclo"
-                                + "\n• Aguardar — bot continua monitorando e tentando DCA"
-                            )
-                            telegram(msg)
-                            log.warning(f"Ciclo {ciclo_num} em risco — alerta enviado. Drenos: {[s for s,_,_ in drenos]}")
-
-                        if meta_confirmacoes >= 2:
-                            meta_confirmacoes = 0
-
+                        if meta_atingida:
                             # Meta CNS: so fecha as vencedoras (ROI >= +10%)
-                            # Nada e cortado no prejuizo — negativas aguardam 3x
+                            # Nada e cortado no prejuizo — negativas continuam rodando
                             pos_fechar = [p for p in pos_ciclo_atual if calcular_roi(p) >= ROI_META]
                             pos_herdar = [p for p in pos_ciclo_atual if calcular_roi(p) < ROI_META]
 
@@ -2091,12 +2056,12 @@ def main() -> None:
                             lucro_ciclo    = saldo_novo - saldo_ciclo_inicio
                             lucro_brl      = lucro_ciclo * usd_brl_c if usd_brl_c > 0 else lucro_ciclo
                             pct_real       = (lucro_ciclo / saldo_ciclo_inicio * 100) if saldo_ciclo_inicio > 0 else 0
-                            # Atualiza contador formiguinha
+                            # Atualiza contador de ciclos positivos consecutivos
                             if lucro_ciclo > 0:
                                 ciclos_positivos_consecutivos += 1
                             else:
                                 ciclos_positivos_consecutivos = 0
-                            nova_meta_pct  = meta_formiguinha(ciclos_positivos_consecutivos)
+                            nova_meta_pct  = meta_dinamica(ciclos_positivos_consecutivos)
                             nova_meta_usdt = saldo_novo * (nova_meta_pct / 100)
                             nova_meta_brl  = nova_meta_usdt * usd_brl_c if usd_brl_c > 0 else nova_meta_usdt
                             sinal_lucro    = "+" if lucro_ciclo >= 0 else ""
@@ -2119,7 +2084,6 @@ def main() -> None:
                             log.info(f"Ciclo {ciclo_num} encerrado! Lucro: {sinal_lucro}{lucro_ciclo:.2f} USDT | Ciclo {ciclo_num+1} | Meta: R${nova_meta_brl:.2f}")
                             ciclo_num          += 1
                             saldo_ciclo_inicio  = saldo_novo
-                            meta_confirmacoes   = 0
                             # Limpa apenas posições do ciclo (não as herdadas)
                             for sym in list(dca_aplicado):
                                 if sym not in posicoes_herdadas:
@@ -2384,25 +2348,6 @@ def main() -> None:
                     parcial_10pct.add(symbol)
                     continue
 
-                # --- TIMEOUT 30 DIAS: dead trade ---
-                # Bruno descarta posições que não resolvem em 30 dias
-                # Se está aberta há 720h sem lucro parcial, fecha
-                if symbol in posicao_abertura:
-                    horas_aberta = (time.time() - posicao_abertura[symbol]) / 3600
-                    if horas_aberta >= 720 and symbol not in parcial_10pct and symbol not in parcial_500:
-                        log.warning(f"  {symbol}: TIMEOUT 30 dias ({horas_aberta:.0f}h) | ROI {roi:+.1f}% -> fechando")
-                        telegram(
-                            f"<b>Dead trade removido: {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}% | {horas_aberta:.0f}h aberta\n"
-                            f"Posicao nao resolveu em 30 dias — liberando margem para oportunidades."
-                        )
-                        registrar_aprendizado(client, symbol, direcao, "timeout_30d", roi,
-                            f"{horas_aberta:.0f}h sem resolver | Bruno-style cutoff")
-                        fechar_parcial(client, p, 1.0, f"Timeout 30d (ROI {roi:.1f}%)")
-                        posicao_abertura.pop(symbol, None)
-                        peak_roi.pop(symbol, None)
-                        continue
-
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ESCALONADO ---
                 if roi > 0 and pico >= 5:
                     # Detecta cripto com alta variação 24h (pump) — trailing mais apertado
@@ -2544,24 +2489,7 @@ def main() -> None:
                 saldo_abertura_dia    = get_saldo_total(client)
                 resumo_diario_enviado = False
                 dia_atual             = agora_dt.day
-                global circuit_breaker_ate
-                circuit_breaker_ate   = 0.0  # reset do circuit breaker no novo dia
                 log.info(f"Novo dia. Saldo de abertura: ${saldo_abertura_dia:.2f}")
-
-            # --- CIRCUIT BREAKER DIÁRIO (Guardião v2) ---
-            # Se drawdown do dia > 2%, congela novas entradas por 24h
-            if saldo_abertura_dia > 0:
-                saldo_atual = get_saldo_total(client)
-                dd_dia = (saldo_atual - saldo_abertura_dia) / saldo_abertura_dia * 100
-                if dd_dia <= -2.0 and circuit_breaker_ate == 0.0:
-                    circuit_breaker_ate = time.time() + 86400  # 24h
-                    log.warning(f"CIRCUIT BREAKER ATIVADO | Drawdown dia: {dd_dia:.2f}% | Novas entradas congeladas 24h")
-                    telegram(
-                        f"<b>Circuit Breaker ativado</b>\n"
-                        f"Drawdown dia: {dd_dia:.2f}%\n"
-                        f"Novas entradas congeladas por 24h.\n"
-                        f"Posicoes abertas continuam sendo gerenciadas."
-                    )
 
             if agora_dt.hour == RESUMO_HORA and not resumo_diario_enviado:
                 enviar_resumo_diario(client, saldo_abertura_dia)
@@ -2579,10 +2507,7 @@ def main() -> None:
                 # Posições negativas ficam abertas aguardando 3x ou recuperação
                 # Se exceder o limite: simplesmente não abre novas (não fecha as existentes)
 
-                if circuit_breaker_ate > 0 and time.time() < circuit_breaker_ate:
-                    mins_restantes = int((circuit_breaker_ate - time.time()) / 60)
-                    log.info(f"Circuit Breaker ativo | Entradas congeladas | {mins_restantes} min restantes")
-                elif len(abertas) >= max_pos_dinamico:
+                if len(abertas) >= max_pos_dinamico:
                     log.info(f"Maximo dinamico atingido ({len(abertas)}/{max_pos_dinamico} posicoes | saldo ${saldo_atual_dia:.0f}).")
                 elif (racio_atual := get_racio_margem(client)) >= RACIO_MARGEM_MAX:
                     log.info(f"Racio de Margem {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}%. Sem novas entradas.")
