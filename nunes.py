@@ -2354,9 +2354,19 @@ def main() -> None:
                         except Exception:
                             ma_perdendo_forca = False
 
-                        # Meta dinâmica: +10% se MA forte, +3% se perdendo força
-                        meta_saida = 3.0 if ma_perdendo_forca else 10.0
-                        motivo_meta = "MA lateralizando" if ma_perdendo_forca else "MA com forca"
+                        # Meta dinâmica baseada no modo do 3x:
+                        # - Audacioso (ROI DCA <= -1000%): saida MUITO rapida +1%
+                        # - Agressivo (ROI DCA <= -500%): saida rapida +2%
+                        # - Normal: +10% se MA forte, +3% se lateralizando
+                        if roi_entrada_dca <= -1000:
+                            meta_saida = 1.0
+                            motivo_meta = "AUDACIOSO — saida rapida"
+                        elif roi_entrada_dca <= -500:
+                            meta_saida = 2.0
+                            motivo_meta = "AGRESSIVO — saida rapida"
+                        else:
+                            meta_saida = 3.0 if ma_perdendo_forca else 10.0
+                            motivo_meta = "MA lateralizando" if ma_perdendo_forca else "MA com forca"
 
                         if roi >= meta_saida:
                             log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% >= +{meta_saida:.0f}% ({motivo_meta}) -> fechando 90%")
