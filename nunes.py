@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
 Robô de trade - Binance Futuros
-Estratégia: EMA Multi-Timeframe + RSI
-Sessão: Asiática (00h-08h UTC)
+Estratégia: Águia Spread (padrão Bruno Aguiar)
+- Entrada: Bollinger Squeeze no 2H
+- DCA 3x repetível em -200% com MA7 cruzando MA25 + Fibonacci
+- Trailing escalonado + Saída 90/10
+- Proteção via Rácio de Margem (6%)
 """
 
 import os
@@ -34,47 +37,27 @@ MASTER_API_KEY     = os.getenv("MASTER_API_KEY", "")
 MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
 
 MODO               = os.getenv("MODO", "simulacao")
-ESTRATEGIA         = os.getenv("ESTRATEGIA", "swing")  # "swing", "scalping" ou "hibrido"
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
-RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.02"))
+RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.01"))  # 1% padrão Bruno
 RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "6.0"))  # % máximo do Rácio de Margem da Binance
-STOP_LOSS_ROI      = float(os.getenv("STOP_LOSS_ROI", "2.0"))
-TAKE_PROFIT_ROI    = float(os.getenv("TAKE_PROFIT_ROI", "5.0"))
-SCALP_TP           = float(os.getenv("SCALP_TP", "5.0"))    # take profit scalping (% ROI)
-SCALP_SL           = float(os.getenv("SCALP_SL", "-3.0"))   # stop loss scalping (% ROI)
 
-MAX_POSICOES          = 30   # limite de segurança absoluto — controle dinâmico abaixo
+MAX_POSICOES          = 10   # padrão Bruno: 10 posições fixas
 
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
-    Retorna (max_posicoes, risco_por_trade) baseado no saldo atual.
-    Mais saldo = mais posições = mais proteção por diversificação.
-    Risco total máximo ~10% do saldo. Rácio de Margem é a trava final.
+    Padrão Bruno (Águia Spread): 10 posições fixas, 1% por trade.
+    Uniforme para todos os saldos. Notional mínimo $5 da Binance é
+    garantido em abrir_posicao() quando o saldo é muito baixo.
     """
-    if ESTRATEGIA == "scalping":
-        return 4, 0.013
-    # Saldo baixo: menos posições, mais risco por trade (senão margem é irrisória)
-    if saldo < 20:
-        return 3, 0.08    # 3 posições, 8% risco (~$1.10 margem com $14)
-    elif saldo < 50:
-        return 5, 0.05    # 5 posições, 5% risco
-    elif saldo < 100:
-        return 8, 0.03    # 8 posições, 3% risco
-    # Saldo normal: 10 posições máximo, 1% por trade (padrão Bruno)
     return 10, 0.01
+
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
-TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
 INTERVALO_POSICOES    = 15   # segundos entre verificação de posições (rápido para pegar 3x)
 INTERVALO_ENTRADAS    = 60   # segundos entre busca de novas entradas (2H timeframe)
-ROI_MIN_REVERSAO      = 20.0 # ROI mínimo para monitorar reversão (%)
 LIMITE_PERDA_DIARIA   = float(os.getenv("LIMITE_PERDA_DIARIA", "5.0"))  # % máximo de perda no dia
-ROI_STOP_LOSS_MAX     = float(os.getenv("ROI_STOP_LOSS_MAX", "-100.0"))  # fecha posição se ROI abaixo disso
 RESUMO_HORA           = 22   # hora do resumo diário (horário local)
-DCA_ANTECIPADO_ROI    = -5.0  # ROI mínimo para DCA (qualquer negativo com sinal de MA)
-STOP_TEMPO_HORAS      = 24.0    # horas sem recuperação após DCA para fechar
-STOP_SEM_SINAL_HORAS  = 12.0   # horas sem nenhum sinal de MA para fechar (sem DCA)
 META_CICLO_PCT        = float(os.getenv("META_CICLO_PCT", "5.0"))   # meta de lucro por ciclo (%)
 META_CICLO_FASE2_USD  = float(os.getenv("META_CICLO_FASE2_USD", "50.0"))  # meta fixa em USDT após $1.000
 META_CICLO_FASE2_MIN  = float(os.getenv("META_CICLO_FASE2_MIN", "1000.0")) # saldo para ativar fase 2
@@ -832,39 +815,6 @@ def tendencia_btc(client: Client) -> str:
     return "baixa"
 
 
-def tendencia_1h(client: Client, symbol: str) -> tuple[str, bool]:
-    """
-    Retorna ('alta'|'baixa', confirmado).
-    confirmado = True se MA7 e MA25 estão claramente separadas no 1H (spread >= 0.3%).
-    Usado no modo swing: 1H (direção) → 5min (alinhamento) → M1 (gatilho)
-    """
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
-    df["ma7"]  = df["close"].rolling(7).mean()
-    df["ma25"] = df["close"].rolling(25).mean()
-    ultima = df.iloc[-1]
-    direcao = "alta" if ultima["ma7"] > ultima["ma25"] else "baixa"
-    spread = abs(ultima["ma7"] - ultima["ma25"]) / ultima["ma25"] if ultima["ma25"] > 0 else 0
-    confirmado = spread >= 0.003
-    return direcao, confirmado
-
-
-def tendencia_5min(client: Client, symbol: str) -> tuple[str, bool]:
-    """
-    Retorna ('alta'|'baixa', confirmado).
-    confirmado = True se MA7 e MA25 estão separadas no 5min (spread >= 0.2%).
-    Usado no modo scalping: 5min (direção) → M1 (gatilho)
-    Spread menor (0.2%) que 1H (0.3%) para capturar mais sinais rápidos.
-    """
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
-    df["ma7"]  = df["close"].rolling(7).mean()
-    df["ma25"] = df["close"].rolling(25).mean()
-    ultima = df.iloc[-1]
-    direcao = "alta" if ultima["ma7"] > ultima["ma25"] else "baixa"
-    spread = abs(ultima["ma7"] - ultima["ma25"]) / ultima["ma25"] if ultima["ma25"] > 0 else 0
-    confirmado = spread >= 0.002
-    return direcao, confirmado
-
-
 # Controle de DCA, trailing stop e alertas
 dca_log:          dict[str, float] = {}
 dca_ativo:        str | None = None
@@ -876,7 +826,6 @@ alerta_liq_log:   dict[str, float] = {}   # timestamp do último alerta de liqui
 alerta_dca_log:   dict[str, float] = {}   # timestamp do último alerta de aproximação do DCA
 posicao_abertura: dict[str, float] = {}   # timestamp de quando cada posição foi detectada
 ma_reverteu:      dict[str, float] = {}   # symbol -> ROI no momento em que a MA reverteu contra a posição
-alerta_80_log:         dict[str, float] = {}   # timestamp do último alerta de -80% por symbol
 sinal_ma_detectado:    dict[str, float] = {}   # timestamp da última vez que MA cruzou a favor por symbol
 roi_no_dca:            dict[str, float] = {}   # ROI no momento em que o DCA foi aplicado
 alerta_ciclo_risco_ts: float           = 0.0  # timestamp do último alerta de ciclo em risco
@@ -1197,25 +1146,6 @@ def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
         return False
 
 
-def rsi_extremo(client: Client, symbol: str, direcao: str, periodo: int = 14) -> bool:
-    """
-    Retorna True se RSI estiver em extremo favorável ao DCA:
-    - LONG: RSI < 30 (sobrevendido — reversão de alta provável)
-    - SHORT: RSI > 70 (sobrecomprado — reversão de queda provável)
-    """
-    df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=periodo + 10)
-    delta = df["close"].diff()
-    gain  = delta.clip(lower=0).rolling(periodo).mean()
-    loss  = (-delta.clip(upper=0)).rolling(periodo).mean()
-    rs    = gain / loss.replace(0, float("inf"))
-    rsi   = 100 - (100 / (1 + rs))
-    rsi_atual = rsi.iloc[-1]
-    if direcao == "LONG":
-        return rsi_atual < 30
-    else:
-        return rsi_atual > 70
-
-
 _cache_precisao: dict[str, int] = {}  # cache de precisão por symbol
 
 def get_precisao_quantidade(client: Client, symbol: str) -> int:
@@ -1450,34 +1380,6 @@ def ma_alinhada_15min(client: Client, symbol: str, direcao: str) -> bool:
     return atual["ma7"] < atual["ma25"]
 
 
-def calcular_adx(df: pd.DataFrame, periodo: int = 14) -> float:
-    """
-    Calcula o ADX (Average Directional Index) — mede a força da tendência.
-    ADX > 20: mercado em tendência (entradas válidas).
-    ADX < 20: mercado lateral (MAs dão sinais falsos — evitar entrar).
-    """
-    high  = df["high"]
-    low   = df["low"]
-    close = df["close"]
-
-    plus_dm  = high.diff()
-    minus_dm = low.diff().abs()
-    plus_dm  = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0.0)
-    minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0.0)
-
-    tr = pd.concat([
-        high - low,
-        (high - close.shift()).abs(),
-        (low  - close.shift()).abs()
-    ], axis=1).max(axis=1)
-
-    atr       = tr.ewm(span=periodo, adjust=False).mean()
-    plus_di   = 100 * plus_dm.ewm(span=periodo, adjust=False).mean()  / atr.replace(0, float("nan"))
-    minus_di  = 100 * minus_dm.ewm(span=periodo, adjust=False).mean() / atr.replace(0, float("nan"))
-    dx        = (100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, float("nan")))
-    adx       = dx.ewm(span=periodo, adjust=False).mean()
-    return float(adx.iloc[-1]) if not adx.empty else 0.0
-
 
 def sinal_aguia_spread(client: Client, symbol: str) -> str | None:
     """
@@ -1686,24 +1588,6 @@ def arredondar_quantidade(quantidade: float, step: float) -> float:
     return float((qty_d // step_d) * step_d)
 
 
-def calcular_stops(preco: float, direcao: str, alavancagem: int):
-    """
-    Stop loss: -200% do ROI da margem → movimento de preço = 200% / alavancagem
-    Take profit: +500% do ROI da margem → movimento de preço = 500% / alavancagem
-    """
-    sl_pct = STOP_LOSS_ROI / alavancagem
-    tp_pct = TAKE_PROFIT_ROI / alavancagem
-
-    if direcao == "LONG":
-        sl = round(preco * (1 - sl_pct), 4)
-        tp = round(preco * (1 + tp_pct), 4)
-    else:
-        sl = round(preco * (1 + sl_pct), 4)
-        tp = round(preco * (1 - tp_pct), 4)
-
-    return sl, tp
-
-
 def posicoes_abertas(client: Client) -> list:
     account = client.futures_account()
     return [p for p in account["positions"] if abs(float(p["positionAmt"])) > 0]
@@ -1840,6 +1724,9 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
     _risco_base    = risco_base if risco_base is not None else RISCO_POR_TRADE
     risco          = _risco_base  # 1% fixo para todas as entradas (padrão Bruno)
     margem         = round(banca * risco, 2)
+    # Garante notional mínimo de $5.50 (Binance exige $5)
+    if margem * alav_ideal < 5.50:
+        margem = round(5.50 / alav_ideal, 2)
     side           = "BUY" if direcao == "LONG" else "SELL"
     side_close     = "SELL" if direcao == "LONG" else "BUY"
 
@@ -1874,7 +1761,6 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
 
         step       = get_step_size(client, symbol)
         quantidade = arredondar_quantidade((margem * alavancagem_real) / preco, step)
-        sl, tp     = calcular_stops(preco, direcao, alavancagem_real)
 
         # Ordem de entrada a mercado
         client.futures_create_order(
@@ -1948,11 +1834,9 @@ def verificar_atualizacao(reiniciar: bool = False) -> None:
 def main() -> None:
     verificar_atualizacao()
     log.info("=" * 50)
-    log.info(f"Nunes iniciado | Modo: {MODO.upper()} | Estrategia: {ESTRATEGIA.upper()}")
+    log.info(f"Nunes iniciado | Modo: {MODO.upper()}")
     log.info(f"Sistema Aguia Spread: Bollinger Squeeze 2H | DCA 3x | Trailing paciente")
-    if ESTRATEGIA == "scalping":
-        log.info(f"SCALPING: TP +{SCALP_TP:.0f}% | SL {SCALP_SL:.0f}% | Max 4 posicoes")
-    log.info(f"Risco: {RISCO_POR_TRADE*100}% | Alavancagem: {ALAVANCAGEM}x")
+    log.info(f"Risco: {RISCO_POR_TRADE*100}% por trade | Max {MAX_POSICOES} posicoes | Alavancagem: {ALAVANCAGEM}x")
     log.info("=" * 50)
 
     client = Client(API_KEY, API_SECRET)
@@ -2260,33 +2144,6 @@ def main() -> None:
                 # SL -200% REMOVIDO — Rácio de Margem protege a conta
                 # Posições negativas aguardam oportunidade de 3x
 
-                # --- MODO SCALPING PURO: TP/SL rápido, sem DCA, sem trailing ---
-                # (modo híbrido usa trailing do swing, não entra aqui)
-                if ESTRATEGIA == "scalping" and ESTRATEGIA != "hibrido":
-                    if roi >= SCALP_TP:
-                        log.info(f"  {symbol}: SCALP TP! ROI {roi:+.1f}% >= {SCALP_TP:.0f}% -> fechando 100%")
-                        telegram(
-                            f"<b>Scalp TP: {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}%\n"
-                            f"Lucro rapido garantido."
-                        )
-                        fechar_parcial(client, p, 1.0, f"Scalp TP ({roi:+.1f}%)")
-                        peak_roi.pop(symbol, None)
-                        posicao_abertura.pop(symbol, None)
-                    elif roi <= SCALP_SL:
-                        log.info(f"  {symbol}: SCALP SL! ROI {roi:+.1f}% <= {SCALP_SL:.0f}% -> fechando 100%")
-                        telegram(
-                            f"<b>Scalp SL: {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}%\n"
-                            f"Stop rapido — proxima entrada."
-                        )
-                        fechar_parcial(client, p, 1.0, f"Scalp SL ({roi:+.1f}%)")
-                        peak_roi.pop(symbol, None)
-                        posicao_abertura.pop(symbol, None)
-                    else:
-                        log.info(f"  {symbol}: ROI {roi:+.1f}% | scalping (TP {SCALP_TP:.0f}% / SL {SCALP_SL:.0f}%)")
-                    continue  # pula toda lógica de swing
-
                 # Alertas de risco para todas as posições
                 verificar_alertas_risco(client, p, roi)
 
@@ -2536,68 +2393,8 @@ def main() -> None:
                                 log.warning(f"  Erro topup automatico {symbol}: {e}")
 
                         log.info(f"  {symbol}: ROI {roi:+.1f}% | monitorando")
-                    else:
-                        # DCA antecipado em -80%
-                        if roi <= -80 and symbol not in dca_aplicado:
-                            if dca_ativo and dca_ativo != symbol and dca_ativo_tem_sinal(client, abertas):
-                                log.info(f"  {symbol}: ROI {roi:.1f}% | DCA -80% bloqueado ({dca_ativo} em recuperacao com sinal ativo)")
-                            else:
-                                try:
-                                    df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
-                                    df5["ma7"]  = df5["close"].rolling(7).mean()
-                                    df5["ma25"] = df5["close"].rolling(25).mean()
-                                    df5["diff"] = df5["ma7"] - df5["ma25"]
-                                    diff_atual  = df5["diff"].iloc[-1]
-                                    diff_prev   = df5["diff"].iloc[-3]
-
-                                    # Stop -80% REMOVIDO — aguarda oportunidade de 3x
-                                    # MA acelerando contra = não faz 3x agora, espera reverter
-
-                                    ma_ok = ma_cruza_favor(client, symbol, direcao)
-                                    if ma_ok:
-                                        sinal_ma_detectado[symbol] = time.time()
-                                        if dca_bloqueado_por_racio:
-                                            log.warning(f"  {symbol}: DCA -80% bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
-                                        else:
-                                            log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou a favor -> DCA antecipado em -80%")
-                                            aplicar_dca(client, p, banca)
-                                            dca_ativo = symbol
-                                            alerta_80_log[symbol] = time.time()
-                                    else:
-                                        ultimo_alerta_80 = alerta_80_log.get(symbol, 0)
-                                        if time.time() - ultimo_alerta_80 >= 1800:
-                                            msg = (
-                                                f"<b>Atencao: {symbol} em {roi:.1f}%</b>\n"
-                                                f"{direcao} | MA ainda nao reverteu\n"
-                                                f"DCA automatico quando MA cruzar | Manual: /dca {symbol}"
-                                            )
-                                            telegram(msg)
-                                            log.warning(f"  {symbol}: ROI {roi:.1f}% — aguardando MA para DCA -80%")
-                                            alerta_80_log[symbol] = time.time()
-                                except Exception as e:
-                                    log.warning(f"  Erro DCA -80% {symbol}: {e}")
-
-                        # Alerta de cruzamento de MA a favor em posição negativa
-                        if roi < 0:
-                            try:
-                                ultimo_conv = alerta_dca_log.get(f"conv_{symbol}", 0)
-                                if time.time() - ultimo_conv >= 300:
-                                    if ma_cruza_favor(client, symbol, direcao):
-                                        msg = (
-                                            f"<b>{symbol}: MA7 cruzou a favor!</b>\n"
-                                            f"{direcao} | ROI: {roi:+.1f}%\n"
-                                            f"Cruzamento com momentum detectado.\n"
-                                            f"Para fazer DCA agora: /dca {symbol}"
-                                        )
-                                        telegram(msg)
-                                        log.info(f"  {symbol}: ROI {roi:+.1f}% | MA7 cruzou a favor — alerta enviado")
-                                        alerta_dca_log[f"conv_{symbol}"] = time.time()
-                                    else:
-                                        log.info(f"  {symbol}: ROI {roi:+.1f}% | monitorando")
-                            except Exception:
-                                log.info(f"  {symbol}: ROI {roi:+.1f}% | monitorando")
-                        else:
-                            log.info(f"  {symbol}: ROI {roi:+.1f}% | monitorando")
+                    # Posições negativas: aguardam 3x automático em -200% ou recuperação
+                    # (o 3x é tratado no bloco `elif roi <= -200.0` acima)
 
             # --- RESUMO DIÁRIO E RESET ---
             agora_dt = datetime.now()
@@ -2632,15 +2429,12 @@ def main() -> None:
                     # Ajustes dinâmicos por sessão
                     if sessao == "ASIATICA":
                         top_pares_sessao   = min(TOP_PARES + 100, 652)  # +100 pares extras
-                        timeout_camada2    = 300   # 5 min para liberar camada 2
                         racio_limite_sessao = RACIO_MARGEM_MAX  # normal
                     elif sessao == "AMERICANA":
                         top_pares_sessao   = TOP_PARES
-                        timeout_camada2    = TIMEOUT_SEM_ENTRADA
                         racio_limite_sessao = max(RACIO_MARGEM_MAX - 2.0, 4.0)  # -2% no horário americano
                     else:  # EUROPEIA
                         top_pares_sessao   = TOP_PARES
-                        timeout_camada2    = TIMEOUT_SEM_ENTRADA
                         racio_limite_sessao = RACIO_MARGEM_MAX
 
                     # Revalida rácio com limite da sessão
@@ -2650,10 +2444,7 @@ def main() -> None:
 
                     log.info(f"Sessao {sessao} | Escaneando {top_pares_sessao} pares | Racio limite {racio_limite_sessao:.0f}%")
                     btc_tendencia = tendencia_btc(client)
-                    sem_entrada_ha = time.time() - ultimo_entrada
-                    camada2_ativa  = sem_entrada_ha >= timeout_camada2
-                    camada_txt     = "CAMADA 2 (sem MA99)" if camada2_ativa else "CAMADA 1 (com MA99)"
-                    log.info(f"BTC: {btc_tendencia.upper()} | {camada_txt} | timeout camada2={timeout_camada2//60}min")
+                    log.info(f"BTC: {btc_tendencia.upper()}")
 
                     pares = get_top_pares(client, top_pares_sessao)
                     simbolos_abertos = [p["symbol"] for p in abertas]
