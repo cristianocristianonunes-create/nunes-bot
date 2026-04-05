@@ -1191,7 +1191,7 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
     7. Volume do candle 2 >= 1.2x media (10 pts)
     8. Volume Profile: preco em zona de reversao (10 pts) — NOVO
 
-    Gatilho do 3x automatico: score >= 93
+    Gatilho do 3x automatico: score >= 50
     """
     detalhes = {}
     score = 0
@@ -1373,10 +1373,10 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
 
 def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
     """
-    Compatibilidade: retorna True se score >= 93 (3x automático liberado).
+    Compatibilidade: retorna True se score >= 50 (3x automático liberado).
     """
     score, _ = calcular_score_3x(client, symbol, direcao)
-    return score >= 93
+    return score >= 50
 
 
 def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
@@ -2710,7 +2710,7 @@ def main() -> None:
                             score, detalhes = calcular_score_3x(client, symbol, direcao)
                             log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/100 | {detalhes}")
 
-                            if score >= 93:
+                            if score >= 50:
                                 # SETUP PERFEITO — DISPARA 3x AUTOMÁTICO
                                 if dca_bloqueado_por_racio:
                                     log.warning(f"  {symbol}: 3x score {score} mas Racio acima de {RACIO_BLOQUEIA_DCA:.0f}%")
