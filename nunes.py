@@ -2373,39 +2373,70 @@ def main() -> None:
 
                 # --- MONITORAMENTO NEGATIVO (Rácio de Margem protege — 3x é a oportunidade) ---
                 elif roi < 0:
-                    # Marcos motivacionais em drawdown — lembra que 3x transforma isso em lucro
+                    # Analisa distância real da MA7 em relação à MA25 no 5min
+                    # Mensagem contextual baseada no quanto falta para o cruzamento
+                    status_ma = "distante"
+                    extra_msg = ""
+                    try:
+                        df5_ma = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+                        df5_ma["ma7"]  = df5_ma["close"].rolling(7).mean()
+                        df5_ma["ma25"] = df5_ma["close"].rolling(25).mean()
+                        ma7_cur  = df5_ma["ma7"].iloc[-1]
+                        ma25_cur = df5_ma["ma25"].iloc[-1]
+                        ma7_prev = df5_ma["ma7"].iloc[-3]
+                        ma25_prev = df5_ma["ma25"].iloc[-3]
+
+                        # Distância percentual entre MA7 e MA25
+                        dist_pct = abs(ma7_cur - ma25_cur) / ma25_cur * 100 if ma25_cur > 0 else 0
+                        # Verifica se está se aproximando (convergindo)
+                        dist_prev = abs(ma7_prev - ma25_prev) / ma25_prev * 100 if ma25_prev > 0 else 0
+                        convergindo = dist_pct < dist_prev
+
+                        if direcao == "LONG":
+                            ma_favor = ma7_cur > ma25_cur
+                        else:
+                            ma_favor = ma7_cur < ma25_cur
+
+                        if ma_favor:
+                            status_ma = "ja cruzou"
+                            extra_msg = "MA7 ja esta a favor — 3x pode disparar a qualquer momento!"
+                        elif dist_pct < 0.3:
+                            status_ma = "muito proximo"
+                            extra_msg = f"MA7 a {dist_pct:.2f}% da MA25 — cruzamento iminente!"
+                        elif dist_pct < 0.8 and convergindo:
+                            status_ma = "aproximando"
+                            extra_msg = f"MA7 a {dist_pct:.2f}% da MA25 e convergindo. Vai cruzar em breve."
+                        elif convergindo:
+                            status_ma = "caminhando"
+                            extra_msg = f"MA7 a {dist_pct:.2f}% da MA25, mas ja comecando a convergir."
+                        else:
+                            status_ma = "distante"
+                            extra_msg = f"MA7 a {dist_pct:.2f}% da MA25. Ainda vai levar tempo — paciencia."
+                    except Exception:
+                        extra_msg = "Aguardando sinal de reversao."
+
+                    # Marcos motivacionais em drawdown — adaptados ao status da MA
                     marcos_negativos = {
-                        -30:  ("Acumulando potencial", "Quando o 3x vier, essa posição vira um salto na conta!"),
-                        -60:  ("Carregando a mola", "Quanto mais desce, maior o impulso do 3x. Momento de paciência."),
-                        -90:  ("Spread crescendo", "Posição se aproximando da zona de oportunidade. 3x mira em -120%."),
-                        -120: ("Gatilho ativado", "Zona de 3x! Aguardando MA7 cruzar MA25 — vai disparar a qualquer momento."),
-                        -180: ("Pronto pra explodir", "Proximo do 2º gatilho 3x (-240%). Com a reversao, salto monstruoso!"),
+                        -30:  "Acumulando potencial",
+                        -60:  "Carregando a mola",
+                        -90:  "Spread crescendo",
+                        -120: "Zona de 3x",
+                        -180: "Zona de 3x profunda",
+                        -240: "Segundo gatilho 3x",
                     }
-                    # Dispara marco quando cruza o limite (uma vez a cada 30 min por nível)
-                    for nivel, (titulo, mensagem) in marcos_negativos.items():
+                    for nivel in sorted(marcos_negativos.keys()):
                         if roi <= nivel:
+                            titulo = marcos_negativos[nivel]
                             alerta_key = f"marco_neg_{symbol}_{nivel}"
                             if time.time() - alerta_dca_log.get(alerta_key, 0) >= 1800:
                                 telegram(
                                     f"<b>{titulo}: {symbol}</b>\n"
                                     f"{direcao} | ROI: {roi:+.1f}%\n"
-                                    f"{mensagem}"
+                                    f"{extra_msg}"
                                 )
                                 alerta_dca_log[alerta_key] = time.time()
-                                break  # só envia o marco mais profundo alcançado
-
-                    # Análise detalhada quando perto do gatilho 3x
-                    if roi <= -180 and roi > -200:
-                        alerta_key = f"perto3x_{symbol}"
-                        if time.time() - alerta_dca_log.get(alerta_key, 0) >= 600:
-                            grafico = analise_grafico_3x(client, symbol, direcao)
-                            telegram(
-                                f"<b>3x quase lá: {symbol}</b>\n"
-                                f"{direcao} | ROI: {roi:+.1f}%\n"
-                                f"Aguardando MA cruzar a favor. Quando vier, vai ser um salto!{grafico}"
-                            )
-                            alerta_dca_log[alerta_key] = time.time()
-                    log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando oportunidade de 3x")
+                            break  # só o mais profundo
+                    log.info(f"  {symbol}: ROI {roi:+.1f}% | MA: {status_ma}")
 
                 # --- ESTRATÉGIA 3x v2 (Guardião CNS) ---
                 # Duas camadas de DCA: -120% (primeiro reforço) e -240% (segundo)
