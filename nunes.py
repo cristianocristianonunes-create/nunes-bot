@@ -2016,10 +2016,10 @@ def main() -> None:
                             pos_herdar = [p for p in pos_ciclo_atual if calcular_roi(p) < ROI_META]
 
                             telegram(
-                                f"<b>Ciclo {ciclo_num} — Meta atingida</b>\n"
-                                f"PnL vencedoras: R${pnl_venc_brl:.2f}\n"
-                                f"Fechando {len(pos_fechar)} posicoes >= +{ROI_META:.0f}% ROI\n"
-                                f"Restam {len(pos_herdar)} em andamento"
+                                f"<b>Meta do Ciclo {ciclo_num} confirmada!</b>\n"
+                                f"Lucro realizado: R${pnl_venc_brl:.2f}\n"
+                                f"Fechando {len(pos_fechar)} vencedoras (>= +{ROI_META:.0f}% ROI)\n"
+                                f"Mantendo {len(pos_herdar)} em andamento"
                             )
                             log.info(f"Meta atingida! Fechando {len(pos_fechar)} vencedoras | Mantendo {len(pos_herdar)}")
 
@@ -2067,14 +2067,14 @@ def main() -> None:
                             sinal_lucro    = "+" if lucro_ciclo >= 0 else ""
 
                             msg = (
-                                f"<b>Ciclo {ciclo_num} encerrado</b>\n\n"
-                                f"PnL: {sinal_lucro}{lucro_ciclo:.2f} USDT (R${lucro_brl:.2f})\n"
-                                f"Percentual: {sinal_lucro}{pct_real:.2f}%\n"
-                                f"Saldo: ${saldo_novo:.2f} (R${saldo_novo * usd_brl_c:.2f})\n\n"
+                                f"<b>Ciclo {ciclo_num} encerrado!</b>\n\n"
+                                f"Lucro realizado: {sinal_lucro}{lucro_ciclo:.2f} USDT (R${lucro_brl:.2f})\n"
+                                f"Percentual real: {sinal_lucro}{pct_real:.2f}%\n"
+                                f"Saldo novo: ${saldo_novo:.2f} (R${saldo_novo * usd_brl_c:.2f})\n\n"
                                 f"Fechadas:\n" + "\n".join(resultados_fechados)
                             )
                             if resultados_herdados:
-                                msg += f"\n\nEm andamento:\n" + "\n".join(resultados_herdados)
+                                msg += f"\n\nHerdadas para o ciclo {ciclo_num + 1}:\n" + "\n".join(resultados_herdados)
                             msg += (
                                 f"\n\n<b>Ciclo {ciclo_num + 1} iniciado</b>\n"
                                 f"Meta: {nova_meta_pct:.1f}% = ${nova_meta_usdt:.2f} USDT / R${nova_meta_brl:.2f}\n"
@@ -2151,7 +2151,7 @@ def main() -> None:
                                 dca_ativo = symbol
                             salvar_estado()  # salva IMEDIATAMENTE para não perder no reinício
                             log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f})")
-                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem: ${margem_anterior:.2f} -> ${margem_atual:.2f}\nGestao pos-3x ativada (saida +3%/+10%).")
+                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nBot vai aguardar saida inteligente (+3%/+10%).")
                 margem_registrada[symbol] = margem_atual
 
                 # Registra horário de abertura da posição
@@ -2174,13 +2174,14 @@ def main() -> None:
                 if roi > pico_anterior:
                     peak_roi[symbol] = roi
                     salvar_estado()
-                    # Notificação em marcos de ROI (apenas informativo)
+                    # Mensagens motivacionais em marcos
                     marcos = [20, 50, 100, 200, 300, 500]
                     for marco in marcos:
                         if pico_anterior < marco <= roi:
                             telegram(
-                                f"<b>Pico ROI: {symbol} +{marco}%</b>\n"
-                                f"{direcao} | ROI atual: {roi:+.1f}% | Trailing ativo."
+                                f"<b>Marco atingido: {symbol} +{marco}%!</b>\n"
+                                f"{direcao} | ROI: {roi:+.1f}%\n"
+                                f"Lucro crescendo! Trailing segue protegendo."
                             )
                             break
 
@@ -2190,7 +2191,7 @@ def main() -> None:
                 # +500%: fecha 50% e deixa resto correr com trailing apertado 10%
                 if roi >= 500 and symbol not in parcial_500:
                     log.info(f"  {symbol}: ROI {roi:+.1f}% >= +500% -> fechando 50%, resto com trailing 10%")
-                    telegram(f"<b>TP +500%: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nFechando 50%. Restante com trailing 10%.")
+                    telegram(f"<b>Lucro extraordinario: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nGarantindo 50% do lucro! Resto continua correndo.")
                     fechar_parcial(client, p, 0.50, f"TP parcial +500% ({roi:+.1f}%)")
                     parcial_500.add(symbol)
                     continue
@@ -2199,7 +2200,7 @@ def main() -> None:
                     queda_pct = (pico - roi) / pico if pico > 0 else 0
                     if queda_pct >= 0.10:
                         log.info(f"  {symbol}: trailing pos-500%! Pico {pico:.0f}% -> atual {roi:.0f}% (queda 10%) -> fechando resto")
-                        telegram(f"<b>Trailing +500%: {symbol}</b>\n{direcao} | Pico: {pico:.0f}% | Saida: {roi:+.1f}%")
+                        telegram(f"<b>Lucro protegido: {symbol}</b>\n{direcao} | Pico: {pico:.0f}% | Atual: {roi:+.1f}%\nFechando restante com lucro garantido.")
                         fechar_parcial(client, p, 1.0, f"Trailing pos-500% (pico {pico:.0f}%)")
                         parcial_500.discard(symbol)
                         peak_roi.pop(symbol, None)
@@ -2295,9 +2296,10 @@ def main() -> None:
                         if roi >= meta_saida:
                             log.info(f"  {symbol}: [POS-3x #{n_3x}] ROI {roi:+.1f}% >= +{meta_saida:.0f}% ({motivo_meta}) -> fechando 90%")
                             telegram(
-                                f"<b>Saida pos-3x: {symbol}</b>\n"
+                                f"<b>Lucro realizado: {symbol}</b>\n"
                                 f"{direcao} | ROI: {roi:+.1f}% | 3x aplicados: {n_3x}\n"
-                                f"Meta +{meta_saida:.0f}% ({motivo_meta}) | Fechando 90%, mantendo 10%."
+                                f"Saida em +{meta_saida:.0f}% ({motivo_meta})\n"
+                                f"Fechando 90% com lucro! 10% continua na posicao."
                             )
                             registrar_aprendizado(client, symbol, direcao, "3x_sucesso", roi,
                                 f"3x #{n_3x} | Meta {meta_saida:.0f}% ({motivo_meta}) | Entrada DCA ROI: {roi_entrada_dca:+.1f}%")
@@ -2333,16 +2335,16 @@ def main() -> None:
                             alerta_dca_log[alerta_key] = time.time()
 
                 # --- ALVO MEDIANO BRUNO: fecha 50% quando ROI >= +200% (10% movimento × 20x) ---
-                # Alvo de realização parcial: 200% ROI = 10% movimento real com 20x
-                # Baseado em dados históricos (mediana de movimentos bem-sucedidos)
+                # Bruno mostra que a mediana dos movimentos é 10% no ativo
+                # Com 20x isso = 200% ROI. Fecha metade e deixa o resto correr com trailing
                 elif roi >= 200 and symbol not in parcial_10pct and symbol not in parcial_500:
-                    log.info(f"  {symbol}: TP parcial 200% ROI -> fechando 50%")
+                    log.info(f"  {symbol}: ALVO 10% atingido (ROI {roi:+.1f}%) -> fechando 50%")
                     telegram(
-                        f"<b>TP parcial: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}%\n"
-                        f"Fechando 50%. Restante segue com trailing."
+                        f"<b>Alvo Bruno atingido: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}% (+10% no preco)\n"
+                        f"Fechando 50% — mediana historica. Resto corre no trailing."
                     )
-                    fechar_parcial(client, p, 0.50, f"TP parcial 200% ROI ({roi:.1f}%)")
+                    fechar_parcial(client, p, 0.50, f"Alvo mediano Bruno +200% (ROI {roi:.1f}%)")
                     parcial_10pct.add(symbol)
                     continue
 
@@ -2381,8 +2383,9 @@ def main() -> None:
                     if queda_pct >= tolerancia:
                         log.info(f"  {symbol}{pump_tag}: trailing stop! Pico {pico:.0f}% -> atual {roi:.0f}% (tolerancia {tolerancia:.0%}) -> fechando 90%")
                         telegram(
-                            f"<b>Trailing stop: {symbol}{pump_tag}</b>\n"
-                            f"{direcao} | Pico: {pico:.0f}% | Saida: {roi:+.1f}% | Fechando 90%"
+                            f"<b>Lucro capturado: {symbol}{pump_tag}</b>\n"
+                            f"{direcao} | Pico: {pico:.0f}% | Saida: {roi:+.1f}%\n"
+                            f"Trailing protegeu o ganho! Fechando 90%."
                         )
                         registrar_aprendizado(client, symbol, direcao, "trailing_sucesso", roi,
                             f"Pico {pico:.0f}% | Saida {roi:+.1f}% | Tolerancia {tolerancia:.0%}{pump_tag}")
@@ -2425,9 +2428,10 @@ def main() -> None:
                                 dca_ativo = symbol
                                 grafico = analise_grafico_3x(client, symbol, direcao)
                                 telegram(
-                                    f"<b>3x aplicado: {symbol} (#{n_3x + 1})</b>\n"
+                                    f"<b>OBA! 3x ativado: {symbol} (#{n_3x + 1})</b>\n"
                                     f"{direcao} | ROI: {roi:+.1f}%\n"
-                                    f"Gatilho: MA7 cruzou MA25 + Fibonacci confirmado.{grafico}"
+                                    f"MA7 cruzou MA25 + Fibonacci confirmou!\n"
+                                    f"Oportunidade de lucro com spread maior.{grafico}"
                                 )
                         else:
                             log.info(f"  {symbol}: ROI {roi:.1f}% | 3x #{n_3x + 1} preparado | aguardando sinal de reversao para lucrar")
