@@ -2374,32 +2374,69 @@ def main() -> None:
                 # --- MONITORAMENTO NEGATIVO (Rácio de Margem protege — 3x é a oportunidade) ---
                 elif roi < 0:
                     # Analisa distância real da MA7 em relação à MA25 no 5min
-                    # Mensagem contextual baseada no quanto falta para o cruzamento
+                    # Detecta CRUZAMENTO ACONTECENDO e envia alerta especial
                     status_ma = "distante"
                     extra_msg = ""
+                    cruzamento_agora = False
                     try:
                         df5_ma = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
                         df5_ma["ma7"]  = df5_ma["close"].rolling(7).mean()
                         df5_ma["ma25"] = df5_ma["close"].rolling(25).mean()
                         ma7_cur  = df5_ma["ma7"].iloc[-1]
                         ma25_cur = df5_ma["ma25"].iloc[-1]
+                        ma7_prev1 = df5_ma["ma7"].iloc[-2]
+                        ma25_prev1 = df5_ma["ma25"].iloc[-2]
                         ma7_prev = df5_ma["ma7"].iloc[-3]
                         ma25_prev = df5_ma["ma25"].iloc[-3]
 
                         # Distância percentual entre MA7 e MA25
                         dist_pct = abs(ma7_cur - ma25_cur) / ma25_cur * 100 if ma25_cur > 0 else 0
-                        # Verifica se está se aproximando (convergindo)
                         dist_prev = abs(ma7_prev - ma25_prev) / ma25_prev * 100 if ma25_prev > 0 else 0
                         convergindo = dist_pct < dist_prev
 
+                        # Detecta cruzamento recente (aconteceu entre candle -2 e -1)
                         if direcao == "LONG":
+                            cruzou_agora = ma7_prev1 <= ma25_prev1 and ma7_cur > ma25_cur
                             ma_favor = ma7_cur > ma25_cur
                         else:
+                            cruzou_agora = ma7_prev1 >= ma25_prev1 and ma7_cur < ma25_cur
                             ma_favor = ma7_cur < ma25_cur
 
+                        # --- CRUZAMENTO ACONTECENDO AGORA ---
+                        if cruzou_agora:
+                            cruzamento_agora = True
+                            alerta_cruz_key = f"cruz_agora_{symbol}"
+                            if time.time() - alerta_dca_log.get(alerta_cruz_key, 0) >= 900:
+                                grafico = analise_grafico_3x(client, symbol, direcao)
+                                telegram(
+                                    f"<b>CRUZAMENTO! {symbol}</b>\n"
+                                    f"{direcao} | ROI: {roi:+.1f}%\n"
+                                    f"MA7 acabou de cruzar MA25 a favor!\n"
+                                    f"Se mantiver no proximo candle, 3x dispara automatico.{grafico}"
+                                )
+                                alerta_dca_log[alerta_cruz_key] = time.time()
+
                         if ma_favor:
-                            status_ma = "ja cruzou"
-                            extra_msg = "MA7 ja esta a favor — 3x pode disparar a qualquer momento!"
+                            # Mede há quanto tempo está favorável (estabilidade)
+                            candles_favor = 0
+                            for i in range(1, min(10, len(df5_ma))):
+                                ma7_i = df5_ma["ma7"].iloc[-i-1]
+                                ma25_i = df5_ma["ma25"].iloc[-i-1]
+                                if direcao == "LONG" and ma7_i > ma25_i:
+                                    candles_favor += 1
+                                elif direcao == "SHORT" and ma7_i < ma25_i:
+                                    candles_favor += 1
+                                else:
+                                    break
+                            if candles_favor <= 1:
+                                status_ma = "acabou de cruzar"
+                                extra_msg = f"MA7 acabou de cruzar a favor! Se confirmar no proximo candle, 3x dispara."
+                            elif candles_favor <= 3:
+                                status_ma = "cruzou e confirmando"
+                                extra_msg = f"MA7 a favor ha {candles_favor} candles. Confirmacao em andamento."
+                            else:
+                                status_ma = "ja cruzou"
+                                extra_msg = f"MA7 a favor ha {candles_favor}+ candles | Separacao: {dist_pct:.2f}%. Gatilho validado."
                         elif dist_pct < 0.3:
                             status_ma = "muito proximo"
                             extra_msg = f"MA7 a {dist_pct:.2f}% da MA25 — cruzamento iminente!"
