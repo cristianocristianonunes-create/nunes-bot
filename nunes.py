@@ -885,6 +885,7 @@ roi_no_dca:            dict[str, float] = {}   # ROI no momento em que o DCA foi
 posicoes_herdadas:     set[str]        = set() # symbols herdados de ciclos anteriores (negativos não fechados)
 margem_registrada:     dict[str, float] = {}  # margem inicial registrada por symbol para detectar DCA manual
 topup_recente:         dict[str, float] = {}  # symbols que tiveram topup recente (ignora na detecção DCA)
+score_historico:       dict[str, list] = {}  # symbol -> [(timestamp, score, preco)] para validar continuidade
 posicoes_cns:        set[str]        = set() # symbols que entraram pelo modo CNS
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
 parcial_10pct:         set[str]        = set() # symbols que já fecharam 50% em +10% ROI
@@ -1174,6 +1175,69 @@ def calcular_volume_profile(df: pd.DataFrame, n_buckets: int = 24) -> dict:
         "preco_max": preco_max,
         "valid": True
     }
+
+
+def validar_continuidade_score(symbol: str, score_atual: int, preco_atual: float, direcao: str) -> tuple[bool, str]:
+    """
+    Valida se o score tem CONTINUIDADE antes de disparar o 3x.
+
+    Regra: nao dispara em picos isolados de score. Exige que:
+    1. Score >= 50 no momento atual
+    2. Score tambem estava >= 40 ha pelo menos 2 minutos atras
+    3. Preco se moveu a favor desde o primeiro sinal (nao falso breakout)
+
+    Retorna (pode_disparar, motivo).
+    """
+    global score_historico
+    agora = time.time()
+
+    # Registra o ponto atual no historico
+    if symbol not in score_historico:
+        score_historico[symbol] = []
+    score_historico[symbol].append((agora, score_atual, preco_atual))
+
+    # Limita a 10 pontos (remove os mais antigos)
+    score_historico[symbol] = score_historico[symbol][-10:]
+
+    # Limpa pontos muito antigos (> 10 min)
+    score_historico[symbol] = [
+        (t, s, p) for (t, s, p) in score_historico[symbol]
+        if agora - t < 600
+    ]
+
+    historico = score_historico[symbol]
+
+    # Precisa de pelo menos 2 pontos com >= 2 minutos de diferenca
+    if len(historico) < 2:
+        return False, "primeira deteccao — aguardando confirmacao"
+
+    # Pega o ponto mais antigo dentro de 2-5 min
+    ponto_antigo = None
+    for t, s, p in historico:
+        if 120 <= (agora - t) <= 300:  # entre 2 e 5 minutos atras
+            ponto_antigo = (t, s, p)
+            break
+
+    if not ponto_antigo:
+        return False, "sem historico de 2-5 min atras — aguardando"
+
+    t_antigo, score_antigo, preco_antigo = ponto_antigo
+
+    # Regra 1: score antigo >= 40 (tinha qualidade ha 2+ minutos)
+    if score_antigo < 40:
+        return False, f"score nao era forte ha 2min (era {score_antigo})"
+
+    # Regra 2: preco se moveu a favor
+    if direcao == "LONG":
+        mov_pct = (preco_atual - preco_antigo) / preco_antigo * 100
+        if mov_pct < 0.2:
+            return False, f"preco nao subiu o suficiente ({mov_pct:+.2f}%)"
+    else:  # SHORT
+        mov_pct = (preco_antigo - preco_atual) / preco_antigo * 100
+        if mov_pct < 0.2:
+            return False, f"preco nao caiu o suficiente ({mov_pct:+.2f}%)"
+
+    return True, f"confirmado (score ha 2min: {score_antigo}, mov: {mov_pct:+.2f}%)"
 
 
 def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, dict]:
@@ -2717,14 +2781,16 @@ def main() -> None:
                     else:
                         try:
                             score, detalhes = calcular_score_3x(client, symbol, direcao)
-                            log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/100 | {detalhes}")
+                            preco_atual_3x = float(p.get("markPrice", 0))
+                            log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/110")
 
                             if score >= 50:
-                                # SETUP PERFEITO — DISPARA 3x AUTOMÁTICO
-                                if dca_bloqueado_por_racio:
-                                    log.warning(f"  {symbol}: 3x score {score} mas Racio acima de {RACIO_BLOQUEIA_DCA:.0f}%")
-                                else:
-                                    log.info(f"  {symbol}: SCORE {score}/100 -> 3x #{n_3x + 1} DISPARADO")
+                                # Valida continuidade antes de disparar (anti-pico)
+                                pode, motivo = validar_continuidade_score(symbol, score, preco_atual_3x, direcao)
+                                log.info(f"  {symbol}: score {score}/110 | continuidade: {motivo}")
+
+                                if pode and not dca_bloqueado_por_racio:
+                                    log.info(f"  {symbol}: SCORE {score}/110 + continuidade OK -> 3x #{n_3x + 1} DISPARADO")
                                     aplicar_dca(client, p, banca)
                                     dca_aplicado.add(symbol)
                                     dca_contagem[symbol] = n_3x + 1
@@ -2735,20 +2801,18 @@ def main() -> None:
                                     telegram(
                                         f"<b>OBA! 3x AUTOMATICO: {symbol} (#{n_3x + 1})</b>\n"
                                         f"{direcao} | ROI: {roi:+.1f}%\n"
-                                        f"<b>Score: {score}/100</b>\n\n"
+                                        f"<b>Score: {score}/110</b> (continuidade confirmada)\n\n"
                                         f"<b>Criterios atendidos:</b>\n{criterios_txt}\n"
                                         f"{grafico}"
                                     )
-                                    # Registra aprendizado com snapshot do momento exato
                                     registrar_aprendizado(client, symbol, direcao, "3x_auto", roi,
-                                        f"Score {score}/100 | #{n_3x + 1}")
-                            elif score >= 70:
-                                # Setup forte mas não perfeito — só log (não dispara)
-                                log.info(f"  {symbol}: Score {score}/100 — setup forte mas nao perfeito (precisa 85+)")
-                            elif score >= 50:
-                                log.info(f"  {symbol}: Score {score}/100 — setup medio")
+                                        f"Score {score}/110 | #{n_3x + 1} | {motivo}")
+                                elif dca_bloqueado_por_racio:
+                                    log.warning(f"  {symbol}: 3x score {score} mas Racio acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                            elif score >= 40:
+                                log.info(f"  {symbol}: Score {score}/110 — medio, aguardando")
                             else:
-                                log.info(f"  {symbol}: Score {score}/100 — setup fraco, aguardando")
+                                log.info(f"  {symbol}: Score {score}/110 — fraco, aguardando")
                         except Exception as e:
                             log.warning(f"  Erro 3x score {symbol}: {e}")
                 # --- MONITORANDO (positivo mas abaixo do limiar de reversão) ---
