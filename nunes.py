@@ -3170,9 +3170,14 @@ def main() -> None:
                     log.debug(f"Erro checkpoint BASEDUSDT: {e}")
                 ultimo_checkpoint_basedusdt = time.time()
 
-            # Check mais rápido quando tem 3x ativo ou posição perto do gatilho
-            if dca_aplicado or any(calcular_roi(p) <= -180 for p in abertas if float(p["positionAmt"]) != 0):
-                time.sleep(2)   # 2s — monitora de perto o 3x e saída rápida
+            # Acompanhamento em 3 niveis:
+            # - 0.5s: alguma posicao ja esta em 3x (trailing pos-3x precisa pegar picos rapidos)
+            # - 1.0s: alguma posicao esta perto do gatilho de 3x (ROI <= -100%)
+            # - INTERVALO_POSICOES (15s): operacao normal
+            if dca_aplicado:
+                time.sleep(0.5)  # 3x ativo: monitoramento ultra rapido para trailing/reversao
+            elif any(calcular_roi(p) <= -100 for p in abertas if float(p["positionAmt"]) != 0):
+                time.sleep(1)    # perto do gatilho de 3x: monitora para disparar na hora certa
             else:
                 time.sleep(INTERVALO_POSICOES)
 
