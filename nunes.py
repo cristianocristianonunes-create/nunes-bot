@@ -1240,6 +1240,78 @@ def validar_continuidade_score(symbol: str, score_atual: int, preco_atual: float
     return True, f"confirmado (score ha 2min: {score_antigo}, mov: {mov_pct:+.2f}%)"
 
 
+def detectar_padrao_reversao(client: Client, symbol: str, direcao: str) -> tuple[bool, str]:
+    """
+    Detecta padroes de exaustao que sinalizam reversao iminente.
+    Bloqueia o 3x quando o trade seria contra o contexto maior.
+
+    Regra do Bruno: "nada sobe para sempre, nada desce para sempre".
+    Uma hora vai convergir a favor.
+
+    Padroes que bloqueiam SHORT:
+    - MA99 abaixo do preco (suporte forte) + MA7 desacelerando a queda
+    - MA99 subindo + MA25 lateral = formacao de fundo em tendencia de alta
+
+    Padroes que bloqueiam LONG:
+    - MA99 acima do preco (resistencia forte) + MA7 desacelerando a alta
+    - MA99 caindo + MA25 lateral = formacao de topo em tendencia de baixa
+
+    Retorna (bloqueado, motivo).
+    """
+    try:
+        df = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=120)
+        df["ma7"] = df["close"].rolling(7).mean()
+        df["ma25"] = df["close"].rolling(25).mean()
+        df["ma99"] = df["close"].rolling(99).mean()
+
+        preco = df["close"].iloc[-1]
+        ma7_0 = df["ma7"].iloc[-1]
+        ma7_5 = df["ma7"].iloc[-5]
+        ma7_10 = df["ma7"].iloc[-10]
+        ma25_0 = df["ma25"].iloc[-1]
+        ma25_10 = df["ma25"].iloc[-10]
+        ma99_0 = df["ma99"].iloc[-1]
+        ma99_10 = df["ma99"].iloc[-10]
+
+        if pd.isna(ma99_0) or pd.isna(ma99_10):
+            return False, "sem MA99 suficiente"
+
+        # Slopes (variacao percentual)
+        slope_ma7 = (ma7_0 - ma7_10) / ma7_10 * 100 if ma7_10 > 0 else 0
+        slope_ma25 = (ma25_0 - ma25_10) / ma25_10 * 100 if ma25_10 > 0 else 0
+        slope_ma99 = (ma99_0 - ma99_10) / ma99_10 * 100 if ma99_10 > 0 else 0
+
+        # Aceleracao do MA7 (slope atual vs slope 5 candles atras)
+        slope_ma7_recente = (ma7_0 - ma7_5) / ma7_5 * 100 if ma7_5 > 0 else 0
+
+        if direcao == "SHORT":
+            # Padrao: fundo em formacao, nao shortar
+            # MA99 subindo + preco acima da MA99 = suporte forte
+            preco_acima_ma99 = preco > ma99_0
+            ma99_subindo = slope_ma99 >= 0.2  # subindo claramente
+            ma25_fraca = slope_ma25 >= -0.5  # leve queda ou lateral (tolera correcao normal)
+            # MA7 desacelerando a queda
+            ma7_desacelerando = slope_ma7_recente > slope_ma7 and slope_ma7 < 0
+
+            if preco_acima_ma99 and ma99_subindo and ma25_fraca and ma7_desacelerando:
+                return True, f"fundo em formacao (MA99 +{slope_ma99:.2f}% suporte, MA25 {slope_ma25:+.2f}% fraca, MA7 desacelerando)"
+
+        else:  # LONG
+            # Padrao: topo em formacao, nao comprar
+            preco_abaixo_ma99 = preco < ma99_0
+            ma99_descendo = slope_ma99 <= -0.2
+            ma25_fraca = slope_ma25 <= 0.5
+            ma7_desacelerando = slope_ma7_recente < slope_ma7 and slope_ma7 > 0
+
+            if preco_abaixo_ma99 and ma99_descendo and ma25_fraca and ma7_desacelerando:
+                return True, f"topo em formacao (MA99 {slope_ma99:+.2f}% resistencia, MA25 {slope_ma25:+.2f}% fraca, MA7 desacelerando)"
+
+    except Exception:
+        pass
+
+    return False, ""
+
+
 def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, dict]:
     """
     Sistema de score CNS para 3x automatico (0-110 pontos).
@@ -2780,6 +2852,23 @@ def main() -> None:
                         log.info(f"  {symbol}: ROI {roi:.1f}% | 3x em cooldown ({(1800-tempo_desde_ultimo)/60:.0f} min restantes)")
                     else:
                         try:
+                            # Filtro anti-convergencia: bloqueia 3x contra reversao iminente
+                            # "Nada sobe para sempre, nada desce para sempre" — Bruno
+                            bloqueado, motivo_bloqueio = detectar_padrao_reversao(client, symbol, direcao)
+                            if bloqueado:
+                                log.info(f"  {symbol}: ROI {roi:.1f}% | 3x BLOQUEADO por padrao de reversao: {motivo_bloqueio}")
+                                # Notifica no Telegram uma vez a cada 2h
+                                bloqueio_key = f"bloq_{symbol}"
+                                if time.time() - alerta_dca_log.get(bloqueio_key, 0) >= 7200:
+                                    telegram(
+                                        f"<b>3x bloqueado: {symbol}</b>\n"
+                                        f"{direcao} | ROI: {roi:+.1f}%\n"
+                                        f"Motivo: {motivo_bloqueio}\n"
+                                        f"Aguardando convergencia a favor."
+                                    )
+                                    alerta_dca_log[bloqueio_key] = time.time()
+                                continue
+
                             score, detalhes = calcular_score_3x(client, symbol, direcao)
                             preco_atual_3x = float(p.get("markPrice", 0))
                             log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/110")
