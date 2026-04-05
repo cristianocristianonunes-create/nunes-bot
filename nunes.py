@@ -2371,17 +2371,38 @@ def main() -> None:
                     else:
                         log.info(f"  {symbol}{pump_tag}: ROI {roi:+.1f}% | pico {pico:.0f}% | trailing ok (tol {tolerancia:.0%})")
 
-                # --- MONITORAMENTO NEGATIVO (sem stop por ROI/tempo — Rácio de Margem protege) ---
+                # --- MONITORAMENTO NEGATIVO (Rácio de Margem protege — 3x é a oportunidade) ---
                 elif roi < 0:
-                    # Alerta quando se aproxima do gatilho de 3x (-180%)
+                    # Marcos motivacionais em drawdown — lembra que 3x transforma isso em lucro
+                    marcos_negativos = {
+                        -30:  ("Acumulando potencial", "Quando o 3x vier, essa posição vira um salto na conta!"),
+                        -60:  ("Carregando a mola", "Quanto mais desce, maior o impulso do 3x. Momento de paciência."),
+                        -90:  ("Spread crescendo", "Posição se aproximando da zona de oportunidade. 3x mira em -120%."),
+                        -120: ("Gatilho ativado", "Zona de 3x! Aguardando MA7 cruzar MA25 — vai disparar a qualquer momento."),
+                        -180: ("Pronto pra explodir", "Proximo do 2º gatilho 3x (-240%). Com a reversao, salto monstruoso!"),
+                    }
+                    # Dispara marco quando cruza o limite (uma vez a cada 30 min por nível)
+                    for nivel, (titulo, mensagem) in marcos_negativos.items():
+                        if roi <= nivel:
+                            alerta_key = f"marco_neg_{symbol}_{nivel}"
+                            if time.time() - alerta_dca_log.get(alerta_key, 0) >= 1800:
+                                telegram(
+                                    f"<b>{titulo}: {symbol}</b>\n"
+                                    f"{direcao} | ROI: {roi:+.1f}%\n"
+                                    f"{mensagem}"
+                                )
+                                alerta_dca_log[alerta_key] = time.time()
+                                break  # só envia o marco mais profundo alcançado
+
+                    # Análise detalhada quando perto do gatilho 3x
                     if roi <= -180 and roi > -200:
                         alerta_key = f"perto3x_{symbol}"
                         if time.time() - alerta_dca_log.get(alerta_key, 0) >= 600:
                             grafico = analise_grafico_3x(client, symbol, direcao)
                             telegram(
-                                f"<b>Preparando 3x: {symbol}</b>\n"
+                                f"<b>3x quase lá: {symbol}</b>\n"
                                 f"{direcao} | ROI: {roi:+.1f}%\n"
-                                f"Proximo do gatilho (-200%). Acompanhe:{grafico}"
+                                f"Aguardando MA cruzar a favor. Quando vier, vai ser um salto!{grafico}"
                             )
                             alerta_dca_log[alerta_key] = time.time()
                     log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando oportunidade de 3x")
