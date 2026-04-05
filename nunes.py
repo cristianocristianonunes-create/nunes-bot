@@ -1337,44 +1337,24 @@ def verificar_alertas_risco(client: Client, posicao: dict, roi: float) -> None:
     mark      = float(posicao.get("markPrice", 0))
 
     # 1. Queda acelerada de ROI (mais de 30% em um ciclo de 15s)
+    # Queda de ROI registrada só como log (sem alertas alarmantes)
     roi_prev = roi_anterior.get(symbol)
     if roi_prev is not None:
         queda = roi_prev - roi
-        if queda >= 30:
-            if roi > 0:
-                # Queda em posição positiva — trailing provavelmente agindo
-                msg = (
-                    f"Trailing ativo: {symbol}\n"
-                    f"ROI {roi_prev:+.1f}% -> {roi:+.1f}%\n"
-                    f"Queda de {queda:.1f}% em 15s — fechamento proximo"
-                )
-                log.info(msg)
-                telegram(f"<b>{msg}</b>")
-            else:
-                # Queda em posição negativa — situação de risco
-                msg = (
-                    f"ALERTA: queda acelerada!\n"
-                    f"{symbol} | ROI {roi_prev:+.1f}% -> {roi:+.1f}%\n"
-                    f"Queda de {queda:.1f}% em 15 segundos"
-                )
-                log.warning(msg)
-                telegram(f"<b>{msg}</b>")
+        if queda >= 30 and roi > 0:
+            # Só registra trailing ativo em posições positivas (informativo)
+            log.info(f"Trailing ativo: {symbol} | ROI {roi_prev:+.1f}% -> {roi:+.1f}%")
     roi_anterior[symbol] = roi
 
-    # 2. Preço próximo da liquidação (menos de 15%)
+    # Proximidade de liquidação registrada no log (sem alarmes no Telegram)
+    # Rácio de Margem já protege a conta tecnicamente
     if liq_price > 0 and mark > 0:
         dist_liq = abs(mark - liq_price) / mark * 100
-        ultimo_alerta = alerta_liq_log.get(symbol, 0)
-        if dist_liq <= 15 and time.time() - ultimo_alerta >= 300:
-            msg = (
-                f"URGENTE: liquidacao proxima!\n"
-                f"{symbol} | {direcao}\n"
-                f"Preco atual: {mark} | Liquidacao: {liq_price}\n"
-                f"Distancia: {dist_liq:.1f}%"
-            )
-            log.warning(msg)
-            telegram(f"<b>{msg}</b>")
-            alerta_liq_log[symbol] = time.time()
+        if dist_liq <= 15:
+            ultimo_alerta = alerta_liq_log.get(symbol, 0)
+            if time.time() - ultimo_alerta >= 1800:  # log a cada 30 min
+                log.warning(f"{symbol} | distancia liquidacao: {dist_liq:.1f}%")
+                alerta_liq_log[symbol] = time.time()
 
     # 3. MA7 acelerando contra a posição no 5min
     try:
@@ -1795,11 +1775,7 @@ def proteger_racio(client: Client, abertas: list) -> bool:
             log.warning(f"  [RACIO {racio:.1f}%] Fechando pior posicao: {pior['symbol']} PnL ${pnl:+.2f}")
             fechar_posicao_racio(pior)
         elif time.time() - RACIO_ALERTA_TS >= 600:
-            telegram(
-                f"<b>Atencao: Racio {racio:.1f}%</b>\n"
-                f"Todas as posicoes negativas estao em DCA.\n"
-                f"Monitorando recuperacao."
-            )
+            log.info(f"Racio {racio:.1f}% | todas negativas em DCA | monitorando")
             RACIO_ALERTA_TS = time.time()
 
     return bloquear_dca
@@ -2174,8 +2150,8 @@ def main() -> None:
                 if roi > pico_anterior:
                     peak_roi[symbol] = roi
                     salvar_estado()
-                    # Mensagens motivacionais em marcos
-                    marcos = [20, 50, 100, 200, 300, 500]
+                    # Mensagens motivacionais em marcos (desde 3% para feedback mais frequente)
+                    marcos = [3, 5, 10, 15, 20, 30, 50, 75, 100, 150, 200, 300, 500]
                     for marco in marcos:
                         if pico_anterior < marco <= roi:
                             telegram(
