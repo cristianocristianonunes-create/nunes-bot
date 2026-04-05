@@ -1104,74 +1104,163 @@ def calcular_roi(posicao: dict) -> float:
     return (pnl / margem) * 100
 
 
+def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, dict]:
+    """
+    Sistema de score CNS para 3x automatico (0-100 pontos).
+    Retorna (score, detalhes_dict).
+
+    Criterios:
+    1. Candle 1 cruzou MA25 (20 pts)
+    2. Candle 2 separando (20 pts)
+    3. Corpo do candle 2 forte >= 60% do range (15 pts)
+    4. Candle 2 na direcao correta (10 pts)
+    5. 1min alinhado (15 pts)
+    6. Fibonacci favoravel (10 pts)
+    7. Volume do candle 2 >= 1.2x media (10 pts)
+
+    Gatilho do 3x automatico: score >= 85
+    """
+    detalhes = {}
+    score = 0
+    try:
+        # --- 5min ---
+        df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
+        df5["ma7"]  = df5["close"].rolling(7).mean()
+        df5["ma25"] = df5["close"].rolling(25).mean()
+        df5["vol_media"] = df5["volume"].rolling(20).mean()
+
+        c3 = df5.iloc[-3]  # antes do cruzamento
+        c2 = df5.iloc[-2]  # candle 1: cruzamento (fechado)
+        c1 = df5.iloc[-1]  # candle 2: confirmacao (ainda aberto ou recem-fechado)
+
+        # 1. CANDLE 1 CRUZOU (20 pts)
+        if direcao == "LONG":
+            cruzou = c3["ma7"] <= c3["ma25"] and c2["ma7"] > c2["ma25"]
+        else:
+            cruzou = c3["ma7"] >= c3["ma25"] and c2["ma7"] < c2["ma25"]
+        if cruzou:
+            score += 20
+            detalhes["candle_1_cruzou"] = True
+        else:
+            detalhes["candle_1_cruzou"] = False
+            # Aceita tambem cruzamento um pouco mais antigo (ate 3 candles)
+            if direcao == "LONG" and c1["ma7"] > c1["ma25"]:
+                score += 15  # penalidade por nao ser cruzamento recente
+                detalhes["candle_1_cruzou"] = "recente"
+            elif direcao == "SHORT" and c1["ma7"] < c1["ma25"]:
+                score += 15
+                detalhes["candle_1_cruzou"] = "recente"
+
+        # 2. CANDLE 2 SEPARANDO (20 pts)
+        if direcao == "LONG":
+            sep_c2 = c2["ma7"] - c2["ma25"]
+            sep_c1 = c1["ma7"] - c1["ma25"]
+            separando = sep_c1 > sep_c2
+        else:
+            sep_c2 = c2["ma25"] - c2["ma7"]
+            sep_c1 = c1["ma25"] - c1["ma7"]
+            separando = sep_c1 > sep_c2
+        if separando:
+            score += 20
+            detalhes["candle_2_separando"] = True
+        else:
+            detalhes["candle_2_separando"] = False
+
+        # 3. CORPO DO CANDLE 2 FORTE >= 60% (15 pts)
+        range_c1 = c1["high"] - c1["low"]
+        corpo_c1 = abs(c1["close"] - c1["open"])
+        corpo_pct = (corpo_c1 / range_c1) if range_c1 > 0 else 0
+        detalhes["corpo_pct"] = round(corpo_pct * 100, 1)
+        if corpo_pct >= 0.6:
+            score += 15
+            detalhes["corpo_forte"] = True
+        elif corpo_pct >= 0.4:
+            score += 8  # corpo medio
+            detalhes["corpo_forte"] = "medio"
+        else:
+            detalhes["corpo_forte"] = False
+
+        # 4. CANDLE 2 NA DIRECAO (10 pts)
+        c1_verde = c1["close"] > c1["open"]
+        c1_vermelho = c1["close"] < c1["open"]
+        if direcao == "LONG" and c1_verde:
+            score += 10
+            detalhes["candle_cor_ok"] = True
+        elif direcao == "SHORT" and c1_vermelho:
+            score += 10
+            detalhes["candle_cor_ok"] = True
+        else:
+            detalhes["candle_cor_ok"] = False
+
+        # 5. 1MIN ALINHADO (15 pts)
+        df1 = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=30)
+        df1["ma7"]  = df1["close"].rolling(7).mean()
+        df1["ma25"] = df1["close"].rolling(25).mean()
+        m1 = df1.iloc[-1]
+        m2 = df1.iloc[-2]
+        if direcao == "LONG":
+            alinhado_1m = m1["ma7"] > m1["ma25"]
+            acelerando_1m = (m1["ma7"] - m1["ma25"]) > (m2["ma7"] - m2["ma25"])
+        else:
+            alinhado_1m = m1["ma7"] < m1["ma25"]
+            acelerando_1m = (m1["ma25"] - m1["ma7"]) > (m2["ma25"] - m2["ma7"])
+        if alinhado_1m:
+            score += 10
+            if acelerando_1m:
+                score += 5
+                detalhes["1min"] = "alinhado_acelerando"
+            else:
+                detalhes["1min"] = "alinhado"
+        else:
+            detalhes["1min"] = "nao_alinhado"
+
+        # 6. FIBONACCI FAVORAVEL (10 pts)
+        high_20 = df5["high"].iloc[-20:].max()
+        low_20  = df5["low"].iloc[-20:].min()
+        fib_382 = low_20 + (high_20 - low_20) * 0.382
+        fib_618 = low_20 + (high_20 - low_20) * 0.618
+        preco   = df5["close"].iloc[-1]
+        if direcao == "LONG":
+            fib_ok = preco >= fib_382
+        else:
+            fib_ok = preco <= fib_618
+        if fib_ok:
+            score += 10
+            detalhes["fibonacci"] = "favoravel"
+        else:
+            detalhes["fibonacci"] = "contra"
+
+        # 7. VOLUME DO CANDLE 2 >= 1.2x MEDIA (10 pts)
+        vol_atual = c1["volume"]
+        vol_media = c1["vol_media"] if pd.notna(c1["vol_media"]) else 0
+        if vol_media > 0:
+            vol_ratio = vol_atual / vol_media
+            detalhes["vol_ratio"] = round(vol_ratio, 2)
+            if vol_ratio >= 1.2:
+                score += 10
+                detalhes["volume_forte"] = True
+            elif vol_ratio >= 0.8:
+                score += 5
+                detalhes["volume_forte"] = "medio"
+            else:
+                detalhes["volume_forte"] = False
+        else:
+            detalhes["volume_forte"] = "sem_dados"
+
+    except Exception as e:
+        log.warning(f"  Erro score 3x {symbol}: {e}")
+        detalhes["erro"] = str(e)
+
+    detalhes["score_total"] = score
+    return score, detalhes
+
+
 def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
     """
-    Critério CNS para 3x — compara 1min E 5min antes de aplicar:
-    1. 5min: MA7 cruzou MA25 (confirmado, separando, não lateral)
-    2. 1min: MA7 TAMBÉM acima da MA25 (ambos timeframes concordam)
-    3. Fibonacci: preço acima de 38.2% do swing (tendência)
-    Só aplica 3x quando 1min E 5min estão alinhados.
+    Compatibilidade: retorna True se score >= 85 (3x automático liberado).
     """
-    # --- 5min: cruzamento confirmado ---
-    df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
-    df5["ma7"]  = df5["close"].rolling(7).mean()
-    df5["ma25"] = df5["close"].rolling(25).mean()
-    c4 = df5.iloc[-4]
-    c3 = df5.iloc[-3]
-    c2 = df5.iloc[-2]
-    c1 = df5.iloc[-1]
-
-    if direcao == "LONG":
-        cruzou_5m = c4["ma7"] <= c4["ma25"] and c3["ma7"] > c3["ma25"]
-        confirmou_5m = c2["ma7"] > c2["ma25"] and (c2["ma7"] - c2["ma25"]) > (c3["ma7"] - c3["ma25"])
-        nao_lateral_5m = (c1["ma7"] - c1["ma25"]) >= (c2["ma7"] - c2["ma25"])
-        alinhado_5m = c1["ma7"] > c1["ma25"]  # MA7 acima agora
-    else:
-        cruzou_5m = c4["ma7"] >= c4["ma25"] and c3["ma7"] < c3["ma25"]
-        confirmou_5m = c2["ma7"] < c2["ma25"] and (c2["ma25"] - c2["ma7"]) > (c3["ma25"] - c3["ma7"])
-        nao_lateral_5m = (c1["ma25"] - c1["ma7"]) >= (c2["ma25"] - c2["ma7"])
-        alinhado_5m = c1["ma7"] < c1["ma25"]
-
-    # 5min precisa ter cruzado OU estar alinhado (cruzamento pode ter sido há alguns candles)
-    ok_5m = (cruzou_5m and confirmou_5m and nao_lateral_5m) or alinhado_5m
-
-    if not ok_5m:
-        return False
-
-    # --- 1min: MA7 também alinhada na mesma direção ---
-    df1 = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=30)
-    df1["ma7"]  = df1["close"].rolling(7).mean()
-    df1["ma25"] = df1["close"].rolling(25).mean()
-    m1 = df1.iloc[-1]
-    m2 = df1.iloc[-2]
-
-    if direcao == "LONG":
-        alinhado_1m = m1["ma7"] > m1["ma25"]
-        acelerando_1m = (m1["ma7"] - m1["ma25"]) > (m2["ma7"] - m2["ma25"])
-    else:
-        alinhado_1m = m1["ma7"] < m1["ma25"]
-        acelerando_1m = (m1["ma25"] - m1["ma7"]) > (m2["ma25"] - m2["ma7"])
-
-    if not alinhado_1m:
-        return False  # 1min não confirma — espera
-
-    # --- Fibonacci: confirma tendência ---
-    high_20 = df5["high"].iloc[-20:].max()
-    low_20  = df5["low"].iloc[-20:].min()
-    fib_382 = low_20 + (high_20 - low_20) * 0.382
-    fib_618 = low_20 + (high_20 - low_20) * 0.618
-    preco   = df5["close"].iloc[-1]
-
-    if direcao == "LONG":
-        fib_ok = preco >= fib_382
-    else:
-        fib_ok = preco <= fib_618
-
-    if not fib_ok:
-        return False
-
-    log.info(f"  {symbol}: 3x confirmado | 5min MA7{'>' if direcao=='LONG' else '<'}MA25 | 1min MA7{'>' if direcao=='LONG' else '<'}MA25{' acelerando' if acelerando_1m else ''} | Fib OK")
-    return True
+    score, _ = calcular_score_3x(client, symbol, direcao)
+    return score >= 85
 
 
 def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
@@ -2490,33 +2579,53 @@ def main() -> None:
                             break  # só o mais profundo
                     log.info(f"  {symbol}: ROI {roi:+.1f}% | MA: {status_ma}")
 
-                # --- ESTRATÉGIA 3x v2 (Guardião CNS) ---
+                # --- ESTRATÉGIA 3x v2.2 (Guardião CNS) — Sistema de Score ---
                 # Duas camadas de DCA: -120% (primeiro reforço) e -240% (segundo)
-                # Repetível múltiplas vezes no mesmo ativo
+                # Score >= 85 dispara 3x automático
                 elif roi <= -120.0:
                     n_3x = dca_contagem.get(symbol, 0)
-                    try:
-                        ma_ok = ma_cruza_favor(client, symbol, direcao)
-                        if ma_ok:
-                            if dca_bloqueado_por_racio:
-                                log.warning(f"  {symbol}: 3x bloqueado — Racio de Margem acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                    # Cooldown de 30 min por symbol para evitar 3x em sequência
+                    cooldown_key = f"3x_cooldown_{symbol}"
+                    tempo_desde_ultimo = time.time() - alerta_dca_log.get(cooldown_key, 0)
+                    if tempo_desde_ultimo < 1800:
+                        log.info(f"  {symbol}: ROI {roi:.1f}% | 3x em cooldown ({(1800-tempo_desde_ultimo)/60:.0f} min restantes)")
+                    else:
+                        try:
+                            score, detalhes = calcular_score_3x(client, symbol, direcao)
+                            log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/100 | {detalhes}")
+
+                            if score >= 85:
+                                # SETUP PERFEITO — DISPARA 3x AUTOMÁTICO
+                                if dca_bloqueado_por_racio:
+                                    log.warning(f"  {symbol}: 3x score {score} mas Racio acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                                else:
+                                    log.info(f"  {symbol}: SCORE {score}/100 -> 3x #{n_3x + 1} DISPARADO")
+                                    aplicar_dca(client, p, banca)
+                                    dca_aplicado.add(symbol)
+                                    dca_contagem[symbol] = n_3x + 1
+                                    dca_ativo = symbol
+                                    alerta_dca_log[cooldown_key] = time.time()
+                                    grafico = analise_grafico_3x(client, symbol, direcao)
+                                    criterios_txt = "\n".join([f"  • {k}: {v}" for k, v in detalhes.items() if k != "score_total"])
+                                    telegram(
+                                        f"<b>OBA! 3x AUTOMATICO: {symbol} (#{n_3x + 1})</b>\n"
+                                        f"{direcao} | ROI: {roi:+.1f}%\n"
+                                        f"<b>Score: {score}/100</b>\n\n"
+                                        f"<b>Criterios atendidos:</b>\n{criterios_txt}\n"
+                                        f"{grafico}"
+                                    )
+                                    # Registra aprendizado com snapshot do momento exato
+                                    registrar_aprendizado(client, symbol, direcao, "3x_auto", roi,
+                                        f"Score {score}/100 | #{n_3x + 1}")
+                            elif score >= 70:
+                                # Setup forte mas não perfeito — só log (não dispara)
+                                log.info(f"  {symbol}: Score {score}/100 — setup forte mas nao perfeito (precisa 85+)")
+                            elif score >= 50:
+                                log.info(f"  {symbol}: Score {score}/100 — setup medio")
                             else:
-                                log.info(f"  {symbol}: ROI {roi:.1f}% + MA cruzou a favor -> 3x #{n_3x + 1}")
-                                aplicar_dca(client, p, banca)
-                                dca_aplicado.add(symbol)
-                                dca_contagem[symbol] = n_3x + 1
-                                dca_ativo = symbol
-                                grafico = analise_grafico_3x(client, symbol, direcao)
-                                telegram(
-                                    f"<b>OBA! 3x ativado: {symbol} (#{n_3x + 1})</b>\n"
-                                    f"{direcao} | ROI: {roi:+.1f}%\n"
-                                    f"MA7 cruzou MA25 + Fibonacci confirmou!\n"
-                                    f"Oportunidade de lucro com spread maior.{grafico}"
-                                )
-                        else:
-                            log.info(f"  {symbol}: ROI {roi:.1f}% | 3x #{n_3x + 1} preparado | aguardando sinal de reversao para lucrar")
-                    except Exception as e:
-                        log.warning(f"  Erro 3x {symbol}: {e}")
+                                log.info(f"  {symbol}: Score {score}/100 — setup fraco, aguardando")
+                        except Exception as e:
+                            log.warning(f"  Erro 3x score {symbol}: {e}")
                 # --- MONITORANDO (positivo mas abaixo do limiar de reversão) ---
                 else:
                     # Saída apenas pelo trailing stop (sem reversão de MA)
