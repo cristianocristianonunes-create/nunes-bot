@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Robô de trade - Binance Futuros
-Estratégia: Águia Spread (padrão Bruno Aguiar)
+Estratégia: Guardião (sistema CNS)
 - Entrada: Bollinger Squeeze no 2H
 - DCA 3x repetível em -200% com MA7 cruzando MA25 + Fibonacci
 - Trailing escalonado + Saída 90/10
@@ -38,15 +38,15 @@ MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
 
 MODO               = os.getenv("MODO", "simulacao")
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
-RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.01"))  # 1% padrão Bruno
+RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.01"))  # 1% padrão CNS
 RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "6.0"))  # % máximo do Rácio de Margem da Binance
 
-MAX_POSICOES          = 10   # padrão Bruno: 10 posições fixas
+MAX_POSICOES          = 10   # padrão CNS: 10 posições fixas
 
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
-    Padrão Bruno (Águia Spread): 10 posições fixas, 1% por trade.
+    Sistema Guardião (CNS): 10 posições fixas, 1% por trade.
     Uniforme para todos os saldos. Notional mínimo $5 da Binance é
     garantido em abrir_posicao() quando o saldo é muito baixo.
     """
@@ -63,9 +63,9 @@ META_CICLO_FASE2_USD  = float(os.getenv("META_CICLO_FASE2_USD", "50.0"))  # meta
 META_CICLO_FASE2_MIN  = float(os.getenv("META_CICLO_FASE2_MIN", "1000.0")) # saldo para ativar fase 2
 
 # ---------------------------------------------------------------------------
-# Modo Bruno: ativos recorrentes do Bruno + detecção de volume anormal
+# Modo CNS: ativos prioritários + detecção de volume anormal
 # ---------------------------------------------------------------------------
-PARES_BRUNO = [
+PARES_CNS = [
     "ATOMUSDT", "MASKUSDT", "ICXUSDT", "SKLUSDT", "ALICEUSDT",
     "NEOUSDT", "QTUMUSDT", "FILUSDT", "APTUSDT", "JASMYUSDT",
     "ETCUSDT", "ENJUSDT", "AXSUSDT", "KSMUSDT", "AVAXUSDT",
@@ -73,9 +73,9 @@ PARES_BRUNO = [
     "ONDOUSDT", "ANKRUSDT", "DASHUSDT", "BONKUSDT", "SNXUSDT",
     "STORJUSDT", "TONUSDT", "ZRXUSDT", "1INCHUSDT", "TRXUSDT",
 ]
-BRUNO_VOLUME_MULT = 3.0   # volume atual >= 3x a média = spike
-BRUNO_HORARIO_INICIO = 1  # 01:00 BRT
-BRUNO_HORARIO_FIM    = 9  # 09:00 BRT
+CNS_VOLUME_MULT = 3.0   # volume atual >= 3x a média = spike
+CNS_HORARIO_INICIO = 1  # 01:00 BRT
+CNS_HORARIO_FIM    = 9  # 09:00 BRT
 
 # Pares correlacionados com BTC — SHORT bloqueado quando BTC em alta
 PARES_BTC_CORRELATOS  = {"DOGEUSDT", "XRPUSDT", "XLMUSDT", "SOLUSDT", "ADAUSDT",
@@ -422,12 +422,12 @@ def processar_comandos(client: Client) -> None:
                 brl_str    = f" (R${lucro_total * usd_brl:+.2f})" if usd_brl > 0 else ""
                 inicio_str = datetime.fromtimestamp(bot_inicio).strftime("%d/%m %H:%M")
 
-                # Projeção Bruno Aguiar: banca inicial * 1.55 ^ (ciclos/10)
+                # Projeção Guardião: banca inicial * 1.55 ^ (ciclos/10)
                 # Cada 10 ciclos = +55% sobre a banca
                 saldo_total  = get_saldo_total(client)
                 banca_inicio = saldo_total - lucro_total
                 ciclos       = trades_count
-                projecao_bruno = [
+                projecao_guardiao = [
                     (0,   banca_inicio),
                     (10,  banca_inicio * (1.55 ** 1)),
                     (20,  banca_inicio * (1.55 ** 2)),
@@ -437,9 +437,9 @@ def processar_comandos(client: Client) -> None:
                     (128, banca_inicio * (1.55 ** 12.8)),
                 ]
                 # Acha em qual etapa da projeção está
-                etapa_atual = max((c for c, _ in projecao_bruno if c <= ciclos), default=0)
-                prox_etapa  = min((c for c, _ in projecao_bruno if c > ciclos), default=128)
-                meta_prox   = dict(projecao_bruno)[prox_etapa]
+                etapa_atual = max((c for c, _ in projecao_guardiao if c <= ciclos), default=0)
+                prox_etapa  = min((c for c, _ in projecao_guardiao if c > ciclos), default=128)
+                meta_prox   = dict(projecao_guardiao)[prox_etapa]
 
                 msg = (
                     f"<b>Lucro desde {inicio_str}</b>\n\n"
@@ -454,13 +454,13 @@ def processar_comandos(client: Client) -> None:
                     msg += f"Pior trade: {min(perdas):.2f} USDT\n"
 
                 msg += (
-                    f"\n<b>Projecao Bruno Aguiar</b>\n"
+                    f"\n<b>Projecao Guardiao</b>\n"
                     f"Voce esta no ciclo {ciclos}\n"
                     f"Meta proxima ({prox_etapa} ciclos): ${meta_prox:.2f}\n"
                     f"Para chegar a $1M: 128 ciclos\n\n"
                     f"Projecao completa:\n"
                 )
-                for ciclo, valor in projecao_bruno:
+                for ciclo, valor in projecao_guardiao:
                     marcador = ">>> " if ciclo == etapa_atual else "    "
                     msg += f"{marcador}{ciclo} ciclos: ${valor:.2f}\n"
 
@@ -623,24 +623,24 @@ def get_candles(client: Client, symbol: str, interval: str, limit: int = 100) ->
 _master_client = None
 _master_cache: dict[str, dict] = {}   # symbol -> {"direcao": "LONG"/"SHORT", "roi": float}
 _master_cache_ts: float = 0
-_bruno_alertados: dict[str, float] = {}  # symbol -> timestamp do último alerta Bruno
+_cns_alertados: dict[str, float] = {}  # symbol -> timestamp do último alerta CNS
 
 
-def detectar_sinais_bruno(client: Client, simbolos_abertos: list[str]) -> list[tuple]:
+def detectar_sinais_cns(client: Client, simbolos_abertos: list[str]) -> list[tuple]:
     """
-    Modo Bruno: detecta volume anormal nos ativos favoritos do Bruno.
+    Modo CNS: detecta volume anormal nos ativos prioritários.
     Só opera LONG. Foca no horário 01:00-09:00 BRT.
-    Retorna lista de (symbol, "LONG", "alta", preco, "BRUNO").
+    Retorna lista de (symbol, "LONG", "alta", preco, "CNS").
     """
-    global _bruno_alertados
+    global _cns_alertados
     hora_local = datetime.now().hour
 
     sinais = []
-    for symbol in PARES_BRUNO:
+    for symbol in PARES_CNS:
         if symbol in simbolos_abertos:
             continue
         # Não repetir alerta do mesmo ativo em menos de 4 horas
-        if symbol in _bruno_alertados and time.time() - _bruno_alertados[symbol] < 14400:
+        if symbol in _cns_alertados and time.time() - _cns_alertados[symbol] < 14400:
             continue
 
         try:
@@ -654,7 +654,7 @@ def detectar_sinais_bruno(client: Client, simbolos_abertos: list[str]) -> list[t
 
             # Volume spike: atual >= 3x a média
             vol_ratio = vol_atual / vol_media
-            if vol_ratio < BRUNO_VOLUME_MULT:
+            if vol_ratio < CNS_VOLUME_MULT:
                 continue
 
             # Confirma que preço está acima da MA25 no 1H (tendência de alta)
@@ -672,18 +672,18 @@ def detectar_sinais_bruno(client: Client, simbolos_abertos: list[str]) -> list[t
 
             preco_ticker = float(client.futures_symbol_ticker(symbol=symbol)["price"])
 
-            # Prioriza horário Bruno (01-09h BRT) mas aceita fora também se volume for muito alto
-            if BRUNO_HORARIO_INICIO <= hora_local <= BRUNO_HORARIO_FIM:
-                min_vol = BRUNO_VOLUME_MULT
+            # Prioriza horário CNS (01-09h BRT) mas aceita fora também se volume for muito alto
+            if CNS_HORARIO_INICIO <= hora_local <= CNS_HORARIO_FIM:
+                min_vol = CNS_VOLUME_MULT
             else:
-                min_vol = BRUNO_VOLUME_MULT * 2  # fora do horário, exige 6x
+                min_vol = CNS_VOLUME_MULT * 2  # fora do horário, exige 6x
 
             if vol_ratio >= min_vol:
-                sinais.append((symbol, "LONG", "alta", preco_ticker, "BRUNO"))
-                _bruno_alertados[symbol] = time.time()
-                log.info(f"  [BRUNO] {symbol}: volume {vol_ratio:.1f}x a media | MA7 > MA25 1H | LONG")
+                sinais.append((symbol, "LONG", "alta", preco_ticker, "CNS"))
+                _cns_alertados[symbol] = time.time()
+                log.info(f"  [CNS] {symbol}: volume {vol_ratio:.1f}x a media | MA7 > MA25 1H | LONG")
                 telegram(
-                    f"<b>[BRUNO] Sinal detectado: {symbol}</b>\n"
+                    f"<b>[CNS] Sinal detectado: {symbol}</b>\n"
                     f"Volume: {vol_ratio:.1f}x a media horaria\n"
                     f"MA7 > MA25 no 1H | Preco: {preco_ticker}\n"
                     f"Padrao de acumulacao detectado."
@@ -832,7 +832,7 @@ alerta_ciclo_risco_ts: float           = 0.0  # timestamp do último alerta de c
 posicoes_herdadas:     set[str]        = set() # symbols herdados de ciclos anteriores (negativos não fechados)
 margem_registrada:     dict[str, float] = {}  # margem inicial registrada por symbol para detectar DCA manual
 topup_recente:         dict[str, float] = {}  # symbols que tiveram topup recente (ignora na detecção DCA)
-posicoes_bruno:        set[str]        = set() # symbols que entraram pelo modo Bruno
+posicoes_cns:        set[str]        = set() # symbols que entraram pelo modo CNS
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
 
 ESTADO_FILE = "C:/robo-trade/estado_bot.json"
@@ -1052,7 +1052,7 @@ def calcular_roi(posicao: dict) -> float:
 
 def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
     """
-    Critério do Bruno para 3x — compara 1min E 5min antes de aplicar:
+    Critério CNS para 3x — compara 1min E 5min antes de aplicar:
     1. 5min: MA7 cruzou MA25 (confirmado, separando, não lateral)
     2. 1min: MA7 TAMBÉM acima da MA25 (ambos timeframes concordam)
     3. Fibonacci: preço acima de 38.2% do swing (tendência)
@@ -1169,7 +1169,7 @@ def get_precisao_quantidade(client: Client, symbol: str) -> int:
 
 def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     """
-    Estratégia 3x (padrão Bruno): escala o 3x pela profundidade da perda.
+    Estratégia 3x (padrão CNS): escala o 3x pela profundidade da perda.
     Quanto mais negativo, mais agressivo — para recuperar rápido.
     """
     symbol       = posicao["symbol"]
@@ -1181,7 +1181,7 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     margem_atual = round((entry * amt_abs) / leverage, 2)
     roi          = calcular_roi(posicao)
 
-    # 3x escalado pela profundidade (padrão Bruno)
+    # 3x escalado pela profundidade (padrão CNS)
     # Quanto mais negativo, mais agressivo para sair rápido
     if roi <= -1000:
         # Audacioso: usa 80% da margem disponível
@@ -1381,10 +1381,9 @@ def ma_alinhada_15min(client: Client, symbol: str, direcao: str) -> bool:
 
 
 
-def sinal_aguia_spread(client: Client, symbol: str) -> str | None:
+def sinal_guardiao(client: Client, symbol: str) -> str | None:
     """
-    Replica do sistema Águia Spread (Bruno Aguiar):
-    Detecta Bollinger Squeeze (compressão de volatilidade) + release.
+    Sistema Guardião (CNS): detecta Bollinger Squeeze + release.
 
     Fluxo:
     1. Bandas de Bollinger se contraem (bandwidth no mínimo de 20 períodos)
@@ -1393,9 +1392,9 @@ def sinal_aguia_spread(client: Client, symbol: str) -> str | None:
     4. Preço rompe acima da banda superior = LONG
     5. Preço rompe abaixo da banda inferior = SHORT
 
-    Timeframe: 2H (intervalos de 2h, alinhado com os alertas do Bruno)
+    Timeframe: 2H
     """
-    # Bollinger Bands no 2H (timeframe do Bruno)
+    # Bollinger Bands no 2H
     df = get_candles(client, symbol, Client.KLINE_INTERVAL_2HOUR, limit=30)
     df["ma20"]      = df["close"].rolling(20).mean()
     df["std"]       = df["close"].rolling(20).std()
@@ -1722,7 +1721,7 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
     saldo_total    = get_saldo_total(client)
     alav_ideal     = alavancagem_dinamica(saldo_total)
     _risco_base    = risco_base if risco_base is not None else RISCO_POR_TRADE
-    risco          = _risco_base  # 1% fixo para todas as entradas (padrão Bruno)
+    risco          = _risco_base  # 1% fixo para todas as entradas (padrão CNS)
     margem         = round(banca * risco, 2)
     # Garante notional mínimo de $5.50 (Binance exige $5)
     if margem * alav_ideal < 5.50:
@@ -1789,9 +1788,9 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
         )
         log.info(msg.replace("<b>", "").replace("</b>", ""))
         telegram(msg)
-        # Marca posição Bruno para trailing mais paciente
-        if qualidade == "BRUNO":
-            posicoes_bruno.add(symbol)
+        # Marca posição CNS para trailing mais paciente
+        if qualidade == "CNS":
+            posicoes_cns.add(symbol)
 
     except BinanceAPIException as e:
         log.error(f"Erro ao abrir posicao {symbol}: {e}")
@@ -1835,7 +1834,7 @@ def main() -> None:
     verificar_atualizacao()
     log.info("=" * 50)
     log.info(f"Nunes iniciado | Modo: {MODO.upper()}")
-    log.info(f"Sistema Aguia Spread: Bollinger Squeeze 2H | DCA 3x | Trailing paciente")
+    log.info(f"Sistema Guardiao (CNS): Bollinger Squeeze 2H | DCA 3x | Trailing paciente")
     log.info(f"Risco: {RISCO_POR_TRADE*100}% por trade | Max {MAX_POSICOES} posicoes | Alavancagem: {ALAVANCAGEM}x")
     log.info("=" * 50)
 
@@ -2279,11 +2278,11 @@ def main() -> None:
                         pass
 
                     # Tolerância escalonada: quanto maior o pico, mais apertado
-                    is_bruno = symbol in posicoes_bruno
-                    if cripto_pump and not is_bruno:
+                    is_cns = symbol in posicoes_cns
+                    if cripto_pump and not is_cns:
                         tolerancia = 0.05  # 5% do pico — pump pode despencar
-                    elif is_bruno:
-                        # Bruno: segura por dias, trailing largo
+                    elif is_cns:
+                        # CNS: segura por dias, trailing largo
                         if pico >= 100:
                             tolerancia = 0.20  # 20% — só protege lucro grande
                         else:
@@ -2323,7 +2322,7 @@ def main() -> None:
                             alerta_dca_log[alerta_key] = time.time()
                     log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando oportunidade de 3x")
 
-                # --- ESTRATÉGIA 3x (DCA padrão Bruno) ---
+                # --- ESTRATÉGIA 3x (Guardião) ---
                 # Gatilho: ROI <= -200% + MA7 cruzando a favor no 5min
                 # Repetível: pode fazer 3x múltiplas vezes no mesmo ativo
                 elif roi <= -200.0:
@@ -2416,7 +2415,7 @@ def main() -> None:
                 saldo_atual_dia = get_saldo_total(client)
                 max_pos_dinamico, risco_dinamico = limites_por_saldo(saldo_atual_dia)
 
-                # Limpeza automática REMOVIDA — contradiz estratégia Bruno
+                # Limpeza automática REMOVIDA — contradiz estratégia Guardião
                 # Posições negativas ficam abertas aguardando 3x ou recuperação
                 # Se exceder o limite: simplesmente não abre novas (não fecha as existentes)
 
@@ -2456,7 +2455,7 @@ def main() -> None:
                     def analisar_par(symbol):
                         try:
                             # Sistema Águia Spread: Bollinger Squeeze no 2H
-                            sinal = sinal_aguia_spread(client, symbol)
+                            sinal = sinal_guardiao(client, symbol)
                             if not sinal:
                                 return
 
@@ -2470,8 +2469,8 @@ def main() -> None:
 
                             preco = float(client.futures_symbol_ticker(symbol=symbol)["price"])
 
-                            # Classifica: ativos do Bruno = AGUIA, outros = SPREAD
-                            qualidade = "AGUIA" if symbol in PARES_BRUNO else "SPREAD"
+                            # Classifica: ativos CNS prioritários = CNS, outros = GUARDIAO
+                            qualidade = "CNS" if symbol in PARES_CNS else "GUARDIAO"
                             if master_pos:
                                 qualidade = "COPY"
 
@@ -2483,12 +2482,12 @@ def main() -> None:
                     with ThreadPoolExecutor(max_workers=THREADS_VARREDURA) as executor:
                         executor.map(analisar_par, pares_filtrados)
 
-                    # --- Modo Bruno: detecta volume anormal nos ativos do Bruno ---
-                    sinais_bruno = detectar_sinais_bruno(client, simbolos_abertos)
-                    sinais_encontrados.extend(sinais_bruno)
+                    # --- Modo CNS: detecta volume anormal nos ativos prioritários ---
+                    sinais_cns = detectar_sinais_cns(client, simbolos_abertos)
+                    sinais_encontrados.extend(sinais_cns)
 
-                    # Ordena: AGUIA (ativos Bruno) primeiro, depois COPY, depois SPREAD
-                    ordem_qualidade = {"AGUIA": 0, "BRUNO": 1, "COPY": 2, "SPREAD": 3, "PREMIUM": 4, "NORMAL": 5}
+                    # Ordena: CNS (ativos prioritários) primeiro, depois COPY, depois GUARDIAO
+                    ordem_qualidade = {"CNS": 0, "COPY": 1, "GUARDIAO": 2, "PREMIUM": 3, "NORMAL": 4}
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
                     MAX_ENTRADAS_POR_SCAN = 10
@@ -2507,9 +2506,9 @@ def main() -> None:
                         ultimo_entrada = time.time()
                         abertos_scan += 1
 
-                    n_bruno = len(sinais_bruno)
-                    n_normal = len(sinais_encontrados) - n_bruno
-                    log.info(f"Varredura concluida: {len(pares_filtrados)} pares | {n_normal} sinais MA | {n_bruno} sinais BRUNO")
+                    n_cns = len(sinais_cns)
+                    n_normal = len(sinais_encontrados) - n_cns
+                    log.info(f"Varredura concluida: {len(pares_filtrados)} pares | {n_normal} sinais Guardiao | {n_cns} sinais CNS")
 
             # Resumo horário
             if time.time() - ultimo_resumo_hora >= 3600:
