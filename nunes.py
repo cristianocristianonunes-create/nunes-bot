@@ -66,34 +66,22 @@ META_CICLO_FASE2_MIN  = float(os.getenv("META_CICLO_FASE2_MIN", "1000.0")) # sal
 # Modo CNS: ativos prioritários + detecção de volume anormal
 # ---------------------------------------------------------------------------
 PARES_CNS = [
-    # Layer 1/2 antigos — osciladores clássicos
-    "ATOMUSDT", "NEOUSDT", "QTUMUSDT", "ICXUSDT", "DASHUSDT",
-    "XTZUSDT", "TRXUSDT", "KSMUSDT", "AVAXUSDT", "APTUSDT",
-    "ETCUSDT", "NEARUSDT", "ALGOUSDT", "XLMUSDT", "THETAUSDT",
-    "ZECUSDT", "BSVUSDT", "VETUSDT", "OPUSDT", "SEIUSDT",
-    # Gaming/Metaverse/NFT
-    "AXSUSDT", "GALAUSDT", "ENJUSDT", "ALICEUSDT", "PEOPLEUSDT",
-    "CHZUSDT", "CHRUSDT", "JASMYUSDT", "ESPORTSUSDT", "GASUSDT",
-    # DeFi
-    "UNIUSDT", "SNXUSDT", "1INCHUSDT", "KNCUSDT", "CRVUSDT",
-    "ZRXUSDT", "PENDLEUSDT", "DEXEUSDT", "AEVOUSDT", "DYDXUSDT",
-    "JTOUSDT", "ENAUSDT", "ONDOUSDT",
-    # Storage/Utility/Infra
-    "FILUSDT", "STORJUSDT", "ANKRUSDT", "BATUSDT", "MASKUSDT",
-    "SKLUSDT", "POLYXUSDT", "ZKUSDT", "ZROUSDT", "LINEAUSDT",
-    "RENDERUSDT", "FETUSDT", "TAOUSDT", "WLDUSDT", "ZETAUSDT",
-    # Memecoins estabelecidos
-    "BONKUSDT", "PENGUUSDT", "1000BONKUSDT", "FARTCOINUSDT",
-    "TRUMPUSDT", "PUMPUSDT",
-    # Narrativa nova (2024-2025)
-    "HYPEUSDT", "BERAUSDT", "SAHARAUSDT", "SKYAIUSDT", "KITEUSDT",
-    "MONUSDT", "VIRTUALUSDT", "HUMAUSDT", "CFGUSDT", "NIGHTUSDT",
-    "VVVUSDT", "COSUSDT", "ZENUSDT", "REZUSDT", "ORDIUSDT",
-    # Novos voláteis
-    "SIGNUSDT", "HUSDT", "CUSDT", "LITUSDT", "MUSDT",
-    "TRIAUSDT", "GIGGLEUSDT", "YBUSDT", "KATUSDT", "AIAUSDT",
-    "POWERUSDT", "HIPPOUSDT", "SWARMSUSDT", "BANANAS31USDT", "MYXUSDT",
-    "BBUSDT", "ZBTUSDT", "COLLECTUSDT", "TONUSDT", "ARBUSDT", "INJUSDT",
+    # 38 ativos filtrados por qualidade: volume 24h >= $20M + range saudável
+    # Liquidez real = execução rápida + spread baixo + sem whipsaw por poucos traders
+    # Layer 1 estabelecidos (alta liquidez)
+    "SOLUSDT", "BNBUSDT", "ADAUSDT", "AVAXUSDT", "SUIUSDT",
+    "NEARUSDT", "ETCUSDT", "LINKUSDT", "DOTUSDT", "FILUSDT",
+    # Moedas com narrativa forte
+    "ZECUSDT", "HYPEUSDT", "TAOUSDT", "BERAUSDT", "SAHARAUSDT",
+    "ENAUSDT", "TRUMPUSDT", "ALGOUSDT", "WLDUSDT", "KITEUSDT",
+    # DeFi líquido
+    "UNIUSDT", "AAVEUSDT", "JTOUSDT", "FETUSDT", "ZKUSDT",
+    # Narrativa 2024/2025
+    "POLYXUSDT", "NIGHTUSDT", "SKYAIUSDT", "PUMPUSDT", "MONUSDT",
+    # Memecoins com volume real
+    "1000PEPEUSDT", "FARTCOINUSDT", "WIFUSDT",
+    # Voláteis com liquidez
+    "COSUSDT", "XMRUSDT", "HUSDT", "PAXGUSDT", "SIGNUSDT",
 ]
 CNS_VOLUME_MULT = 3.0   # volume atual >= 3x a média = spike
 CNS_HORARIO_INICIO = 1  # 01:00 BRT
