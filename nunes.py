@@ -1403,16 +1403,16 @@ def ma_alinhada_15min(client: Client, symbol: str, direcao: str) -> bool:
 
 
 
-def sinal_guardiao(client: Client, symbol: str) -> str | None:
+def sinal_guardiao(client: Client, symbol: str, btc_tendencia: str = "lateral") -> str | None:
     """
-    Sistema Guardião (CNS): detecta Bollinger Squeeze + release.
+    Sistema Guardião (CNS): Bollinger Squeeze + release confirmado.
 
-    Fluxo:
-    1. Bandas de Bollinger se contraem (bandwidth no mínimo de 20 períodos)
-    2. Volume abaixo da média (acumulação silenciosa)
-    3. Squeeze resolve: bandas começam a expandir + preço rompe
-    4. Preço rompe acima da banda superior = LONG
-    5. Preço rompe abaixo da banda inferior = SHORT
+    Critérios rigorosos para evitar falsos rompimentos:
+    1. Bandas em squeeze (bandwidth no mínimo de 20 períodos)
+    2. Squeeze resolvendo (bandas expandindo)
+    3. Candle de release FECHOU fora da banda (não apenas tocou)
+    4. Dois candles consecutivos confirmando a direção
+    5. Alinhamento com tendência BTC (evita contra-maré massivo)
 
     Timeframe: 2H
     """
@@ -1426,8 +1426,8 @@ def sinal_guardiao(client: Client, symbol: str) -> str | None:
     df["vol_media"] = df["volume"].rolling(20).mean()
 
     # Candles fechados
-    c_ref  = df.iloc[-2]   # último candle fechado
-    c_prev = df.iloc[-3]   # candle anterior
+    c_ref  = df.iloc[-2]   # último candle fechado (release)
+    c_prev = df.iloc[-3]   # candle anterior (confirma direção)
 
     preco  = c_ref["close"]
     ma20   = c_ref["ma20"]
@@ -1437,44 +1437,47 @@ def sinal_guardiao(client: Client, symbol: str) -> str | None:
     if ma20 <= 0:
         return None
 
-    # --- 1. DETECTA SQUEEZE: bandwidth nos últimos candles era mínima ---
-    # Bandwidth mínimo das últimas 20 velas = squeeze aconteceu recentemente
+    # --- 1. SQUEEZE: bandwidth em mínimo recente ---
     bw_atual  = c_ref["bandwidth"]
     bw_prev   = c_prev["bandwidth"]
-    bw_min_20 = df["bandwidth"].iloc[-22:-2].min()  # mínimo recente (excluindo atuais)
+    bw_min_20 = df["bandwidth"].iloc[-22:-2].min()
 
-    # Squeeze: bandwidth anterior estava perto do mínimo (dentro de 20% do mínimo)
-    estava_em_squeeze = bw_prev <= bw_min_20 * 1.2
+    estava_em_squeeze = bw_prev <= bw_min_20 * 1.15  # mais apertado (era 1.2)
+    squeeze_resolvendo = bw_atual > bw_prev * 1.05   # bandas expandindo >5% (era só >)
 
-    # Release: bandwidth atual é maior que o anterior (bandas expandindo)
-    squeeze_resolvendo = bw_atual > bw_prev
-
-    if not estava_em_squeeze or not squeeze_resolvendo:
+    if not (estava_em_squeeze and squeeze_resolvendo):
         return None
 
-    # --- 2. VOLUME: acumulação seguida de expansão ---
-    # Volume dos candles anteriores ao squeeze deve ser baixo (acumulação)
-    vol_media_recente = df["volume"].iloc[-6:-2].mean()  # média dos últimos 4 candles fechados
-    vol_media_geral   = c_ref["vol_media"]
-    acumulacao = vol_media_recente <= vol_media_geral * 1.0  # volume normal ou abaixo
-
-    # Volume do candle de release deve subir
+    # --- 2. VOLUME: release com força ---
     vol_release = c_ref["volume"]
-    volume_subindo = vol_release >= vol_media_geral * 0.8  # aceita volume normal no release
+    vol_media_geral = c_ref["vol_media"]
+    volume_ok = vol_release >= vol_media_geral * 1.2  # volume 20% acima da média (era 0.8)
 
-    if not (acumulacao or volume_subindo):
+    if not volume_ok:
         return None
 
-    # --- 3. DIREÇÃO DO ROMPIMENTO ---
-    # Posição do preço relativa às bandas
-    posicao_banda = (preco - bb_low) / (bb_up - bb_low) if (bb_up - bb_low) > 0 else 0.5
+    # --- 3. ROMPIMENTO CONFIRMADO: candle FECHOU fora da banda ---
+    # Não basta tocar — tem que fechar fora. Dois candles alinhados confirmam.
+    fechou_acima = c_ref["close"] > c_ref["bb_upper"]
+    fechou_abaixo = c_ref["close"] < c_ref["bb_lower"]
 
-    # LONG: preço rompeu acima da metade superior (>0.7) ou acima da banda
-    if preco >= bb_up or posicao_banda >= 0.75:
+    # Candle anterior também deve estar na mesma direção (momentum)
+    prev_alta = c_prev["close"] > c_prev["open"]
+    prev_baixa = c_prev["close"] < c_prev["open"]
+    cur_alta = c_ref["close"] > c_ref["open"]
+    cur_baixa = c_ref["close"] < c_ref["open"]
+
+    # --- 4. FILTRO TENDÊNCIA BTC ---
+    # Se BTC em alta forte, evita SHORT (só permite com rompimento muito claro)
+    # Se BTC em baixa forte, evita LONG
+    if fechou_acima and cur_alta and prev_alta:
+        if btc_tendencia == "baixa":
+            return None  # BTC caindo — não entra LONG
         return "LONG"
 
-    # SHORT: preço rompeu abaixo da metade inferior (<0.3) ou abaixo da banda
-    if preco <= bb_low or posicao_banda <= 0.25:
+    if fechou_abaixo and cur_baixa and prev_baixa:
+        if btc_tendencia == "alta":
+            return None  # BTC subindo — não entra SHORT
         return "SHORT"
 
     return None
@@ -2481,7 +2484,7 @@ def main() -> None:
                     def analisar_par(symbol):
                         try:
                             # Sistema Águia Spread: Bollinger Squeeze no 2H
-                            sinal = sinal_guardiao(client, symbol)
+                            sinal = sinal_guardiao(client, symbol, btc_tendencia)
                             if not sinal:
                                 return
 
