@@ -2455,23 +2455,13 @@ def main() -> None:
                     log.info(f"Racio de Margem {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}%. Sem novas entradas.")
                 else:
                     sessao = sessao_atual()
-                    # Ajustes dinâmicos por sessão
+                    # Asiática escaneia mais pares (mercado mais movimentado)
                     if sessao == "ASIATICA":
-                        top_pares_sessao   = min(TOP_PARES + 100, 652)  # +100 pares extras
-                        racio_limite_sessao = RACIO_MARGEM_MAX  # normal
-                    elif sessao == "AMERICANA":
-                        top_pares_sessao   = TOP_PARES
-                        racio_limite_sessao = max(RACIO_MARGEM_MAX - 2.0, 4.0)  # -2% no horário americano
-                    else:  # EUROPEIA
-                        top_pares_sessao   = TOP_PARES
-                        racio_limite_sessao = RACIO_MARGEM_MAX
+                        top_pares_sessao = min(TOP_PARES + 100, 652)
+                    else:
+                        top_pares_sessao = TOP_PARES
 
-                    # Revalida rácio com limite da sessão
-                    if (racio_atual := get_racio_margem(client)) >= racio_limite_sessao:
-                        log.info(f"[{sessao}] Racio {racio_atual:.2f}% >= limite sessao {racio_limite_sessao:.0f}%. Sem novas entradas.")
-                        continue
-
-                    log.info(f"Sessao {sessao} | Escaneando {top_pares_sessao} pares | Racio limite {racio_limite_sessao:.0f}%")
+                    log.info(f"Sessao {sessao} | Escaneando {top_pares_sessao} pares | Racio limite {RACIO_MARGEM_MAX:.0f}%")
                     btc_tendencia = tendencia_btc(client)
                     log.info(f"BTC: {btc_tendencia.upper()}")
 
