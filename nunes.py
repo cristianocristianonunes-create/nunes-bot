@@ -2142,9 +2142,20 @@ def main() -> None:
                         posicao_abertura[symbol] = time.time()
 
                 # Atualiza pico de ROI (trailing stop)
-                if roi > peak_roi.get(symbol, roi):
+                pico_anterior = peak_roi.get(symbol, roi)
+                if roi > pico_anterior:
                     peak_roi[symbol] = roi
                     salvar_estado()
+                    # Mensagens motivacionais em marcos
+                    marcos = [20, 50, 100, 200, 300, 500]
+                    for marco in marcos:
+                        if pico_anterior < marco <= roi:
+                            telegram(
+                                f"<b>Marco atingido: {symbol} +{marco}%!</b>\n"
+                                f"{direcao} | ROI: {roi:+.1f}%\n"
+                                f"Lucro crescendo! Trailing segue protegendo."
+                            )
+                            break
 
                 pico = peak_roi.get(symbol, roi)
 
@@ -2329,6 +2340,11 @@ def main() -> None:
                     pump_tag = " [PUMP]" if cripto_pump else ""
                     if queda_pct >= tolerancia:
                         log.info(f"  {symbol}{pump_tag}: trailing stop! Pico {pico:.0f}% -> atual {roi:.0f}% (tolerancia {tolerancia:.0%}) -> fechando 90%")
+                        telegram(
+                            f"<b>Lucro capturado: {symbol}{pump_tag}</b>\n"
+                            f"{direcao} | Pico: {pico:.0f}% | Saida: {roi:+.1f}%\n"
+                            f"Trailing protegeu o ganho! Fechando 90%."
+                        )
                         registrar_aprendizado(client, symbol, direcao, "trailing_sucesso", roi,
                             f"Pico {pico:.0f}% | Saida {roi:+.1f}% | Tolerancia {tolerancia:.0%}{pump_tag}")
                         fechar_parcial(client, p, 0.90, f"Trailing stop{pump_tag} (pico {pico:.0f}% tol {tolerancia:.0%})")
