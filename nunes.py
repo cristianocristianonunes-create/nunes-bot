@@ -1618,12 +1618,12 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     try:
         client.futures_create_order(symbol=symbol, side=side, type="MARKET", quantity=quantidade)
         msg = (
-            f"<b>DCA aplicado!</b>\n"
-            f"{direcao} {symbol}\n"
-            f"Margem adicional: ${adicional:.2f} USDT (3x)\n"
-            f"Quantidade: {quantidade}"
+            f"<b>3x EM ACAO! {symbol}</b>\n"
+            f"{direcao} | Modo: {modo_3x}\n"
+            f"Reforco: +${adicional:.2f} USDT\n\n"
+            f"A virada comeca agora. Bora ver de quanto vai ser o lucro!"
         )
-        log.info(msg.replace("<b>", "").replace("</b>", ""))
+        log.info(f"3x EM ACAO! {symbol} {direcao} | {modo_3x} | +${adicional:.2f}")
         telegram(msg)
         dca_aplicado.add(symbol)
         dca_log[symbol] = time.time()
