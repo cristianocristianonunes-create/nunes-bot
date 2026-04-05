@@ -2179,10 +2179,13 @@ def main() -> None:
 
                         # META CNS: só dispara quando as posições vencedoras sozinhas (ROI >= +10%)
                         # já pagam a meta — fecha SÓ positivas, nada é cortado no prejuízo
+                        # Posicoes em 3x NAO contam (tem logica propria de saida)
                         ROI_META = 10.0
                         pnl_vencedoras = sum(
                             float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                            for p in pos_ciclo_atual if calcular_roi(p) >= ROI_META
+                            for p in pos_ciclo_atual
+                            if calcular_roi(p) >= ROI_META
+                            and p["symbol"] not in dca_aplicado
                         )
                         pnl_venc_brl = pnl_vencedoras * usd_brl_c if usd_brl_c > 0 else pnl_vencedoras
 
@@ -2193,8 +2196,14 @@ def main() -> None:
                         if meta_atingida:
                             # Meta CNS: so fecha as vencedoras (ROI >= +10%)
                             # Nada e cortado no prejuizo — negativas continuam rodando
-                            pos_fechar = [p for p in pos_ciclo_atual if calcular_roi(p) >= ROI_META]
-                            pos_herdar = [p for p in pos_ciclo_atual if calcular_roi(p) < ROI_META]
+                            # IMPORTANTE: posicoes em 3x tem logica propria de saida (90/10)
+                            # — nao sao fechadas pela meta do ciclo
+                            pos_fechar = [p for p in pos_ciclo_atual
+                                          if calcular_roi(p) >= ROI_META
+                                          and p["symbol"] not in dca_aplicado]
+                            pos_herdar = [p for p in pos_ciclo_atual
+                                          if calcular_roi(p) < ROI_META
+                                          or p["symbol"] in dca_aplicado]
 
                             telegram(
                                 f"<b>Meta do Ciclo {ciclo_num} confirmada!</b>\n"
