@@ -1104,9 +1104,81 @@ def calcular_roi(posicao: dict) -> float:
     return (pnl / margem) * 100
 
 
+def calcular_volume_profile(df: pd.DataFrame, n_buckets: int = 24) -> dict:
+    """
+    Calcula Volume Profile (barras laterais de volume) a partir de um DataFrame de candles.
+    Retorna POC, VAL, VAH e zonas de alto/baixo volume.
+
+    - POC (Point of Control): preço com maior volume
+    - VAL (Value Area Low): limite inferior dos 70% de volume
+    - VAH (Value Area High): limite superior dos 70% de volume
+    """
+    if len(df) < 10:
+        return {"poc": 0, "val": 0, "vah": 0, "valid": False}
+
+    preco_min = df["low"].min()
+    preco_max = df["high"].max()
+    if preco_max <= preco_min:
+        return {"poc": 0, "val": 0, "vah": 0, "valid": False}
+
+    # Cria buckets de preço
+    bucket_size = (preco_max - preco_min) / n_buckets
+    buckets = [0.0] * n_buckets
+
+    # Distribui o volume de cada candle nos buckets que ele atravessa
+    for _, row in df.iterrows():
+        low = row["low"]
+        high = row["high"]
+        volume = row["volume"]
+        if high <= low:
+            continue
+        # Distribui o volume proporcionalmente entre os buckets que o candle cobre
+        idx_low = max(0, int((low - preco_min) / bucket_size))
+        idx_high = min(n_buckets - 1, int((high - preco_min) / bucket_size))
+        n_atingidos = idx_high - idx_low + 1
+        if n_atingidos > 0:
+            vol_por_bucket = volume / n_atingidos
+            for i in range(idx_low, idx_high + 1):
+                buckets[i] += vol_por_bucket
+
+    # POC: bucket com maior volume
+    poc_idx = buckets.index(max(buckets))
+    poc_preco = preco_min + (poc_idx + 0.5) * bucket_size
+
+    # Value Area: 70% do volume total centrado no POC
+    volume_total = sum(buckets)
+    volume_alvo = volume_total * 0.70
+    volume_acum = buckets[poc_idx]
+    lo_idx = hi_idx = poc_idx
+
+    while volume_acum < volume_alvo and (lo_idx > 0 or hi_idx < n_buckets - 1):
+        vol_lo = buckets[lo_idx - 1] if lo_idx > 0 else 0
+        vol_hi = buckets[hi_idx + 1] if hi_idx < n_buckets - 1 else 0
+        if vol_lo >= vol_hi and lo_idx > 0:
+            lo_idx -= 1
+            volume_acum += vol_lo
+        elif hi_idx < n_buckets - 1:
+            hi_idx += 1
+            volume_acum += vol_hi
+        else:
+            break
+
+    val = preco_min + lo_idx * bucket_size
+    vah = preco_min + (hi_idx + 1) * bucket_size
+
+    return {
+        "poc": poc_preco,
+        "val": val,
+        "vah": vah,
+        "preco_min": preco_min,
+        "preco_max": preco_max,
+        "valid": True
+    }
+
+
 def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, dict]:
     """
-    Sistema de score CNS para 3x automatico (0-100 pontos).
+    Sistema de score CNS para 3x automatico (0-110 pontos).
     Retorna (score, detalhes_dict).
 
     Criterios:
@@ -1117,8 +1189,9 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
     5. 1min alinhado (15 pts)
     6. Fibonacci favoravel (10 pts)
     7. Volume do candle 2 >= 1.2x media (10 pts)
+    8. Volume Profile: preco em zona de reversao (10 pts) — NOVO
 
-    Gatilho do 3x automatico: score >= 85
+    Gatilho do 3x automatico: score >= 93
     """
     detalhes = {}
     score = 0
@@ -1247,6 +1320,49 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
         else:
             detalhes["volume_forte"] = "sem_dados"
 
+        # 8. VOLUME PROFILE: preço em zona de reversão forte (10 pts)
+        # LONG: próximo do VAL (suporte forte) ou abaixo do POC (recuperação)
+        # SHORT: próximo do VAH (resistência forte) ou acima do POC (distribuição)
+        vp = calcular_volume_profile(df5.tail(50), n_buckets=24)
+        if vp["valid"]:
+            preco_atual = c1["close"]
+            val = vp["val"]
+            vah = vp["vah"]
+            poc = vp["poc"]
+            range_va = vah - val if vah > val else 1
+
+            if direcao == "LONG":
+                # Distância do preço ao VAL (normalizada)
+                dist_val = (preco_atual - val) / range_va
+                if dist_val <= 0.25:
+                    # Preço colado no VAL — zona de suporte forte
+                    score += 10
+                    detalhes["vol_profile"] = "VAL_suporte_forte"
+                elif dist_val <= 0.5 and preco_atual < poc:
+                    # Abaixo do POC — zona de recuperação
+                    score += 7
+                    detalhes["vol_profile"] = "abaixo_POC_recuperacao"
+                elif preco_atual < vah:
+                    score += 3
+                    detalhes["vol_profile"] = "dentro_VA_neutro"
+                else:
+                    detalhes["vol_profile"] = "acima_VAH_contra_long"
+            else:  # SHORT
+                dist_vah = (vah - preco_atual) / range_va
+                if dist_vah <= 0.25:
+                    score += 10
+                    detalhes["vol_profile"] = "VAH_resistencia_forte"
+                elif dist_vah <= 0.5 and preco_atual > poc:
+                    score += 7
+                    detalhes["vol_profile"] = "acima_POC_distribuicao"
+                elif preco_atual > val:
+                    score += 3
+                    detalhes["vol_profile"] = "dentro_VA_neutro"
+                else:
+                    detalhes["vol_profile"] = "abaixo_VAL_contra_short"
+        else:
+            detalhes["vol_profile"] = "sem_dados"
+
     except Exception as e:
         log.warning(f"  Erro score 3x {symbol}: {e}")
         detalhes["erro"] = str(e)
@@ -1257,10 +1373,10 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
 
 def ma_cruza_favor(client: Client, symbol: str, direcao: str) -> bool:
     """
-    Compatibilidade: retorna True se score >= 85 (3x automático liberado).
+    Compatibilidade: retorna True se score >= 93 (3x automático liberado).
     """
     score, _ = calcular_score_3x(client, symbol, direcao)
-    return score >= 85
+    return score >= 93
 
 
 def dca_ativo_tem_sinal(client: Client, abertas: list) -> bool:
@@ -2594,7 +2710,7 @@ def main() -> None:
                             score, detalhes = calcular_score_3x(client, symbol, direcao)
                             log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/100 | {detalhes}")
 
-                            if score >= 85:
+                            if score >= 93:
                                 # SETUP PERFEITO — DISPARA 3x AUTOMÁTICO
                                 if dca_bloqueado_por_racio:
                                     log.warning(f"  {symbol}: 3x score {score} mas Racio acima de {RACIO_BLOQUEIA_DCA:.0f}%")
