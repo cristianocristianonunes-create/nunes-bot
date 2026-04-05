@@ -632,6 +632,7 @@ def get_candles(client: Client, symbol: str, interval: str, limit: int = 100) ->
         "time", "open", "high", "low", "close", "volume",
         "close_time", "qav", "trades", "tbav", "tqav", "ignore"
     ])
+    df["open"]   = df["open"].astype(float)
     df["close"]  = df["close"].astype(float)
     df["high"]   = df["high"].astype(float)
     df["low"]    = df["low"].astype(float)
