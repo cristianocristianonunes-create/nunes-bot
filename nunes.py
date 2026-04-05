@@ -61,8 +61,8 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
         return 5, 0.05    # 5 posições, 5% risco
     elif saldo < 100:
         return 8, 0.03    # 8 posições, 3% risco
-    # Saldo normal: 1% por trade (padrão Bruno), Rácio é a trava
-    return 30, 0.01
+    # Saldo normal: 10 posições máximo, 1% por trade (padrão Bruno)
+    return 10, 0.01
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 TIMEOUT_SEM_ENTRADA   = 600  # segundos sem entrada para liberar camada 2 (10 min)
