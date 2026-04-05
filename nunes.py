@@ -1,11 +1,41 @@
 #!/usr/bin/env python3
 """
 Robô de trade - Binance Futuros
-Estratégia: Guardião (sistema CNS)
-- Entrada: Bollinger Squeeze no 2H
-- DCA 3x repetível em -200% com MA7 cruzando MA25 + Fibonacci
-- Trailing escalonado + Saída 90/10
-- Proteção via Rácio de Margem (6%)
+Guardião CNS v2 — Sistema Cristiano Nunes Silva
+Evolução do Águia Spread (Bruno Aguiar) com aprimoramentos:
+
+ENTRADA:
+- Tendência H4 (EMA21) como filtro macro (multi-timeframe Bruno)
+- Bollinger Squeeze H2 (contração + release)
+- ATR H2 >= 2% (elimina tokens mortos)
+- Volume release >= 1.2x média
+- Candle fechado fora da banda + 2 candles confirmando
+- Filtro BTC + bloqueio contra-maré
+
+GESTÃO:
+- Sistema de Tiers (A: 1.5x, B: 1.0x, C: 0.7x) — peso por qualidade
+- DCA 3x em duas camadas: -120% (primeiro reforço) e -240% (agressivo)
+- 3x escalonado pela profundidade (audacioso < -1000%)
+- MA7 cruzando MA25 + Fibonacci + 1min alinhado
+
+SAÍDA:
+- Alvo mediano Bruno: fecha 50% em ROI +200% (10% movimento)
+- Trailing escalonado (5%/20%/50% por faixa de pico)
+- Saída 90/10 pós-3x
+- Timeout 30 dias (descarta dead trades)
+
+PROTEÇÃO:
+- Rácio de Margem 6% máximo
+- Circuit breaker diário (-2% drawdown congela 24h)
+- Notional mínimo $5.50 garantido
+
+O que supera o Bruno:
+1. Squeeze + ATR (ele não filtra contração/tokens mortos)
+2. Trailing dinâmico (ele usa alvo fixo)
+3. Lista moderna Tier A + B + C (ele só opera 4 ativos)
+4. Gestão de margem real (ele roda 50x cego)
+5. Log honesto com wins e losses (ele só mostra wins)
+6. Aprendizado automático via aprendizados.json
 """
 
 import os
@@ -65,26 +95,31 @@ META_CICLO_FASE2_MIN  = float(os.getenv("META_CICLO_FASE2_MIN", "1000.0")) # sal
 # ---------------------------------------------------------------------------
 # Modo CNS: ativos prioritários + detecção de volume anormal
 # ---------------------------------------------------------------------------
-PARES_CNS = [
-    # Perfil Bruno: volume $15M-$250M (nem top-cap, nem micro-cap)
-    # + range saudavel + potencial de pump/dump explosivo
-    # EXCLUIDOS: top-caps (SOL, BNB, ADA, AVAX, LINK, DOT, NEAR, ETC, FIL, UNI, AAVE)
-    # Altcoins com narrativa forte
-    "HYPEUSDT", "TAOUSDT", "BERAUSDT", "SAHARAUSDT", "ENAUSDT",
-    "ALGOUSDT", "WLDUSDT", "KITEUSDT", "POLYXUSDT", "NIGHTUSDT",
-    # Voláteis explosivos (range 7d > 40%)
-    "RIVERUSDT", "XPLUSDT", "HEMIUSDT", "BEATUSDT", "PLAYUSDT",
-    "KERNELUSDT", "SKYAIUSDT", "COSUSDT",
-    # DeFi/Infra nicho
-    "FETUSDT", "JTOUSDT", "ZKUSDT", "ZETAUSDT", "RENDERUSDT",
-    # Narrativa nova (2024/25)
-    "MONUSDT", "SIGNUSDT", "HUSDT", "VVVUSDT", "MUSDT",
-    "CUSDT", "GIGGLEUSDT", "LITUSDT", "GASUSDT",
-    # Memecoins com volume real
-    "FARTCOINUSDT",
-    # Oscilladores clássicos que ainda têm volume
-    "CRVUSDT", "DASHUSDT", "APTUSDT",
-]
+# Guardião CNS v2 — Sistema de Tiers baseado em análise do Bruno
+# Tier A: "Núcleo" peso 1.5x — ativos que o Bruno opera 93% do tempo
+# Tier B: "Narrativa moderna" peso 1.0x — tokens 2025/26
+# Tier C: "Oportunistas" peso 0.7x — liquidez menor ou teses incertas
+TIERS_CNS = {
+    # Tier A — Núcleo (peso 1.5x): validados pelo histórico do Bruno
+    "BTCUSDT": 1.5, "ETHUSDT": 1.5, "SOLUSDT": 1.5, "DOGEUSDT": 1.5,
+    # Tier B — Narrativa moderna (peso 1.0x)
+    "HYPEUSDT": 1.0, "TAOUSDT": 1.0, "BERAUSDT": 1.0, "SAHARAUSDT": 1.0,
+    "ENAUSDT": 1.0, "WLDUSDT": 1.0, "KITEUSDT": 1.0, "NIGHTUSDT": 1.0,
+    "XPLUSDT": 1.0, "HEMIUSDT": 1.0, "SKYAIUSDT": 1.0, "JTOUSDT": 1.0,
+    "RENDERUSDT": 1.0, "FARTCOINUSDT": 1.0, "FETUSDT": 1.0, "ZKUSDT": 1.0,
+    # Tier C — Oportunistas (peso 0.7x)
+    "ALGOUSDT": 0.7, "POLYXUSDT": 0.7, "RIVERUSDT": 0.7, "BEATUSDT": 0.7,
+    "PLAYUSDT": 0.7, "KERNELUSDT": 0.7, "COSUSDT": 0.7, "ZETAUSDT": 0.7,
+    "MONUSDT": 0.7, "SIGNUSDT": 0.7, "HUSDT": 0.7, "VVVUSDT": 0.7,
+    "MUSDT": 0.7, "CUSDT": 0.7, "GIGGLEUSDT": 0.7, "LITUSDT": 0.7,
+    "GASUSDT": 0.7, "CRVUSDT": 0.7, "DASHUSDT": 0.7, "APTUSDT": 0.7,
+}
+PARES_CNS = list(TIERS_CNS.keys())
+
+def peso_tier(symbol: str) -> float:
+    """Retorna o peso do ativo baseado no tier (1.5/1.0/0.7)."""
+    return TIERS_CNS.get(symbol, 0.5)  # ativos fora da lista: peso mínimo
+
 CNS_VOLUME_MULT = 3.0   # volume atual >= 3x a média = spike
 CNS_HORARIO_INICIO = 1  # 01:00 BRT
 CNS_HORARIO_FIM    = 9  # 09:00 BRT
@@ -847,6 +882,10 @@ margem_registrada:     dict[str, float] = {}  # margem inicial registrada por sy
 topup_recente:         dict[str, float] = {}  # symbols que tiveram topup recente (ignora na detecção DCA)
 posicoes_cns:        set[str]        = set() # symbols que entraram pelo modo CNS
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
+parcial_10pct:         set[str]        = set() # symbols que já fecharam 50% em +10% (alvo mediano Bruno)
+# Circuit breaker diário (novo v2)
+saldo_dia_inicio:      float = 0.0
+circuit_breaker_ate:   float = 0.0  # timestamp até quando novas entradas estão congeladas
 
 ESTADO_FILE = "C:/robo-trade/estado_bot.json"
 
@@ -1394,20 +1433,50 @@ def ma_alinhada_15min(client: Client, symbol: str, direcao: str) -> bool:
 
 
 
+def tendencia_h4(client: Client, symbol: str) -> str:
+    """
+    Retorna tendência no H4 baseada em EMA21 (padrão Bruno inferido).
+    'alta'  = preço acima da EMA21 e EMA21 subindo
+    'baixa' = preço abaixo da EMA21 e EMA21 caindo
+    'lateral' = outros casos
+    """
+    try:
+        df = get_candles(client, symbol, Client.KLINE_INTERVAL_4HOUR, limit=30)
+        df["ema21"] = df["close"].ewm(span=21, adjust=False).mean()
+        preco = df["close"].iloc[-1]
+        ema_atual = df["ema21"].iloc[-1]
+        ema_antes = df["ema21"].iloc[-4]
+        ema_subindo = ema_atual > ema_antes
+        ema_caindo = ema_atual < ema_antes
+        if preco > ema_atual and ema_subindo:
+            return "alta"
+        if preco < ema_atual and ema_caindo:
+            return "baixa"
+        return "lateral"
+    except Exception:
+        return "lateral"
+
+
 def sinal_guardiao(client: Client, symbol: str, btc_tendencia: str = "lateral") -> str | None:
     """
-    Sistema Guardião (CNS): Bollinger Squeeze + release confirmado.
+    Guardião CNS v2: Squeeze H2 + Filtro H4 (multi-timeframe do Bruno).
 
-    Critérios rigorosos para evitar falsos rompimentos:
-    1. Bandas em squeeze (bandwidth no mínimo de 20 períodos)
-    2. Squeeze resolvendo (bandas expandindo)
-    3. Candle de release FECHOU fora da banda (não apenas tocou)
-    4. Dois candles consecutivos confirmando a direção
-    5. Alinhamento com tendência BTC (evita contra-maré massivo)
-
-    Timeframe: 2H
+    Critérios:
+    1. Tendência H4 confirmada (novo v2) — filtro macro do Bruno
+    2. Bandas em squeeze H2 (bandwidth no mínimo de 20 períodos)
+    3. Squeeze resolvendo (bandas expandindo >5%)
+    4. Volume release >= 1.2x média
+    5. Candle H2 FECHOU fora da banda
+    6. Dois candles H2 consecutivos confirmando direção
+    7. ATR H2 >= 2% do preço (filtro de tokens mortos — novo v2)
+    8. Alinhamento com BTC
     """
-    # Bollinger Bands no 2H
+    # --- 1. Filtro H4 de tendência (novo v2) ---
+    h4_trend = tendencia_h4(client, symbol)
+    if h4_trend == "lateral":
+        return None  # H4 indeciso, não opera
+
+    # --- Bollinger Bands no 2H ---
     df = get_candles(client, symbol, Client.KLINE_INTERVAL_2HOUR, limit=30)
     df["ma20"]      = df["close"].rolling(20).mean()
     df["std"]       = df["close"].rolling(20).std()
@@ -1415,60 +1484,63 @@ def sinal_guardiao(client: Client, symbol: str, btc_tendencia: str = "lateral") 
     df["bb_lower"]  = df["ma20"] - 2 * df["std"]
     df["bandwidth"] = (df["bb_upper"] - df["bb_lower"]) / df["ma20"]
     df["vol_media"] = df["volume"].rolling(20).mean()
+    # ATR H2 (filtro de tokens mortos — novo v2)
+    df["tr"] = pd.concat([
+        df["high"] - df["low"],
+        (df["high"] - df["close"].shift()).abs(),
+        (df["low"] - df["close"].shift()).abs()
+    ], axis=1).max(axis=1)
+    df["atr14"] = df["tr"].rolling(14).mean()
 
-    # Candles fechados
-    c_ref  = df.iloc[-2]   # último candle fechado (release)
-    c_prev = df.iloc[-3]   # candle anterior (confirma direção)
+    c_ref  = df.iloc[-2]
+    c_prev = df.iloc[-3]
 
     preco  = c_ref["close"]
     ma20   = c_ref["ma20"]
-    bb_up  = c_ref["bb_upper"]
-    bb_low = c_ref["bb_lower"]
-
     if ma20 <= 0:
         return None
 
-    # --- 1. SQUEEZE: bandwidth em mínimo recente ---
+    # --- 2. ATR mínimo 2% do preço (filtra tokens sem movimento) ---
+    atr_pct = c_ref["atr14"] / preco if preco > 0 else 0
+    if atr_pct < 0.02:
+        return None
+
+    # --- 3. SQUEEZE: bandwidth em mínimo recente ---
     bw_atual  = c_ref["bandwidth"]
     bw_prev   = c_prev["bandwidth"]
     bw_min_20 = df["bandwidth"].iloc[-22:-2].min()
-
-    estava_em_squeeze = bw_prev <= bw_min_20 * 1.15  # mais apertado (era 1.2)
-    squeeze_resolvendo = bw_atual > bw_prev * 1.05   # bandas expandindo >5% (era só >)
-
+    estava_em_squeeze = bw_prev <= bw_min_20 * 1.15
+    squeeze_resolvendo = bw_atual > bw_prev * 1.05
     if not (estava_em_squeeze and squeeze_resolvendo):
         return None
 
-    # --- 2. VOLUME: release com força ---
-    vol_release = c_ref["volume"]
-    vol_media_geral = c_ref["vol_media"]
-    volume_ok = vol_release >= vol_media_geral * 1.2  # volume 20% acima da média (era 0.8)
-
+    # --- 4. VOLUME: release com força ---
+    volume_ok = c_ref["volume"] >= c_ref["vol_media"] * 1.2
     if not volume_ok:
         return None
 
-    # --- 3. ROMPIMENTO CONFIRMADO: candle FECHOU fora da banda ---
-    # Não basta tocar — tem que fechar fora. Dois candles alinhados confirmam.
+    # --- 5. ROMPIMENTO CONFIRMADO ---
     fechou_acima = c_ref["close"] > c_ref["bb_upper"]
     fechou_abaixo = c_ref["close"] < c_ref["bb_lower"]
 
-    # Candle anterior também deve estar na mesma direção (momentum)
     prev_alta = c_prev["close"] > c_prev["open"]
     prev_baixa = c_prev["close"] < c_prev["open"]
     cur_alta = c_ref["close"] > c_ref["open"]
     cur_baixa = c_ref["close"] < c_ref["open"]
 
-    # --- 4. FILTRO TENDÊNCIA BTC ---
-    # Se BTC em alta forte, evita SHORT (só permite com rompimento muito claro)
-    # Se BTC em baixa forte, evita LONG
+    # --- 6. DECISÃO: H4 + BTC + Rompimento todos alinhados ---
     if fechou_acima and cur_alta and prev_alta:
+        if h4_trend != "alta":
+            return None  # H4 deve confirmar
         if btc_tendencia == "baixa":
-            return None  # BTC caindo — não entra LONG
+            return None
         return "LONG"
 
     if fechou_abaixo and cur_baixa and prev_baixa:
+        if h4_trend != "baixa":
+            return None
         if btc_tendencia == "alta":
-            return None  # BTC subindo — não entra SHORT
+            return None
         return "SHORT"
 
     return None
@@ -1737,8 +1809,10 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
     saldo_total    = get_saldo_total(client)
     alav_ideal     = alavancagem_dinamica(saldo_total)
     _risco_base    = risco_base if risco_base is not None else RISCO_POR_TRADE
-    risco          = _risco_base  # 1% fixo para todas as entradas (padrão CNS)
-    margem         = round(banca * risco, 2)
+    # Aplica peso por tier (Guardião v2): Tier A 1.5x, Tier B 1.0x, Tier C 0.7x
+    peso = peso_tier(symbol)
+    risco = _risco_base * peso
+    margem = round(banca * risco, 2)
     # Garante notional mínimo de $5.50 (Binance exige $5)
     if margem * alav_ideal < 5.50:
         margem = round(5.50 / alav_ideal, 2)
@@ -2296,8 +2370,41 @@ def main() -> None:
                             )
                             alerta_dca_log[alerta_key] = time.time()
 
+                # --- ALVO MEDIANO BRUNO: fecha 50% quando ROI >= +200% (10% movimento × 20x) ---
+                # Bruno mostra que a mediana dos movimentos é 10% no ativo
+                # Com 20x isso = 200% ROI. Fecha metade e deixa o resto correr com trailing
+                elif roi >= 200 and symbol not in parcial_10pct and symbol not in parcial_500:
+                    log.info(f"  {symbol}: ALVO 10% atingido (ROI {roi:+.1f}%) -> fechando 50%")
+                    telegram(
+                        f"<b>Alvo Bruno atingido: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}% (+10% no preco)\n"
+                        f"Fechando 50% — mediana historica. Resto corre no trailing."
+                    )
+                    fechar_parcial(client, p, 0.50, f"Alvo mediano Bruno +200% (ROI {roi:.1f}%)")
+                    parcial_10pct.add(symbol)
+                    continue
+
+                # --- TIMEOUT 30 DIAS: dead trade ---
+                # Bruno descarta posições que não resolvem em 30 dias
+                # Se está aberta há 720h sem lucro parcial, fecha
+                if symbol in posicao_abertura:
+                    horas_aberta = (time.time() - posicao_abertura[symbol]) / 3600
+                    if horas_aberta >= 720 and symbol not in parcial_10pct and symbol not in parcial_500:
+                        log.warning(f"  {symbol}: TIMEOUT 30 dias ({horas_aberta:.0f}h) | ROI {roi:+.1f}% -> fechando")
+                        telegram(
+                            f"<b>Dead trade removido: {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}% | {horas_aberta:.0f}h aberta\n"
+                            f"Posicao nao resolveu em 30 dias — liberando margem para oportunidades."
+                        )
+                        registrar_aprendizado(client, symbol, direcao, "timeout_30d", roi,
+                            f"{horas_aberta:.0f}h sem resolver | Bruno-style cutoff")
+                        fechar_parcial(client, p, 1.0, f"Timeout 30d (ROI {roi:.1f}%)")
+                        posicao_abertura.pop(symbol, None)
+                        peak_roi.pop(symbol, None)
+                        continue
+
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ESCALONADO ---
-                elif roi > 0 and pico >= 5:
+                if roi > 0 and pico >= 5:
                     # Detecta cripto com alta variação 24h (pump) — trailing mais apertado
                     cripto_pump = False
                     try:
@@ -2358,10 +2465,10 @@ def main() -> None:
                             alerta_dca_log[alerta_key] = time.time()
                     log.info(f"  {symbol}: ROI {roi:+.1f}% | aguardando oportunidade de 3x")
 
-                # --- ESTRATÉGIA 3x (Guardião) ---
-                # Gatilho: ROI <= -200% + MA7 cruzando a favor no 5min
-                # Repetível: pode fazer 3x múltiplas vezes no mesmo ativo
-                elif roi <= -200.0:
+                # --- ESTRATÉGIA 3x v2 (Guardião CNS) ---
+                # Duas camadas de DCA: -120% (primeiro reforço) e -240% (segundo)
+                # Repetível múltiplas vezes no mesmo ativo
+                elif roi <= -120.0:
                     n_3x = dca_contagem.get(symbol, 0)
                     try:
                         ma_ok = ma_cruza_favor(client, symbol, direcao)
@@ -2437,7 +2544,24 @@ def main() -> None:
                 saldo_abertura_dia    = get_saldo_total(client)
                 resumo_diario_enviado = False
                 dia_atual             = agora_dt.day
+                global circuit_breaker_ate
+                circuit_breaker_ate   = 0.0  # reset do circuit breaker no novo dia
                 log.info(f"Novo dia. Saldo de abertura: ${saldo_abertura_dia:.2f}")
+
+            # --- CIRCUIT BREAKER DIÁRIO (Guardião v2) ---
+            # Se drawdown do dia > 2%, congela novas entradas por 24h
+            if saldo_abertura_dia > 0:
+                saldo_atual = get_saldo_total(client)
+                dd_dia = (saldo_atual - saldo_abertura_dia) / saldo_abertura_dia * 100
+                if dd_dia <= -2.0 and circuit_breaker_ate == 0.0:
+                    circuit_breaker_ate = time.time() + 86400  # 24h
+                    log.warning(f"CIRCUIT BREAKER ATIVADO | Drawdown dia: {dd_dia:.2f}% | Novas entradas congeladas 24h")
+                    telegram(
+                        f"<b>Circuit Breaker ativado</b>\n"
+                        f"Drawdown dia: {dd_dia:.2f}%\n"
+                        f"Novas entradas congeladas por 24h.\n"
+                        f"Posicoes abertas continuam sendo gerenciadas."
+                    )
 
             if agora_dt.hour == RESUMO_HORA and not resumo_diario_enviado:
                 enviar_resumo_diario(client, saldo_abertura_dia)
@@ -2455,7 +2579,10 @@ def main() -> None:
                 # Posições negativas ficam abertas aguardando 3x ou recuperação
                 # Se exceder o limite: simplesmente não abre novas (não fecha as existentes)
 
-                if len(abertas) >= max_pos_dinamico:
+                if circuit_breaker_ate > 0 and time.time() < circuit_breaker_ate:
+                    mins_restantes = int((circuit_breaker_ate - time.time()) / 60)
+                    log.info(f"Circuit Breaker ativo | Entradas congeladas | {mins_restantes} min restantes")
+                elif len(abertas) >= max_pos_dinamico:
                     log.info(f"Maximo dinamico atingido ({len(abertas)}/{max_pos_dinamico} posicoes | saldo ${saldo_atual_dia:.0f}).")
                 elif (racio_atual := get_racio_margem(client)) >= RACIO_MARGEM_MAX:
                     log.info(f"Racio de Margem {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}%. Sem novas entradas.")
