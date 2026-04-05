@@ -2852,25 +2852,35 @@ def main() -> None:
                         log.info(f"  {symbol}: ROI {roi:.1f}% | 3x em cooldown ({(1800-tempo_desde_ultimo)/60:.0f} min restantes)")
                     else:
                         try:
-                            # Filtro anti-convergencia: bloqueia 3x contra reversao iminente
+                            # Filtro anti-convergencia: avalia se o contexto MA99/MA25/MA7
+                            # indica reversao iminente contra o trade
                             # "Nada sobe para sempre, nada desce para sempre" — Bruno
                             bloqueado, motivo_bloqueio = detectar_padrao_reversao(client, symbol, direcao)
                             if bloqueado:
-                                log.info(f"  {symbol}: ROI {roi:.1f}% | 3x BLOQUEADO por padrao de reversao: {motivo_bloqueio}")
-                                # Notifica no Telegram uma vez a cada 2h
+                                log.info(f"  {symbol}: ROI {roi:.1f}% | Padrao de reversao ativo: {motivo_bloqueio}")
+                                # Notifica 1x a cada 2h
                                 bloqueio_key = f"bloq_{symbol}"
                                 if time.time() - alerta_dca_log.get(bloqueio_key, 0) >= 7200:
                                     telegram(
-                                        f"<b>3x bloqueado: {symbol}</b>\n"
+                                        f"<b>Padrao adverso: {symbol}</b>\n"
                                         f"{direcao} | ROI: {roi:+.1f}%\n"
-                                        f"Motivo: {motivo_bloqueio}\n"
-                                        f"Aguardando convergencia a favor."
+                                        f"{motivo_bloqueio}\n"
+                                        f"3x exige score mais alto (80+) ate convergencia."
                                     )
                                     alerta_dca_log[bloqueio_key] = time.time()
-                                continue
-
-                            score, detalhes = calcular_score_3x(client, symbol, direcao)
-                            preco_atual_3x = float(p.get("markPrice", 0))
+                                # NAO bloqueia totalmente — apenas aumenta a exigencia
+                                # Se o score for MUITO alto (>=80), significa que o cruzamento
+                                # aconteceu e o 3x ainda pode disparar (contra o padrao antigo)
+                                score, detalhes = calcular_score_3x(client, symbol, direcao)
+                                preco_atual_3x = float(p.get("markPrice", 0))
+                                log.info(f"  {symbol}: Score {score}/110 (gatilho elevado: 80)")
+                                if score < 80:
+                                    continue  # nao passa no gatilho elevado
+                                # Se chegou aqui, score >= 80 mesmo com padrao adverso
+                                # O bot confia no score — cruzamento muito claro
+                            else:
+                                score, detalhes = calcular_score_3x(client, symbol, direcao)
+                                preco_atual_3x = float(p.get("markPrice", 0))
                             log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/110")
 
                             if score >= 50:
