@@ -891,6 +891,7 @@ posicoes_cns:        set[str]        = set() # symbols que entraram pelo modo CN
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
 parcial_10pct:         set[str]        = set() # symbols que já fecharam 50% em +10% ROI
 pico_pos_3x:           dict[str, float] = {}  # pico de ROI apos o 3x (para trailing escalonado)
+topup_equilibrar:      dict[str, float] = {}  # symbol -> margem faltante para equilibrar a 3% da banca
 
 ESTADO_FILE = "C:/robo-trade/estado_bot.json"
 
@@ -3073,8 +3074,76 @@ def main() -> None:
                 enviar_resumo_diario(client, saldo_abertura_dia)
                 resumo_diario_enviado = True
 
-            # --- BUSCA DE NOVAS ENTRADAS (a cada 30 segundos) ---
+            # --- EQUILIBRAR MARGEM: topup inteligente em posicoes abaixo de 3% ---
+            # Fase 2: bot detecta posicoes com margem abaixo do alvo e faz topup
+            # quando MA está a favor (momento certo). Roda a cada 5 min.
             agora = time.time()
+            if agora - alerta_dca_log.get("equilibrar_scan", 0) >= 300:
+                alerta_dca_log["equilibrar_scan"] = agora
+                try:
+                    saldo_eq = get_saldo_total(client)
+                    alvo_margem = saldo_eq * RISCO_POR_TRADE
+                    racio_eq = get_racio_margem(client)
+
+                    if racio_eq < RACIO_BLOQUEIA_ENTRADAS:
+                        for p in abertas:
+                            sym_eq = p["symbol"]
+                            amt_eq = float(p["positionAmt"])
+                            if amt_eq == 0:
+                                continue
+                            margem_eq = float(p.get("positionInitialMargin", 0))
+                            falta_eq = alvo_margem - margem_eq
+
+                            if falta_eq < 0.50:  # ja esta equilibrada ou quase
+                                continue
+                            if sym_eq in dca_aplicado:  # 3x ativo, nao interferir
+                                continue
+
+                            dire_eq = "LONG" if amt_eq > 0 else "SHORT"
+
+                            # Verifica MA — so faz topup se momento for favoravel
+                            try:
+                                df_eq = get_candles(client, sym_eq, Client.KLINE_INTERVAL_5MINUTE, limit=15)
+                                df_eq["ma7"] = df_eq["close"].rolling(7).mean()
+                                df_eq["ma25"] = df_eq["close"].rolling(25).mean()
+                                c_eq = df_eq.iloc[-1]
+                                if dire_eq == "LONG":
+                                    ma_favor = c_eq["ma7"] > c_eq["ma25"]
+                                else:
+                                    ma_favor = c_eq["ma7"] < c_eq["ma25"]
+
+                                if not ma_favor:
+                                    continue  # MA contra — espera virar
+
+                                # Momento bom — executa topup
+                                preco_eq = float(client.futures_symbol_ticker(symbol=sym_eq)["price"])
+                                precisao_eq = get_precisao_quantidade(client, sym_eq)
+                                qty_eq = round((falta_eq * ALAVANCAGEM) / preco_eq, precisao_eq)
+                                side_eq = "BUY" if dire_eq == "LONG" else "SELL"
+
+                                if qty_eq > 0 and MODO == "real":
+                                    # Checa racio antes de cada topup
+                                    if get_racio_margem(client) >= RACIO_BLOQUEIA_ENTRADAS:
+                                        log.info(f"  Equilibrar: racio alto, parando topups")
+                                        break
+                                    client.futures_create_order(
+                                        symbol=sym_eq, side=side_eq,
+                                        type="MARKET", quantity=qty_eq, reduceOnly=False
+                                    )
+                                    topup_recente[sym_eq] = time.time()
+                                    log.info(f"  {sym_eq}: EQUILIBRADO +${falta_eq:.2f} margem (alvo {RISCO_POR_TRADE*100:.0f}% banca) | MA a favor")
+                                    telegram(
+                                        f"<b>Margem equilibrada: {sym_eq}</b>\n"
+                                        f"{dire_eq} | +${falta_eq:.2f} adicionado\n"
+                                        f"Margem: ${margem_eq:.2f} -> ${margem_eq + falta_eq:.2f} (alvo {RISCO_POR_TRADE*100:.0f}%)\n"
+                                        f"MA7 a favor — momento certo para reforcar."
+                                    )
+                            except Exception as e:
+                                log.debug(f"  Erro equilibrar {sym_eq}: {e}")
+                except Exception as e:
+                    log.debug(f"Erro equilibrar scan: {e}")
+
+            # --- BUSCA DE NOVAS ENTRADAS (a cada 30 segundos) ---
             if agora - ultimo_scan_entradas >= INTERVALO_ENTRADAS:
                 ultimo_scan_entradas = agora
 
