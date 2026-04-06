@@ -3085,7 +3085,7 @@ def main() -> None:
                     alvo_margem = saldo_eq * RISCO_POR_TRADE
                     racio_eq = get_racio_margem(client)
 
-                    if racio_eq < RACIO_BLOQUEIA_ENTRADAS:
+                    if racio_eq < RACIO_MARGEM_MAX:  # topup usa limite mais conservador (6%)
                         for p in abertas:
                             sym_eq = p["symbol"]
                             amt_eq = float(p["positionAmt"])
@@ -3123,8 +3123,8 @@ def main() -> None:
 
                                 if qty_eq > 0 and MODO == "real":
                                     # Checa racio antes de cada topup
-                                    if get_racio_margem(client) >= RACIO_BLOQUEIA_ENTRADAS:
-                                        log.info(f"  Equilibrar: racio alto, parando topups")
+                                    if get_racio_margem(client) >= RACIO_MARGEM_MAX:
+                                        log.info(f"  Equilibrar: racio {RACIO_MARGEM_MAX:.0f}% atingido, parando topups")
                                         break
                                     client.futures_create_order(
                                         symbol=sym_eq, side=side_eq,
