@@ -1589,8 +1589,10 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     adicional_ideal = (perda_atual / (leverage * alvo_recuperacao)) - (fator_desconto * margem_atual)
     adicional_ideal = max(adicional_ideal, margem_atual * 2.0)  # piso: 3x classico
 
-    CAP_DCA_PCT = 0.50  # maximo 50% da banca
-    adicional = round(min(adicional_ideal, banca * CAP_DCA_PCT), 2)
+    # Teto escalonado: quanto mais profundo o ROI, mais % da banca libera
+    # -120%: 40% | -240%: 54% | -500%: 80% | acima: 80% (teto)
+    cap_dca_pct = min(0.80, 0.30 + abs(roi) * 0.001)
+    adicional = round(min(adicional_ideal, banca * cap_dca_pct), 2)
 
     # Calcula recuperacao real com o adicional escolhido
     margem_total = margem_atual + adicional
