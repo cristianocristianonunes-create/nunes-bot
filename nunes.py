@@ -3128,10 +3128,9 @@ def main() -> None:
                     log.info(f"  {symbol}: ROI {roi:+.1f}% | MA: {status_ma}")
 
                     # --- VIGIA MULTI-TIMEFRAME: topup de reversao quando 5min confirma ---
-                    # Posicao entre -30% e -120%: se 1min ja cruzou E 5min confirma cruzamento
+                    # Posicao entre -30% e -50%: se 1min ja cruzou E 5min confirma cruzamento
                     # a favor, faz topup pra equilibrar margem no momento da reversao.
-                    # Nao eh 3x (nao esta em -120%), eh reforco no ponto de virada.
-                    if -120 < roi <= -30 and symbol not in dca_aplicado and status_ma == "candle 2 confirmando":
+                    if -50 < roi <= -30 and symbol not in dca_aplicado and status_ma == "candle 2 confirmando":
                         margem_pos_neg = float(p.get("positionInitialMargin", 0))
                         alvo_eq = banca * RISCO_POR_TRADE
                         falta_eq = alvo_eq - margem_pos_neg
@@ -3174,9 +3173,11 @@ def main() -> None:
                                 pass
 
                 # --- ESTRATÉGIA 3x v2.2 (Guardião CNS) — Sistema de Score ---
-                # Duas camadas de DCA: -120% (primeiro reforço) e -240% (segundo)
-                # Score >= 85 dispara 3x automático
-                elif roi <= -120.0:
+                # 3x na primeira oportunidade: a partir de -50% ROI com score >= 40
+                # Quanto mais cedo o 3x, menos margem gasta e mais rapido resolve.
+                # -50% com DCA dinamico = 12% banca e breakeven 0.5%
+                # -120% com DCA dinamico = 32% banca e breakeven 0.5% (mesmo resultado, mais caro)
+                elif roi <= -50.0:
                     n_3x = dca_contagem.get(symbol, 0)
                     # Cooldown de 10 min por symbol (reduzido: trailing pos-3x protege)
                     cooldown_key = f"3x_cooldown_{symbol}"
