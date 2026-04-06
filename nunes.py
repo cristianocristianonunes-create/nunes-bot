@@ -2637,20 +2637,24 @@ def main() -> None:
                 roi     = calcular_roi(p)
                 margem_atual = float(p.get("positionInitialMargin", 0))
 
-                # Detecta DCA manual: margem aumentou > 100% desde o último registro
-                # Ignora topups recentes (< 5 min) — topup é pequeno, DCA real triplica
+                # Detecta DCA manual: margem aumentou significativamente
+                # Criterio: margem anterior >= $2 E margem dobrou (real 3x, nao topup de equilibrio)
+                # Posicoes com margem < $2 podem pular de $0.04 -> $4.00 com topup simples
                 if symbol in margem_registrada:
                     margem_anterior = margem_registrada[symbol]
                     foi_topup = symbol in topup_recente and time.time() - topup_recente[symbol] < 300
-                    if margem_anterior > 0 and margem_atual > margem_anterior * 1.5 and not foi_topup:
+                    aumento_real = margem_atual - margem_anterior
+                    margem_base_ok = margem_anterior >= 2.0  # so detecta 3x se margem base era razoavel
+                    proporcao_ok = margem_atual > margem_anterior * 2.0  # dobrou no minimo
+                    if margem_base_ok and proporcao_ok and not foi_topup and aumento_real > 3.0:
                         if symbol not in dca_aplicado:
                             dca_aplicado.add(symbol)
                             dca_contagem[symbol] = dca_contagem.get(symbol, 0) + 1
                             if dca_ativo is None:
                                 dca_ativo = symbol
-                            salvar_estado()  # salva IMEDIATAMENTE para não perder no reinício
-                            log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f})")
-                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nBot vai aguardar saida inteligente (+3%/+10%).")
+                            salvar_estado()
+                            log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f} | +${aumento_real:.2f})")
+                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nBot vai monitorar saida com trailing escalonado.")
                 margem_registrada[symbol] = margem_atual
 
                 # Registra horário de abertura da posição
