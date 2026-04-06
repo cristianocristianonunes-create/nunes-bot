@@ -222,6 +222,54 @@ def get_updates() -> list:
         return []
 
 
+def transcrever_audio_telegram(file_id: str) -> str:
+    """Baixa audio do Telegram e transcreve usando Google Speech Recognition."""
+    try:
+        import requests, subprocess, tempfile, os
+        import speech_recognition as sr
+
+        # Pega URL do arquivo
+        r = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getFile?file_id={file_id}", timeout=10)
+        file_path = r.json().get("result", {}).get("file_path", "")
+        if not file_path:
+            return ""
+
+        # Baixa o arquivo OGG
+        audio_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_path}"
+        ogg_path = os.path.join(tempfile.gettempdir(), "jarvis_voice.ogg")
+        wav_path = os.path.join(tempfile.gettempdir(), "jarvis_voice.wav")
+
+        audio_data = requests.get(audio_url, timeout=15).content
+        with open(ogg_path, "wb") as f:
+            f.write(audio_data)
+
+        # Converte OGG -> WAV com ffmpeg
+        ffmpeg_path = "C:/robo-trade/ffmpeg.exe"
+        subprocess.run(
+            [ffmpeg_path, "-y", "-i", ogg_path, "-ar", "16000", "-ac", "1", wav_path],
+            capture_output=True, timeout=15
+        )
+
+        # Transcreve com Google (gratuito)
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(wav_path) as source:
+            audio = recognizer.record(source)
+        texto = recognizer.recognize_google(audio, language="pt-BR")
+
+        # Limpa arquivos temporarios
+        try:
+            os.remove(ogg_path)
+            os.remove(wav_path)
+        except Exception:
+            pass
+
+        log.info(f"  [VOZ] Transcricao: '{texto}'")
+        return texto.strip().lower()
+    except Exception as e:
+        log.warning(f"  [VOZ] Erro transcricao: {e}")
+        return ""
+
+
 def processar_comandos(client: Client) -> None:
     global bot_ativo, dca_ativo
     updates = get_updates()
@@ -229,6 +277,15 @@ def processar_comandos(client: Client) -> None:
         msg = u.get("message", {})
         texto = msg.get("text", "").strip().lower()
         chat = str(msg.get("chat", {}).get("id", ""))
+
+        # Transcreve mensagem de voz se presente
+        voice = msg.get("voice", {})
+        if voice and not texto:
+            file_id = voice.get("file_id", "")
+            if file_id:
+                texto = transcrever_audio_telegram(file_id)
+                if texto:
+                    telegram(f"<b>Voz recebida:</b> \"{texto}\"")
 
         if chat != str(TELEGRAM_CHAT_ID):
             continue
