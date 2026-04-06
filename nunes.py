@@ -522,6 +522,13 @@ def processar_comandos(client: Client) -> None:
             except Exception as e:
                 telegram(f"Erro ao buscar lucro: {e}")
 
+        elif texto.startswith("/relatorio"):
+            try:
+                relatorio = gerar_relatorio_mensal(client)
+                telegram(relatorio)
+            except Exception as e:
+                telegram(f"Erro ao gerar relatorio: {e}")
+
         elif texto.startswith("/topup"):
             partes = texto.split()
             executar = len(partes) > 1 and partes[1] == "sim"
@@ -630,6 +637,7 @@ def processar_comandos(client: Client) -> None:
                 "/fechartudo — fecha todas as posicoes abertas\n"
                 "/fecharlista S1 S2 S3 — fecha multiplas posicoes\n"
                 "/forcar SYMBOL LONG|SHORT — abre posicao manualmente\n"
+                "/relatorio — relatorio mensal de performance\n"
                 "/parar — encerra o robo\n"
                 "/iniciar — verifica se esta ativo"
             )
@@ -1949,6 +1957,149 @@ def enviar_resumo_diario(client: Client, saldo_abertura_dia: float) -> None:
         log.warning(f"Erro no resumo diario: {e}")
 
 
+PERFORMANCE_FILE = "C:/robo-trade/performance.json"
+
+
+def registrar_snapshot_diario(client: Client, saldo_abertura_dia: float) -> None:
+    """Grava snapshot diário para histórico de performance."""
+    try:
+        saldo_total = get_saldo_total(client)
+        abertas = posicoes_abertas(client)
+        pnl_aberto = sum(float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))) for p in abertas)
+        lucro_dia = saldo_total - saldo_abertura_dia
+        variacao = (lucro_dia / saldo_abertura_dia * 100) if saldo_abertura_dia > 0 else 0
+
+        # Conta operacoes realizadas no dia (income history)
+        from datetime import timedelta
+        inicio_dia_ms = int((datetime.now().replace(hour=0, minute=0, second=0).timestamp()) * 1000)
+        try:
+            incomes = client.futures_income_history(incomeType="REALIZED_PNL", startTime=inicio_dia_ms, limit=1000)
+            n_trades = len(incomes)
+            pnl_realizado = sum(float(i["income"]) for i in incomes)
+            trades_positivos = sum(1 for i in incomes if float(i["income"]) > 0)
+            trades_negativos = sum(1 for i in incomes if float(i["income"]) < 0)
+        except Exception:
+            n_trades = 0
+            pnl_realizado = 0
+            trades_positivos = 0
+            trades_negativos = 0
+
+        snapshot = {
+            "data": datetime.now().strftime("%Y-%m-%d"),
+            "saldo_inicio": round(saldo_abertura_dia, 2),
+            "saldo_fim": round(saldo_total, 2),
+            "lucro_dia": round(lucro_dia, 2),
+            "variacao_pct": round(variacao, 2),
+            "pnl_aberto": round(pnl_aberto, 2),
+            "pnl_realizado": round(pnl_realizado, 2),
+            "posicoes_abertas": len(abertas),
+            "trades_dia": n_trades,
+            "trades_positivos": trades_positivos,
+            "trades_negativos": trades_negativos,
+            "racio_margem": round(get_racio_margem(client), 2),
+        }
+
+        # Carrega historico existente
+        try:
+            with open(PERFORMANCE_FILE, "r", encoding="utf-8") as f:
+                historico = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            historico = {"snapshots": [], "depositos": []}
+
+        # Evita duplicar dia
+        datas_existentes = {s["data"] for s in historico["snapshots"]}
+        if snapshot["data"] not in datas_existentes:
+            historico["snapshots"].append(snapshot)
+            with open(PERFORMANCE_FILE, "w", encoding="utf-8") as f:
+                json.dump(historico, f, indent=2, ensure_ascii=False)
+            log.info(f"Snapshot diario gravado: {snapshot['data']} | lucro ${lucro_dia:+.2f}")
+    except Exception as e:
+        log.warning(f"Erro snapshot diario: {e}")
+
+
+def gerar_relatorio_mensal(client: Client) -> str:
+    """Gera relatório mensal de performance para apresentar a investidores."""
+    try:
+        with open(PERFORMANCE_FILE, "r", encoding="utf-8") as f:
+            historico = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return "Sem dados de performance ainda. Aguarde ao menos 1 mes."
+
+    snapshots = historico.get("snapshots", [])
+    if not snapshots:
+        return "Sem snapshots registrados."
+
+    # Filtra mes atual e anterior
+    agora = datetime.now()
+    mes_atual = agora.strftime("%Y-%m")
+    if agora.month == 1:
+        mes_anterior = f"{agora.year - 1}-12"
+    else:
+        mes_anterior = f"{agora.year}-{agora.month - 1:02d}"
+
+    snap_mes = [s for s in snapshots if s["data"].startswith(mes_atual)]
+    snap_ant = [s for s in snapshots if s["data"].startswith(mes_anterior)]
+
+    def resumo_mes(snaps, label):
+        if not snaps:
+            return f"\n<b>{label}: sem dados</b>\n"
+        lucro_total = sum(s["lucro_dia"] for s in snaps)
+        pnl_real = sum(s["pnl_realizado"] for s in snaps)
+        trades_total = sum(s["trades_dia"] for s in snaps)
+        trades_pos = sum(s["trades_positivos"] for s in snaps)
+        trades_neg = sum(s["trades_negativos"] for s in snaps)
+        dias_positivos = sum(1 for s in snaps if s["lucro_dia"] > 0)
+        dias_negativos = sum(1 for s in snaps if s["lucro_dia"] < 0)
+        saldo_ini = snaps[0]["saldo_inicio"]
+        saldo_fim = snaps[-1]["saldo_fim"]
+        rendimento = ((saldo_fim - saldo_ini) / saldo_ini * 100) if saldo_ini > 0 else 0
+        melhor_dia = max(snaps, key=lambda s: s["lucro_dia"])
+        pior_dia = min(snaps, key=lambda s: s["lucro_dia"])
+        win_rate = (trades_pos / trades_total * 100) if trades_total > 0 else 0
+
+        return (
+            f"\n<b>{label}</b>\n"
+            f"Periodo: {snaps[0]['data']} a {snaps[-1]['data']} ({len(snaps)} dias)\n"
+            f"Saldo: ${saldo_ini:.2f} -> ${saldo_fim:.2f}\n"
+            f"Rendimento: {rendimento:+.2f}%\n"
+            f"Lucro/Perda: ${lucro_total:+.2f}\n"
+            f"PnL realizado: ${pnl_real:+.2f}\n\n"
+            f"Dias positivos: {dias_positivos} | Negativos: {dias_negativos}\n"
+            f"Melhor dia: {melhor_dia['data']} (${melhor_dia['lucro_dia']:+.2f})\n"
+            f"Pior dia: {pior_dia['data']} (${pior_dia['lucro_dia']:+.2f})\n\n"
+            f"Trades: {trades_total} | Win rate: {win_rate:.0f}%\n"
+            f"Positivos: {trades_pos} | Negativos: {trades_neg}\n"
+        )
+
+    usd_brl = get_usd_brl(client)
+    saldo_atual = get_saldo_total(client)
+    brl_str = f" (R${saldo_atual * usd_brl:.2f})" if usd_brl > 0 else ""
+
+    msg = (
+        f"<b>RELATORIO DE PERFORMANCE</b>\n"
+        f"<b>Guardiao CNS v2.1</b>\n"
+        f"{'=' * 30}\n"
+        f"Saldo atual: ${saldo_atual:.2f}{brl_str}\n"
+        f"Total de dias registrados: {len(snapshots)}\n"
+    )
+    msg += resumo_mes(snap_mes, f"Mes atual ({mes_atual})")
+    msg += resumo_mes(snap_ant, f"Mes anterior ({mes_anterior})")
+
+    # Historico geral
+    if len(snapshots) >= 7:
+        lucro_geral = sum(s["lucro_dia"] for s in snapshots)
+        saldo_ini_geral = snapshots[0]["saldo_inicio"]
+        rend_geral = ((saldo_atual - saldo_ini_geral) / saldo_ini_geral * 100) if saldo_ini_geral > 0 else 0
+        msg += (
+            f"\n<b>Historico geral ({len(snapshots)} dias)</b>\n"
+            f"Inicio: ${saldo_ini_geral:.2f} | Atual: ${saldo_atual:.2f}\n"
+            f"Rendimento total: {rend_geral:+.2f}%\n"
+            f"Lucro acumulado: ${lucro_geral:+.2f}\n"
+        )
+
+    return msg
+
+
 def enviar_resumo_hora(client: Client, saldo_abertura: float) -> None:
     """Envia resumo horário no Telegram com saldo, PnL e posições."""
     try:
@@ -3072,7 +3223,16 @@ def main() -> None:
 
             if agora_dt.hour == RESUMO_HORA and not resumo_diario_enviado:
                 enviar_resumo_diario(client, saldo_abertura_dia)
+                registrar_snapshot_diario(client, saldo_abertura_dia)
                 resumo_diario_enviado = True
+
+                # Dia 1 do mes: envia relatorio mensal automatico
+                if agora_dt.day == 1:
+                    try:
+                        relatorio = gerar_relatorio_mensal(client)
+                        telegram(relatorio)
+                    except Exception as e:
+                        log.warning(f"Erro relatorio mensal: {e}")
 
             # --- EQUILIBRAR MARGEM: topup inteligente em posicoes abaixo de 3% ---
             # Fase 2: bot detecta posicoes com margem abaixo do alvo e faz topup
