@@ -3348,19 +3348,30 @@ def main() -> None:
                     log.debug(f"Erro equilibrar scan: {e}")
 
             # --- BUSCA DE NOVAS ENTRADAS (a cada 30 segundos) ---
+            # PRIORIDADE: equilibrar posicoes existentes ANTES de abrir novas
+            # Posicao forte > posicao nova — margem desequilibrada gera 3x mais caro
             if agora - ultimo_scan_entradas >= INTERVALO_ENTRADAS:
                 ultimo_scan_entradas = agora
 
                 saldo_atual_dia = get_saldo_total(client)
                 max_pos_dinamico, risco_dinamico = limites_por_saldo(saldo_atual_dia)
+                racio_atual = get_racio_margem(client)
 
-                # Limpeza automática REMOVIDA — contradiz estratégia Guardião
-                # Posições negativas ficam abertas aguardando 3x ou recuperação
-                # Se exceder o limite: simplesmente não abre novas (não fecha as existentes)
+                # Conta quantas posicoes estao desequilibradas
+                alvo_eq = saldo_atual_dia * RISCO_POR_TRADE
+                desequilibradas = [p for p in abertas
+                    if float(p["positionAmt"]) != 0
+                    and float(p.get("positionInitialMargin", 0)) < alvo_eq * 0.5  # menos de metade do alvo
+                    and p["symbol"] not in dca_aplicado]
+                if desequilibradas and racio_atual < RACIO_MARGEM_MAX:
+                    n_deseq = len(desequilibradas)
+                    log.info(f"Prioridade: {n_deseq} posicoes desequilibradas — equilibrar antes de abrir novas")
+                    # O bloco de equilibrar ja roda acima a cada 5 min
+                    # Aqui so logamos e pulamos a busca de novas entradas
 
-                if len(abertas) >= max_pos_dinamico:
+                elif len(abertas) >= max_pos_dinamico:
                     log.info(f"Maximo dinamico atingido ({len(abertas)}/{max_pos_dinamico} posicoes | saldo ${saldo_atual_dia:.0f}).")
-                elif (racio_atual := get_racio_margem(client)) >= RACIO_MARGEM_MAX:
+                elif racio_atual >= RACIO_MARGEM_MAX:
                     log.info(f"Racio de Margem {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}%. Sem novas entradas.")
                 else:
                     sessao = sessao_atual()
