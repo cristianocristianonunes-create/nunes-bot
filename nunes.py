@@ -2801,24 +2801,27 @@ def main() -> None:
                         fechar_parcial(client, p, 0.90, f"Reversao tecnica pos-3x #{n_3x} (ROI {roi:.1f}%)")
                         fechou_pos_3x = True
 
-                    # --- STOP LOSS DINAMICO POS-3x: limita perda a max 2% da banca ---
-                    # Quanto maior o DCA, mais apertado o stop (proporcional).
-                    # Ex: margem $80, banca $150 -> stop em -3.75% ROI (perda max $3)
+                    # --- STOP LOSS DINAMICO POS-3x: limita piora apos o 3x ---
+                    # O stop eh RELATIVO ao ROI de entrada do 3x (roi_no_dca), nao absoluto.
+                    # Se o 3x entrou em -10% ROI, o stop em -13.2% = piorou 3.2pp desde o 3x.
+                    # Isso da tempo pro breakeven (0.5%) acontecer sem cortar prematuramente.
                     elif roi < 0:
                         margem_pos = float(p.get("positionInitialMargin", 0))
                         max_perda = banca * 0.02  # maximo 2% da banca
-                        stop_dinamico = -(max_perda / margem_pos * 100) if margem_pos > 0 else -3.0
-                        stop_dinamico = max(stop_dinamico, -10.0)  # nunca mais permissivo que -10%
-                        stop_dinamico = min(stop_dinamico, -2.0)   # nunca mais apertado que -2%
+                        stop_delta = (max_perda / margem_pos * 100) if margem_pos > 0 else 3.0
+                        stop_delta = max(stop_delta, 2.0)   # minimo 2pp de piora
+                        stop_delta = min(stop_delta, 10.0)   # maximo 10pp de piora
+                        stop_dinamico = roi_entrada_dca - stop_delta  # relativo ao ROI de entrada
 
                         if roi <= stop_dinamico:
                             perda_est = abs(roi / 100) * margem_pos
-                            log.warning(f"  {symbol}: [POS-3x #{n_3x}] STOP {stop_dinamico:.1f}% atingido | ROI {roi:+.1f}% | ~${perda_est:.2f} -> fechando 90%")
+                            piora = roi_entrada_dca - roi
+                            log.warning(f"  {symbol}: [POS-3x #{n_3x}] STOP atingido | ROI {roi:+.1f}% | piorou {piora:.1f}pp desde 3x ({roi_entrada_dca:+.1f}%) -> fechando 90%")
                             telegram(
                                 f"<b>Stop pos-3x: {symbol}</b>\n"
                                 f"{direcao} | ROI: {roi:+.1f}% | 3x #{n_3x}\n"
-                                f"Stop dinamico em {stop_dinamico:.1f}% (max 2% da banca).\n"
-                                f"Perda: ~${perda_est:.2f}. Cortando rapido."
+                                f"Piorou {piora:.1f}pp desde o 3x (era {roi_entrada_dca:+.1f}%).\n"
+                                f"Perda: ~${perda_est:.2f}. Cortando — 3x nao funcionou."
                             )
                             registrar_aprendizado(client, symbol, direcao, "3x_stop_loss", roi,
                                 f"3x #{n_3x} | Stop {stop_dinamico:.1f}% | Perda ~${perda_est:.2f} | Entrada DCA: {roi_entrada_dca:+.0f}%")
