@@ -2339,12 +2339,25 @@ def main() -> None:
                             # Nada e cortado no prejuizo — negativas continuam rodando
                             # IMPORTANTE: posicoes em 3x tem logica propria de saida (90/10)
                             # — nao sao fechadas pela meta do ciclo
+                            # Protecao anti-BULLAUSDT: se a margem mudou muito recente
+                            # (DCA manual ainda nao detectado), nao fecha
+                            def _possivel_3x_manual(pos):
+                                sym = pos["symbol"]
+                                if sym in dca_aplicado:
+                                    return True
+                                m_atual = float(pos.get("positionInitialMargin", 0))
+                                m_reg = margem_registrada.get(sym, 0)
+                                if m_reg > 0 and m_atual > m_reg * 1.5:
+                                    log.info(f"  {sym}: margem mudou ${m_reg:.2f}->${m_atual:.2f} — possivel 3x manual, meta nao fecha")
+                                    return True
+                                return False
+
                             pos_fechar = [p for p in pos_ciclo_atual
                                           if calcular_roi(p) >= ROI_META
-                                          and p["symbol"] not in dca_aplicado]
+                                          and not _possivel_3x_manual(p)]
                             pos_herdar = [p for p in pos_ciclo_atual
                                           if calcular_roi(p) < ROI_META
-                                          or p["symbol"] in dca_aplicado]
+                                          or _possivel_3x_manual(p)]
 
                             telegram(
                                 f"<b>Meta do Ciclo {ciclo_num} confirmada!</b>\n"
@@ -2630,6 +2643,22 @@ def main() -> None:
                         fechar_parcial(client, p, 0.90, f"Reversao tecnica pos-3x #{n_3x} (ROI {roi:.1f}%)")
                         fechou_pos_3x = True
 
+                    # --- STOP LOSS POS-3x: -10% ROI -> corta antes de virar catastrofe ---
+                    # 3x amplifica exposicao. Se nao funcionou, sai cedo.
+                    # Perda de -10% sobre margem 3x eh MUITO menor que ficar ate -120%
+                    elif roi <= -10.0:
+                        log.warning(f"  {symbol}: [POS-3x #{n_3x}] STOP -10% atingido | ROI {roi:+.1f}% -> fechando 90%")
+                        telegram(
+                            f"<b>Stop pos-3x: {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}% | 3x #{n_3x}\n"
+                            f"Limite de -10% atingido. Cortando para preservar banca.\n"
+                            f"Perda controlada. Melhor que ficar pendurado."
+                        )
+                        registrar_aprendizado(client, symbol, direcao, "3x_stop_loss", roi,
+                            f"3x #{n_3x} | Stop -10% | Entrada DCA: {roi_entrada_dca:+.0f}%")
+                        fechar_parcial(client, p, 0.90, f"Stop pos-3x #{n_3x} -10% (ROI {roi:.1f}%)")
+                        fechou_pos_3x = True
+
                     # --- MODO AGRESSIVO/AUDACIOSO: saida rapida em qualquer lucro pequeno ---
                     # 3x em ROI muito profundo -> qualquer virada positiva ja compensa
                     elif roi_entrada_dca <= -1000 and roi >= 1.0:
@@ -2898,73 +2927,46 @@ def main() -> None:
                 # Score >= 85 dispara 3x automático
                 elif roi <= -120.0:
                     n_3x = dca_contagem.get(symbol, 0)
-                    # Cooldown de 30 min por symbol para evitar 3x em sequência
+                    # Cooldown de 10 min por symbol (reduzido: trailing pos-3x protege)
                     cooldown_key = f"3x_cooldown_{symbol}"
                     tempo_desde_ultimo = time.time() - alerta_dca_log.get(cooldown_key, 0)
-                    if tempo_desde_ultimo < 1800:
-                        log.info(f"  {symbol}: ROI {roi:.1f}% | 3x em cooldown ({(1800-tempo_desde_ultimo)/60:.0f} min restantes)")
+                    if tempo_desde_ultimo < 600:
+                        log.info(f"  {symbol}: ROI {roi:.1f}% | 3x em cooldown ({(600-tempo_desde_ultimo)/60:.0f} min restantes)")
                     else:
                         try:
-                            # Filtro anti-convergencia: avalia se o contexto MA99/MA25/MA7
-                            # indica reversao iminente contra o trade
-                            # "Nada sobe para sempre, nada desce para sempre" — Bruno
+                            # Filtro anti-convergencia: avisa quando MA99/MA25/MA7
+                            # indicam reversao, mas NAO bloqueia — trailing pos-3x protege
                             bloqueado, motivo_bloqueio = detectar_padrao_reversao(client, symbol, direcao)
                             if bloqueado:
-                                log.info(f"  {symbol}: ROI {roi:.1f}% | Padrao de reversao ativo: {motivo_bloqueio}")
-                                # Notifica 1x a cada 2h
-                                bloqueio_key = f"bloq_{symbol}"
-                                if time.time() - alerta_dca_log.get(bloqueio_key, 0) >= 7200:
-                                    telegram(
-                                        f"<b>Padrao adverso: {symbol}</b>\n"
-                                        f"{direcao} | ROI: {roi:+.1f}%\n"
-                                        f"{motivo_bloqueio}\n"
-                                        f"3x exige score mais alto (80+) ate convergencia."
-                                    )
-                                    alerta_dca_log[bloqueio_key] = time.time()
-                                # NAO bloqueia totalmente — apenas aumenta a exigencia
-                                # Se o score for MUITO alto (>=80), significa que o cruzamento
-                                # aconteceu e o 3x ainda pode disparar (contra o padrao antigo)
-                                score, detalhes = calcular_score_3x(client, symbol, direcao)
-                                preco_atual_3x = float(p.get("markPrice", 0))
-                                log.info(f"  {symbol}: Score {score}/110 (gatilho elevado: 80)")
-                                if score < 80:
-                                    continue  # nao passa no gatilho elevado
-                                # Se chegou aqui, score >= 80 mesmo com padrao adverso
-                                # O bot confia no score — cruzamento muito claro
-                            else:
-                                score, detalhes = calcular_score_3x(client, symbol, direcao)
-                                preco_atual_3x = float(p.get("markPrice", 0))
+                                log.info(f"  {symbol}: ROI {roi:.1f}% | Padrao adverso (aviso): {motivo_bloqueio}")
+
+                            score, detalhes = calcular_score_3x(client, symbol, direcao)
+                            preco_atual_3x = float(p.get("markPrice", 0))
                             log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/110")
 
-                            if score >= 50:
-                                # Valida continuidade antes de disparar (anti-pico)
-                                pode, motivo = validar_continuidade_score(symbol, score, preco_atual_3x, direcao)
-                                log.info(f"  {symbol}: score {score}/110 | continuidade: {motivo}")
-
-                                if pode and not dca_bloqueado_por_racio:
-                                    log.info(f"  {symbol}: SCORE {score}/110 + continuidade OK -> 3x #{n_3x + 1} DISPARADO")
-                                    aplicar_dca(client, p, banca)
-                                    dca_aplicado.add(symbol)
-                                    dca_contagem[symbol] = n_3x + 1
-                                    dca_ativo = symbol
-                                    alerta_dca_log[cooldown_key] = time.time()
-                                    grafico = analise_grafico_3x(client, symbol, direcao)
-                                    criterios_txt = "\n".join([f"  • {k}: {v}" for k, v in detalhes.items() if k != "score_total"])
-                                    telegram(
-                                        f"<b>OBA! 3x AUTOMATICO: {symbol} (#{n_3x + 1})</b>\n"
-                                        f"{direcao} | ROI: {roi:+.1f}%\n"
-                                        f"<b>Score: {score}/110</b> (continuidade confirmada)\n\n"
-                                        f"<b>Criterios atendidos:</b>\n{criterios_txt}\n"
-                                        f"{grafico}"
-                                    )
-                                    registrar_aprendizado(client, symbol, direcao, "3x_auto", roi,
-                                        f"Score {score}/110 | #{n_3x + 1} | {motivo}")
-                                elif dca_bloqueado_por_racio:
-                                    log.warning(f"  {symbol}: 3x score {score} mas Racio acima de {RACIO_BLOQUEIA_DCA:.0f}%")
-                            elif score >= 40:
-                                log.info(f"  {symbol}: Score {score}/110 — medio, aguardando")
-                            else:
+                            if score >= 40 and not dca_bloqueado_por_racio:
+                                log.info(f"  {symbol}: SCORE {score}/110 -> 3x #{n_3x + 1} DISPARADO")
+                                aplicar_dca(client, p, banca)
+                                dca_aplicado.add(symbol)
+                                dca_contagem[symbol] = n_3x + 1
+                                dca_ativo = symbol
+                                alerta_dca_log[cooldown_key] = time.time()
+                                grafico = analise_grafico_3x(client, symbol, direcao)
+                                criterios_txt = "\n".join([f"  • {k}: {v}" for k, v in detalhes.items() if k != "score_total"])
+                                aviso_adverso = f"\nAviso: padrao adverso ({motivo_bloqueio})" if bloqueado else ""
+                                telegram(
+                                    f"<b>Score: {score}/110</b>\n"
+                                    f"<b>Criterios:</b>\n{criterios_txt}{aviso_adverso}\n"
+                                    f"{grafico}"
+                                )
+                                registrar_aprendizado(client, symbol, direcao, "3x_auto", roi,
+                                    f"Score {score}/110 | #{n_3x + 1}")
+                            elif dca_bloqueado_por_racio:
+                                log.warning(f"  {symbol}: 3x score {score} mas Racio acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                            elif score >= 30:
                                 log.info(f"  {symbol}: Score {score}/110 — fraco, aguardando")
+                            else:
+                                log.info(f"  {symbol}: Score {score}/110 — insuficiente")
                         except Exception as e:
                             log.warning(f"  Erro 3x score {symbol}: {e}")
                 # --- MONITORANDO (positivo mas abaixo do limiar de reversão) ---
