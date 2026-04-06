@@ -2697,22 +2697,58 @@ def main() -> None:
 
                     # --- CAMADA 1: TRAILING ESCALONADO POR FAIXA DE PICO (modo NORMAL) ---
                     # So arma quando pico >= +1% (evita tremor lateral disparar)
+                    # MODO VOLUME: se DCA foi grande (>=50% banca) e volume 1min esta forte,
+                    # trailing afrouxa pra surfar o pump. Quando volume esfria, aperta.
                     elif pico_3x >= 1.0:
-                        if pico_3x < 3.0:
-                            stop = 0.0
-                            faixa = "piso zero"
-                        elif pico_3x < 10.0:
-                            stop = pico_3x * 0.5
-                            faixa = f"metade do pico ({stop:.1f}%)"
-                        elif pico_3x < 20.0:
-                            stop = pico_3x - 6.0
-                            faixa = f"pico -6pp ({stop:.1f}%)"
-                        elif pico_3x < 30.0:
-                            stop = pico_3x - 8.0
-                            faixa = f"pico -8pp ({stop:.1f}%)"
+                        # Detecta se DCA foi grande e volume esta forte
+                        volume_mode = False
+                        vol_forte = False
+                        margem_pos = float(p.get("positionInitialMargin", 0))
+                        if margem_pos >= banca * 0.40 and roi > 0:
+                            volume_mode = True
+                            try:
+                                df1_vol = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=10)
+                                vol_atual = df1_vol["volume"].iloc[-1]
+                                vol_media = df1_vol["volume"].iloc[-5:].mean()
+                                vol_forte = vol_atual >= vol_media * 0.8  # volume sustentado
+                            except Exception:
+                                vol_forte = False
+
+                        if volume_mode and vol_forte and pico_3x >= 3.0:
+                            # MODO VOLUME: trailing mais frouxo — deixa o lucro correr
+                            # Só aperta quando volume cair
+                            if pico_3x < 10.0:
+                                stop = pico_3x * 0.3  # 30% do pico (vs 50% normal)
+                                faixa = f"VOLUME ALTO: 30% do pico ({stop:.1f}%)"
+                            elif pico_3x < 20.0:
+                                stop = pico_3x - 8.0   # -8pp (vs -6pp normal)
+                                faixa = f"VOLUME ALTO: pico -8pp ({stop:.1f}%)"
+                            elif pico_3x < 30.0:
+                                stop = pico_3x - 12.0  # -12pp (vs -8pp normal)
+                                faixa = f"VOLUME ALTO: pico -12pp ({stop:.1f}%)"
+                            else:
+                                stop = pico_3x - 15.0  # -15pp (vs -10pp normal)
+                                faixa = f"VOLUME ALTO: pico -15pp ({stop:.1f}%)"
                         else:
-                            stop = pico_3x - 10.0
-                            faixa = f"pico -10pp ({stop:.1f}%)"
+                            # Trailing normal (ou volume caiu — aperta)
+                            if pico_3x < 3.0:
+                                stop = 0.0
+                                faixa = "piso zero"
+                            elif pico_3x < 10.0:
+                                stop = pico_3x * 0.5
+                                faixa = f"metade do pico ({stop:.1f}%)"
+                            elif pico_3x < 20.0:
+                                stop = pico_3x - 6.0
+                                faixa = f"pico -6pp ({stop:.1f}%)"
+                            elif pico_3x < 30.0:
+                                stop = pico_3x - 8.0
+                                faixa = f"pico -8pp ({stop:.1f}%)"
+                            else:
+                                stop = pico_3x - 10.0
+                                faixa = f"pico -10pp ({stop:.1f}%)"
+
+                            if volume_mode and not vol_forte and pico_3x >= 5.0:
+                                faixa += " (volume esfriou — trailing apertado)"
 
                         if roi <= stop:
                             log.info(f"  {symbol}: [POS-3x #{n_3x}] TRAILING acionado! ROI {roi:+.1f}% <= stop {stop:+.1f}% | pico {pico_3x:+.1f}% | {faixa} -> fechando 90%")
