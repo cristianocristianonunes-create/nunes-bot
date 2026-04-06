@@ -3149,7 +3149,33 @@ def main() -> None:
                             preco_atual_3x = float(p.get("markPrice", 0))
                             log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/110")
 
-                            if score >= 40 and not dca_bloqueado_por_racio:
+                            # Licao KOMAUSDT: verificar se posicao pode recuperar sozinha
+                            # Se timeframes maiores (15min E 1h) estao a favor, dar mais tempo
+                            # antes de gastar margem com 3x — paciencia > agressividade
+                            recuperacao_natural = False
+                            try:
+                                df15 = get_candles(client, symbol, Client.KLINE_INTERVAL_15MINUTE, limit=30)
+                                df15["ma7"] = df15["close"].rolling(7).mean()
+                                df15["ma25"] = df15["close"].rolling(25).mean()
+                                df1h = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
+                                df1h["ma7"] = df1h["close"].rolling(7).mean()
+                                df1h["ma25"] = df1h["close"].rolling(25).mean()
+                                c15 = df15.iloc[-1]
+                                c1h = df1h.iloc[-1]
+                                if direcao == "LONG":
+                                    tf15_favor = c15["ma7"] > c15["ma25"]
+                                    tf1h_favor = c1h["ma7"] > c1h["ma25"]
+                                else:
+                                    tf15_favor = c15["ma7"] < c15["ma25"]
+                                    tf1h_favor = c1h["ma7"] < c1h["ma25"]
+                                # Se AMBOS maiores estao a favor, posicao tende a recuperar sozinha
+                                if tf15_favor and tf1h_favor:
+                                    recuperacao_natural = True
+                                    log.info(f"  {symbol}: 15min E 1h a favor — possivel recuperacao natural, aguardando")
+                            except Exception:
+                                pass  # se falhar, segue com o 3x normalmente
+
+                            if score >= 40 and not dca_bloqueado_por_racio and not recuperacao_natural:
                                 log.info(f"  {symbol}: SCORE {score}/110 -> 3x #{n_3x + 1} DISPARADO")
                                 aplicar_dca(client, p, banca)
                                 dca_aplicado.add(symbol)
@@ -3166,6 +3192,17 @@ def main() -> None:
                                 )
                                 registrar_aprendizado(client, symbol, direcao, "3x_auto", roi,
                                     f"Score {score}/110 | #{n_3x + 1}")
+                            elif recuperacao_natural and score >= 40:
+                                # 3x seria valido mas timeframes maiores indicam recuperacao natural
+                                alerta_key = f"recup_natural_{symbol}"
+                                if time.time() - alerta_dca_log.get(alerta_key, 0) >= 900:
+                                    telegram(
+                                        f"<b>Aguardando recuperacao natural: {symbol}</b>\n"
+                                        f"{direcao} | ROI: {roi:+.1f}% | Score: {score}/110\n"
+                                        f"15min e 1h a favor — posicao tende a voltar sozinha.\n"
+                                        f"3x pronto se precisar. Paciencia > agressividade."
+                                    )
+                                    alerta_dca_log[alerta_key] = time.time()
                             elif dca_bloqueado_por_racio:
                                 log.warning(f"  {symbol}: 3x score {score} mas Racio acima de {RACIO_BLOQUEIA_DCA:.0f}%")
                             elif score >= 30:
