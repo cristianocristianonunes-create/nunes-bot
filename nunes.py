@@ -76,9 +76,9 @@ MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
 MODO               = os.getenv("MODO", "simulacao")
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
 RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.01"))  # 1% padrão CNS
-RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "6.0"))  # % máximo do Rácio de Margem da Binance
+RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "8.0"))  # % máximo do Rácio de Margem — seguro com trailing+stop pos-3x
 
-MAX_POSICOES          = 10   # padrão CNS: 10 posições fixas
+MAX_POSICOES          = 15   # mais rotacao, mais oportunidades de lucro
 
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
