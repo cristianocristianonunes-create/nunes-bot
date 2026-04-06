@@ -3127,6 +3127,52 @@ def main() -> None:
                             break  # só o mais profundo
                     log.info(f"  {symbol}: ROI {roi:+.1f}% | MA: {status_ma}")
 
+                    # --- VIGIA MULTI-TIMEFRAME: topup de reversao quando 5min confirma ---
+                    # Posicao entre -30% e -120%: se 1min ja cruzou E 5min confirma cruzamento
+                    # a favor, faz topup pra equilibrar margem no momento da reversao.
+                    # Nao eh 3x (nao esta em -120%), eh reforco no ponto de virada.
+                    if -120 < roi <= -30 and symbol not in dca_aplicado and status_ma == "candle 2 confirmando":
+                        margem_pos_neg = float(p.get("positionInitialMargin", 0))
+                        alvo_eq = banca * RISCO_POR_TRADE
+                        falta_eq = alvo_eq - margem_pos_neg
+                        if falta_eq > 0.50:
+                            # Confirma no 1min tambem
+                            try:
+                                df1_rev = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=15)
+                                df1_rev["ma7"] = df1_rev["close"].rolling(7).mean()
+                                df1_rev["ma25"] = df1_rev["close"].rolling(25).mean()
+                                c1_rev = df1_rev.iloc[-1]
+                                if direcao == "LONG":
+                                    min_favor = c1_rev["ma7"] > c1_rev["ma25"]
+                                else:
+                                    min_favor = c1_rev["ma7"] < c1_rev["ma25"]
+
+                                if min_favor:
+                                    topup_key = f"topup_rev_{symbol}"
+                                    if time.time() - alerta_dca_log.get(topup_key, 0) >= 1800:
+                                        # Checa racio antes
+                                        if get_racio_margem(client) < RACIO_MARGEM_MAX:
+                                            preco_tp = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+                                            step_tp = get_step_size(client, symbol)
+                                            qty_tp = arredondar_quantidade((falta_eq * ALAVANCAGEM) / preco_tp, step_tp)
+                                            side_tp = "BUY" if direcao == "LONG" else "SELL"
+                                            if qty_tp > 0 and MODO == "real":
+                                                client.futures_create_order(
+                                                    symbol=symbol, side=side_tp,
+                                                    type="MARKET", quantity=qty_tp
+                                                )
+                                                topup_recente[symbol] = time.time()
+                                                alerta_dca_log[topup_key] = time.time()
+                                                log.info(f"  {symbol}: TOPUP REVERSAO +${falta_eq:.2f} | 1min+5min confirmam | ROI {roi:+.1f}%")
+                                                telegram(
+                                                    f"<b>Topup de reversao: {symbol}</b>\n"
+                                                    f"{direcao} | ROI: {roi:+.1f}%\n"
+                                                    f"1min e 5min confirmaram cruzamento a favor.\n"
+                                                    f"+${falta_eq:.2f} de margem adicionado no ponto de virada."
+                                                )
+                            except Exception:
+                                pass
+
                 # --- ESTRATÉGIA 3x v2.2 (Guardião CNS) — Sistema de Score ---
                 # Duas camadas de DCA: -120% (primeiro reforço) e -240% (segundo)
                 # Score >= 85 dispara 3x automático
