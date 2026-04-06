@@ -3263,7 +3263,7 @@ def main() -> None:
 
                             # Verifica MA — so faz topup se momento for favoravel
                             try:
-                                df_eq = get_candles(client, sym_eq, Client.KLINE_INTERVAL_5MINUTE, limit=15)
+                                df_eq = get_candles(client, sym_eq, Client.KLINE_INTERVAL_5MINUTE, limit=30)
                                 df_eq["ma7"] = df_eq["close"].rolling(7).mean()
                                 df_eq["ma25"] = df_eq["close"].rolling(25).mean()
                                 c_eq = df_eq.iloc[-1]
