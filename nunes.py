@@ -1578,26 +1578,26 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     margem_atual = round((entry * amt_abs) / leverage, 2)
     roi          = calcular_roi(posicao)
 
-    # 3x escalado pela profundidade (padrão CNS)
-    # Quanto mais negativo, mais agressivo para sair rápido
-    if roi <= -1000:
-        # Audacioso: usa 80% da margem disponível
-        adicional = round(banca * 0.80, 2)
-        modo_3x = "AUDACIOSO (80% banca)"
-    elif roi <= -500:
-        # Agressivo: usa 40% da margem disponível
-        adicional = round(banca * 0.40, 2)
-        modo_3x = "AGRESSIVO (40% banca)"
-    else:
-        # Normal: triplica a margem atual
-        adicional = round(margem_atual * 2.0, 2)
-        modo_3x = "NORMAL (3x margem)"
-        # Limita a 40% do saldo
-        if adicional > banca * 0.40:
-            adicional = round(banca * 0.40, 2)
-            modo_3x = "NORMAL (max 40% banca)"
+    # DCA DINAMICO: calcula margem necessaria para breakeven em ~0.5% de movimento
+    # Quanto mais margem, menos o preco precisa se mover pra recuperar.
+    # Formula: adicional = (perda / (alavancagem * alvo_recuperacao)) - (0.94 * margem_atual)
+    # Teto: 50% da banca. Piso: triplicar margem atual (3x classico).
+    perda_atual = abs(roi / 100) * margem_atual  # perda em USDT
+    alvo_recuperacao = 0.005  # 0.5% de movimento do preco para breakeven
+    fator_desconto = 1.0 - (abs(roi) / 100 / leverage)  # ~0.94 para -120% ROI 20x
 
-    log.info(f"  {symbol}: 3x {modo_3x} | ROI {roi:+.1f}% | Adicional: ${adicional:.2f}")
+    adicional_ideal = (perda_atual / (leverage * alvo_recuperacao)) - (fator_desconto * margem_atual)
+    adicional_ideal = max(adicional_ideal, margem_atual * 2.0)  # piso: 3x classico
+
+    CAP_DCA_PCT = 0.50  # maximo 50% da banca
+    adicional = round(min(adicional_ideal, banca * CAP_DCA_PCT), 2)
+
+    # Calcula recuperacao real com o adicional escolhido
+    margem_total = margem_atual + adicional
+    recuperacao_pct = perda_atual / (leverage * (fator_desconto * margem_atual + adicional)) * 100
+    modo_3x = f"DCA DINAMICO ({adicional/banca*100:.0f}% banca | breakeven ~{recuperacao_pct:.2f}%)"
+
+    log.info(f"  {symbol}: {modo_3x} | ROI {roi:+.1f}% | Adicional: ${adicional:.2f} | Recuperacao: {recuperacao_pct:.2f}%")
 
     preco      = float(client.futures_symbol_ticker(symbol=symbol)["price"])
     precisao   = get_precisao_quantidade(client, symbol)
@@ -2643,21 +2643,29 @@ def main() -> None:
                         fechar_parcial(client, p, 0.90, f"Reversao tecnica pos-3x #{n_3x} (ROI {roi:.1f}%)")
                         fechou_pos_3x = True
 
-                    # --- STOP LOSS POS-3x: -10% ROI -> corta antes de virar catastrofe ---
-                    # 3x amplifica exposicao. Se nao funcionou, sai cedo.
-                    # Perda de -10% sobre margem 3x eh MUITO menor que ficar ate -120%
-                    elif roi <= -10.0:
-                        log.warning(f"  {symbol}: [POS-3x #{n_3x}] STOP -10% atingido | ROI {roi:+.1f}% -> fechando 90%")
-                        telegram(
-                            f"<b>Stop pos-3x: {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}% | 3x #{n_3x}\n"
-                            f"Limite de -10% atingido. Cortando para preservar banca.\n"
-                            f"Perda controlada. Melhor que ficar pendurado."
-                        )
-                        registrar_aprendizado(client, symbol, direcao, "3x_stop_loss", roi,
-                            f"3x #{n_3x} | Stop -10% | Entrada DCA: {roi_entrada_dca:+.0f}%")
-                        fechar_parcial(client, p, 0.90, f"Stop pos-3x #{n_3x} -10% (ROI {roi:.1f}%)")
-                        fechou_pos_3x = True
+                    # --- STOP LOSS DINAMICO POS-3x: limita perda a max 2% da banca ---
+                    # Quanto maior o DCA, mais apertado o stop (proporcional).
+                    # Ex: margem $80, banca $150 -> stop em -3.75% ROI (perda max $3)
+                    elif roi < 0:
+                        margem_pos = float(p.get("positionInitialMargin", 0))
+                        max_perda = banca * 0.02  # maximo 2% da banca
+                        stop_dinamico = -(max_perda / margem_pos * 100) if margem_pos > 0 else -3.0
+                        stop_dinamico = max(stop_dinamico, -10.0)  # nunca mais permissivo que -10%
+                        stop_dinamico = min(stop_dinamico, -2.0)   # nunca mais apertado que -2%
+
+                        if roi <= stop_dinamico:
+                            perda_est = abs(roi / 100) * margem_pos
+                            log.warning(f"  {symbol}: [POS-3x #{n_3x}] STOP {stop_dinamico:.1f}% atingido | ROI {roi:+.1f}% | ~${perda_est:.2f} -> fechando 90%")
+                            telegram(
+                                f"<b>Stop pos-3x: {symbol}</b>\n"
+                                f"{direcao} | ROI: {roi:+.1f}% | 3x #{n_3x}\n"
+                                f"Stop dinamico em {stop_dinamico:.1f}% (max 2% da banca).\n"
+                                f"Perda: ~${perda_est:.2f}. Cortando rapido."
+                            )
+                            registrar_aprendizado(client, symbol, direcao, "3x_stop_loss", roi,
+                                f"3x #{n_3x} | Stop {stop_dinamico:.1f}% | Perda ~${perda_est:.2f} | Entrada DCA: {roi_entrada_dca:+.0f}%")
+                            fechar_parcial(client, p, 0.90, f"Stop pos-3x #{n_3x} {stop_dinamico:.1f}% (ROI {roi:.1f}%)")
+                            fechou_pos_3x = True
 
                     # --- MODO AGRESSIVO/AUDACIOSO: saida rapida em qualquer lucro pequeno ---
                     # 3x em ROI muito profundo -> qualquer virada positiva ja compensa
