@@ -3175,7 +3175,11 @@ def main() -> None:
                             except Exception:
                                 pass  # se falhar, segue com o 3x normalmente
 
-                            if score >= 40 and not dca_bloqueado_por_racio and not recuperacao_natural:
+                            if score >= 40 and not recuperacao_natural:
+                                # 3x NAO respeita limite de racio — resolve em segundos
+                                # com stop relativo (2% banca) + trailing. Racio alto e temporario.
+                                if dca_bloqueado_por_racio:
+                                    log.info(f"  {symbol}: Racio alto mas 3x permitido — stop + trailing protegem")
                                 log.info(f"  {symbol}: SCORE {score}/110 -> 3x #{n_3x + 1} DISPARADO")
                                 aplicar_dca(client, p, banca)
                                 dca_aplicado.add(symbol)
@@ -3203,8 +3207,7 @@ def main() -> None:
                                         f"3x pronto se precisar. Paciencia > agressividade."
                                     )
                                     alerta_dca_log[alerta_key] = time.time()
-                            elif dca_bloqueado_por_racio:
-                                log.warning(f"  {symbol}: 3x score {score} mas Racio acima de {RACIO_BLOQUEIA_DCA:.0f}%")
+                            # dca_bloqueado_por_racio nao impede 3x — stop + trailing resolvem rapido
                             elif score >= 30:
                                 log.info(f"  {symbol}: Score {score}/110 — fraco, aguardando")
                             else:
