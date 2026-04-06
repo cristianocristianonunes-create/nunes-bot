@@ -622,6 +622,88 @@ def processar_comandos(client: Client) -> None:
                     telegram(msg)
                     log.info(f"Topup executado: {len(aptos)} posicoes")
 
+        elif texto == "/operar":
+            # Analisa todas as posicoes e toma acao automatica
+            abertas = posicoes_abertas(client)
+            saldo_op = get_saldo_total(client)
+            racio_op = get_racio_margem(client)
+            usd_brl_op = get_usd_brl(client)
+            alvo_margem = saldo_op * RISCO_POR_TRADE
+            acoes = []
+
+            for p in abertas:
+                sym_op = p["symbol"]
+                amt_op = float(p["positionAmt"])
+                if amt_op == 0:
+                    continue
+                dire_op = "LONG" if amt_op > 0 else "SHORT"
+                margem_op = float(p.get("positionInitialMargin", 0))
+                pnl_op = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                roi_op = (pnl_op / margem_op * 100) if margem_op > 0 else 0
+
+                # ACAO 1: travar lucro se ROI >= +30% e volume esfriando
+                if roi_op >= 30:
+                    try:
+                        df_vol = get_candles(client, sym_op, Client.KLINE_INTERVAL_1MINUTE, limit=10)
+                        vol_a = df_vol["volume"].iloc[-1]
+                        vol_m = df_vol["volume"].iloc[-5:].mean()
+                        if vol_a < vol_m * 0.7:
+                            fechar_parcial(client, p, 0.90, f"/operar: ROI {roi_op:+.0f}% + vol esfriou")
+                            acoes.append(f"Lucro travado {sym_op} ROI {roi_op:+.0f}%")
+                            continue
+                    except Exception:
+                        pass
+
+                # ACAO 2: equilibrar margem se MA a favor e racio ok
+                if margem_op < alvo_margem * 0.5 and racio_op < RACIO_MARGEM_MAX:
+                    try:
+                        df_eq = get_candles(client, sym_op, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+                        df_eq["ma7"] = df_eq["close"].rolling(7).mean()
+                        df_eq["ma25"] = df_eq["close"].rolling(25).mean()
+                        c_eq = df_eq.iloc[-1]
+                        if dire_op == "LONG":
+                            ma_ok = c_eq["ma7"] > c_eq["ma25"]
+                        else:
+                            ma_ok = c_eq["ma7"] < c_eq["ma25"]
+                        if ma_ok and not pd.isna(c_eq["ma25"]):
+                            falta = alvo_margem - margem_op
+                            preco_eq = float(client.futures_symbol_ticker(symbol=sym_op)["price"])
+                            step_eq = get_step_size(client, sym_op)
+                            qty_eq = arredondar_quantidade((falta * ALAVANCAGEM) / preco_eq, step_eq)
+                            side_eq = "BUY" if dire_op == "LONG" else "SELL"
+                            if qty_eq > 0 and MODO == "real":
+                                client.futures_create_order(symbol=sym_op, side=side_eq, type="MARKET", quantity=qty_eq)
+                                topup_recente[sym_op] = time.time()
+                                acoes.append(f"Topup {sym_op} +${falta:.2f} (MA favor)")
+                    except Exception:
+                        pass
+
+            # Resumo
+            if acoes:
+                msg_op = "<b>Operacao executada:</b>\n" + "\n".join([f"  • {a}" for a in acoes])
+            else:
+                msg_op = "<b>Nenhuma acao necessaria agora.</b>\nPositivas rodando com trailing. Negativas comprimindo pra 3x."
+            telegram(msg_op)
+
+        elif texto.startswith("/travar"):
+            # Fecha 90% de todas as posicoes com ROI >= X%
+            partes = texto.split()
+            min_roi = float(partes[1]) if len(partes) > 1 else 20.0
+            abertas = posicoes_abertas(client)
+            travadas = []
+            for p in abertas:
+                sym_t = p["symbol"]
+                margem_t = float(p.get("positionInitialMargin", 0))
+                pnl_t = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                roi_t = (pnl_t / margem_t * 100) if margem_t > 0 else 0
+                if roi_t >= min_roi:
+                    fechar_parcial(client, p, 0.90, f"/travar: ROI {roi_t:+.0f}%")
+                    travadas.append(f"{sym_t} ROI {roi_t:+.0f}% ~${pnl_t*0.9:+.2f}")
+            if travadas:
+                telegram("<b>Lucro travado:</b>\n" + "\n".join([f"  • {t}" for t in travadas]))
+            else:
+                telegram(f"Nenhuma posicao com ROI >= +{min_roi:.0f}%")
+
         elif texto == "/ajuda":
             telegram(
                 "<b>Comandos disponíveis:</b>\n"
@@ -637,6 +719,9 @@ def processar_comandos(client: Client) -> None:
                 "/fechartudo — fecha todas as posicoes abertas\n"
                 "/fecharlista S1 S2 S3 — fecha multiplas posicoes\n"
                 "/forcar SYMBOL LONG|SHORT — abre posicao manualmente\n"
+                "/operar — analisa e age: trava lucro + equilibra margem\n"
+                "/travar — fecha 90% de todas com ROI >= +20%\n"
+                "/travar 10 — fecha 90% de todas com ROI >= +10%\n"
                 "/relatorio — relatorio mensal de performance\n"
                 "/parar — encerra o robo\n"
                 "/iniciar — verifica se esta ativo"
