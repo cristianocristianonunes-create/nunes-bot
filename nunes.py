@@ -2199,85 +2199,75 @@ RACIO_ALERTA_TS: float  = 0.0   # timestamp do último alerta de rácio alto
 
 def proteger_racio(client: Client, abertas: list) -> bool:
     """
-    Proteção escalonada do Rácio de Margem.
-    Retorna True se DCA deve ser bloqueado (rácio > RACIO_BLOQUEIA_DCA).
+    Proteção do Rácio de Margem — REVISADA para estratégia 3x agressivo.
+
+    O 3x joga margem pesada e o rácio sobe temporariamente.
+    O trailing/stop resolvem em segundos. NAO pode fechar outras
+    posicoes por causa de spike temporario — elas sao molas
+    comprimindo que vao gerar lucro futuro.
+
+    Unica protecao real: emergencia em 40% (risco de liquidacao).
+    Retorna False sempre (3x nunca eh bloqueado por racio).
     """
     global RACIO_ALERTA_TS
     racio = get_racio_margem(client)
 
-    if racio < RACIO_BLOQUEIA_DCA:
-        return False  # tudo normal
+    if racio < 25.0:
+        return False  # tudo normal, nada a fazer
 
-    bloquear_dca = racio >= RACIO_BLOQUEIA_DCA
-
-    # Candidatas a fechar: sem DCA ativo, ordenadas por maior prejuízo em dólar
-    sem_dca = [p for p in abertas if p["symbol"] not in dca_aplicado]
-    sem_dca.sort(key=lambda p: float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))))
-
-    def fechar_posicao_racio(posicao):
-        symbol = posicao["symbol"]
-        amt    = float(posicao["positionAmt"])
-        lado   = "LONG" if amt > 0 else "SHORT"
-        side   = "SELL" if lado == "LONG" else "BUY"
-        pnl    = float(posicao.get("unrealizedProfit", posicao.get("unRealizedProfit", 0)))
-        roi    = calcular_roi(posicao)
-        try:
-            if MODO == "real":
-                client.futures_create_order(
-                    symbol=symbol, side=side, type="MARKET",
-                    quantity=abs(amt), reduceOnly=True
-                )
-            peak_roi.pop(symbol, None)
-            ma_reverteu.pop(symbol, None)
-            posicao_abertura.pop(symbol, None)
-            pico_pos_3x.pop(symbol, None)
-            log.warning(f"  [RACIO {racio:.1f}%] Fechando {symbol} {lado} | PnL ${pnl:+.2f} | ROI {roi:+.1f}%")
-            registrar_aprendizado(client, symbol, lado, "racio_fechamento", roi,
-                f"Racio {racio:.1f}% forcou fechamento | PnL ${pnl:+.2f}")
-            return True
-        except BinanceAPIException as e:
-            log.error(f"  Erro ao fechar {symbol} por rácio: {e}")
-            return False
-
-    if racio >= RACIO_EMERGENCIA:
-        # Fecha posições até voltar a 15%
+    # Alerta informativo acima de 25% — mas NAO fecha nada
+    if racio >= 25.0 and racio < 40.0:
         if time.time() - RACIO_ALERTA_TS >= 300:
+            log.warning(f"  [RACIO {racio:.1f}%] Alto mas temporario — 3x ativo resolve em segundos")
             telegram(
-                f"<b>Protecao ativa: Racio {racio:.1f}%</b>\n"
-                f"Reorganizando posicoes para liberar margem.\n"
-                f"Abrindo espaco para novas oportunidades."
+                f"<b>Racio alto: {racio:.1f}%</b>\n"
+                f"3x ativo resolvendo. Trailing/stop protegem.\n"
+                f"Nenhuma posicao sera fechada."
             )
             RACIO_ALERTA_TS = time.time()
-        for posicao in sem_dca:
-            racio_atual = get_racio_margem(client)
-            if racio_atual < RACIO_BLOQUEIA_ENTRADAS:
-                log.info(f"  [RACIO] Recuperado para {racio_atual:.1f}%. Parando fechamentos.")
-                break
-            fechar_posicao_racio(posicao)
-            time.sleep(0.5)
-        # Se ainda acima do limite e só restam posições com DCA, fecha as piores delas também
-        racio_pos = get_racio_margem(client)
-        if racio_pos >= RACIO_EMERGENCIA:
-            com_dca = [p for p in abertas if p["symbol"] in dca_aplicado]
-            com_dca.sort(key=lambda p: float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))))
-            for posicao in com_dca:
-                if get_racio_margem(client) < RACIO_BLOQUEIA_ENTRADAS:
-                    break
-                fechar_posicao_racio(posicao)
-                time.sleep(0.5)
+        return False  # NAO bloqueia nada
 
-    elif racio >= RACIO_FECHA_PIOR:
-        # Fecha apenas a posição com maior prejuízo em dólar
-        if sem_dca:
-            pior = sem_dca[0]
-            pnl  = float(pior.get("unrealizedProfit", pior.get("unRealizedProfit", 0)))
-            log.warning(f"  [RACIO {racio:.1f}%] Fechando pior posicao: {pior['symbol']} PnL ${pnl:+.2f}")
-            fechar_posicao_racio(pior)
-        elif time.time() - RACIO_ALERTA_TS >= 600:
-            log.info(f"Racio {racio:.1f}% | todas negativas em DCA | monitorando")
+    # EMERGENCIA REAL: 40%+ (risco de liquidacao pela Binance)
+    # So aqui fecha posicoes — e apenas as SEM DCA ativo
+    if racio >= 40.0:
+        if time.time() - RACIO_ALERTA_TS >= 300:
+            telegram(
+                f"<b>EMERGENCIA: Racio {racio:.1f}%</b>\n"
+                f"Risco de liquidacao. Fechando posicoes sem DCA."
+            )
             RACIO_ALERTA_TS = time.time()
 
-    return bloquear_dca
+        sem_dca = [p for p in abertas if p["symbol"] not in dca_aplicado]
+        sem_dca.sort(key=lambda p: float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))))
+
+        for posicao in sem_dca:
+            if get_racio_margem(client) < 25.0:
+                log.info(f"  [RACIO] Recuperado abaixo de 25%. Parando fechamentos.")
+                break
+            sym_r = posicao["symbol"]
+            amt_r = float(posicao["positionAmt"])
+            lado_r = "LONG" if amt_r > 0 else "SHORT"
+            side_r = "SELL" if lado_r == "LONG" else "BUY"
+            pnl_r = float(posicao.get("unrealizedProfit", posicao.get("unRealizedProfit", 0)))
+            roi_r = calcular_roi(posicao)
+            try:
+                if MODO == "real":
+                    client.futures_create_order(
+                        symbol=sym_r, side=side_r, type="MARKET",
+                        quantity=abs(amt_r), reduceOnly=True
+                    )
+                peak_roi.pop(sym_r, None)
+                ma_reverteu.pop(sym_r, None)
+                posicao_abertura.pop(sym_r, None)
+                pico_pos_3x.pop(sym_r, None)
+                log.warning(f"  [EMERGENCIA {racio:.1f}%] Fechando {sym_r} {lado_r} | PnL ${pnl_r:+.2f}")
+                registrar_aprendizado(client, sym_r, lado_r, "emergencia_racio", roi_r,
+                    f"Racio {racio:.1f}% emergencia | PnL ${pnl_r:+.2f}")
+            except BinanceAPIException as e:
+                log.error(f"  Erro emergencia {sym_r}: {e}")
+            time.sleep(0.5)
+
+    return False  # 3x nunca eh bloqueado por racio
 
 # ---------------------------------------------------------------------------
 # Execução de ordens
