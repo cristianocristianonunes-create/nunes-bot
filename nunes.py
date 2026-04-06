@@ -233,6 +233,32 @@ def processar_comandos(client: Client) -> None:
         if chat != str(TELEGRAM_CHAT_ID):
             continue
 
+        # Normaliza: aceita comandos com ou sem barra, e por voz
+        # "operar" ou "/operar" ou "opera" → mesmo comando
+        # Telegram transcreve voz pra texto, bot entende sem /
+        if not texto.startswith("/"):
+            # Mapeia palavras-chave pra comandos
+            mapa_voz = {
+                "status": "/status",
+                "saldo": "/saldo",
+                "operar": "/operar",
+                "opera": "/operar",
+                "travar": "/travar",
+                "trava": "/travar",
+                "fechar tudo": "/fechartudo",
+                "fecha tudo": "/fechartudo",
+                "relatorio": "/relatorio",
+                "relatório": "/relatorio",
+                "ajuda": "/ajuda",
+                "parar": "/parar",
+                "iniciar": "/iniciar",
+            }
+            for palavra, cmd in mapa_voz.items():
+                if palavra in texto:
+                    # Preserva argumentos: "travar 10" → "/travar 10"
+                    texto = texto.replace(palavra, cmd, 1)
+                    break
+
         if texto == "/status":
             abertas = posicoes_abertas(client)
             if not abertas:
