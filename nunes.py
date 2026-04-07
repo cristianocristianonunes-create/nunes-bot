@@ -67,6 +67,7 @@ load_dotenv()
 API_KEY            = os.getenv("BINANCE_API_KEY")
 API_SECRET         = os.getenv("BINANCE_API_SECRET")
 TELEGRAM_TOKEN     = os.getenv("TELEGRAM_TOKEN")
+JARVIS_TOKEN       = os.getenv("JARVIS_TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 
 # Copy trading: API read-only da conta master (opcional)
@@ -206,8 +207,14 @@ bot_ativo = True
 bot_inicio = time.time()  # timestamp de quando o bot iniciou
 ultimo_update_id = 0
 
+ultimo_update_id_jarvis = 0
+
 def get_updates() -> list:
-    global ultimo_update_id
+    """Escuta Nunes E Jarvis. Marca origem pra responder pelo bot certo."""
+    global ultimo_update_id, ultimo_update_id_jarvis
+    all_updates = []
+
+    # Updates do Nunes
     try:
         r = requests.get(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
@@ -217,9 +224,30 @@ def get_updates() -> list:
         updates = r.json().get("result", [])
         if updates:
             ultimo_update_id = updates[-1]["update_id"]
-        return updates
+        for u in updates:
+            u["_via_token"] = TELEGRAM_TOKEN
+        all_updates.extend(updates)
     except Exception:
-        return []
+        pass
+
+    # Updates do Jarvis
+    if JARVIS_TOKEN:
+        try:
+            r2 = requests.get(
+                f"https://api.telegram.org/bot{JARVIS_TOKEN}/getUpdates",
+                params={"offset": ultimo_update_id_jarvis + 1, "timeout": 1},
+                timeout=5,
+            )
+            updates2 = r2.json().get("result", [])
+            if updates2:
+                ultimo_update_id_jarvis = updates2[-1]["update_id"]
+            for u in updates2:
+                u["_via_token"] = JARVIS_TOKEN
+            all_updates.extend(updates2)
+        except Exception:
+            pass
+
+    return all_updates
 
 
 def transcrever_audio_telegram(file_id: str) -> str:
@@ -270,6 +298,18 @@ def transcrever_audio_telegram(file_id: str) -> str:
         return ""
 
 
+def telegram_via(token, msg_text):
+    """Envia mensagem pelo token especifico (Nunes ou Jarvis)."""
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": msg_text, "parse_mode": "HTML"},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
 def processar_comandos(client: Client) -> None:
     global bot_ativo, dca_ativo
     updates = get_updates()
@@ -277,15 +317,43 @@ def processar_comandos(client: Client) -> None:
         msg = u.get("message", {})
         texto = msg.get("text", "").strip().lower()
         chat = str(msg.get("chat", {}).get("id", ""))
+        # Token de origem — responde pelo mesmo bot que recebeu
+        via_token = u.get("_via_token", TELEGRAM_TOKEN)
 
         # Transcreve mensagem de voz se presente
         voice = msg.get("voice", {})
         if voice and not texto:
             file_id = voice.get("file_id", "")
             if file_id:
-                texto = transcrever_audio_telegram(file_id)
-                if texto:
-                    telegram(f"<b>Voz recebida:</b> \"{texto}\"")
+                # Usa o token correto pra baixar o audio
+                try:
+                    import requests as req2, subprocess, tempfile
+                    import speech_recognition as sr
+                    r_file = req2.get(f"https://api.telegram.org/bot{via_token}/getFile?file_id={file_id}", timeout=10)
+                    file_path = r_file.json().get("result", {}).get("file_path", "")
+                    if file_path:
+                        audio_url = f"https://api.telegram.org/file/bot{via_token}/{file_path}"
+                        ogg = os.path.join(tempfile.gettempdir(), "jarvis_voice.ogg")
+                        wav = os.path.join(tempfile.gettempdir(), "jarvis_voice.wav")
+                        audio_data = req2.get(audio_url, timeout=15).content
+                        with open(ogg, "wb") as f:
+                            f.write(audio_data)
+                        subprocess.run(["C:/robo-trade/ffmpeg.exe", "-y", "-i", ogg, "-ar", "16000", "-ac", "1", wav],
+                            capture_output=True, timeout=15)
+                        recognizer = sr.Recognizer()
+                        with sr.AudioFile(wav) as source:
+                            audio = recognizer.record(source)
+                        texto = recognizer.recognize_google(audio, language="pt-BR").strip().lower()
+                        try:
+                            os.remove(ogg)
+                            os.remove(wav)
+                        except Exception:
+                            pass
+                        if texto:
+                            telegram_via(via_token, f"<b>Voz recebida:</b> \"{texto}\"")
+                            log.info(f"  [VOZ via {'Jarvis' if via_token == JARVIS_TOKEN else 'Nunes'}] '{texto}'")
+                except Exception as e:
+                    log.warning(f"  [VOZ] Erro: {e}")
 
         if chat != str(TELEGRAM_CHAT_ID):
             continue
@@ -809,6 +877,59 @@ def processar_comandos(client: Client) -> None:
                 "/parar — encerra o robo\n"
                 "/iniciar — verifica se esta ativo"
             )
+
+        elif texto and via_token == JARVIS_TOKEN:
+            # Mensagem livre pro Jarvis — responde com IA (Claude API)
+            try:
+                ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
+                if ANTHROPIC_KEY:
+                    # Contexto: estado atual das posicoes
+                    abertas_ctx = posicoes_abertas(client)
+                    saldo_ctx = get_saldo_total(client)
+                    pnl_ctx = sum(float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))) for p in abertas_ctx)
+                    racio_ctx = get_racio_margem(client)
+                    pos_resumo = "\n".join([
+                        f"  {p['symbol']} {'LONG' if float(p['positionAmt'])>0 else 'SHORT'} ROI:{(float(p.get('unrealizedProfit', p.get('unRealizedProfit',0)))/float(p.get('positionInitialMargin',1))*100) if float(p.get('positionInitialMargin',0))>0 else 0:+.1f}%"
+                        for p in abertas_ctx if float(p["positionAmt"]) != 0
+                    ])
+
+                    system_prompt = f"""Voce eh o Jarvis, assistente do trader CNS (Cristiano Nunes Silva).
+Responda em portugues brasileiro, curto e direto.
+Voce opera um bot de trading Binance Futures chamado Guardiao CNS.
+
+Estado atual:
+Saldo: ${saldo_ctx:.2f} | PnL aberto: ${pnl_ctx:+.2f} | Racio: {racio_ctx:.1f}%
+Posicoes:
+{pos_resumo}
+
+Filosofia: estrategia do Bruno Aguiar (Aguia Spread). 3x agressivo,
+formiguinha, lucrar sempre. Mola comprimindo = oportunidade.
+Cruzou zero pos-3x = trailing 1pp do pico.
+Meta: saldo e PnL subindo juntos."""
+
+                    r_ai = requests.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={
+                            "x-api-key": ANTHROPIC_KEY,
+                            "anthropic-version": "2023-06-01",
+                            "content-type": "application/json",
+                        },
+                        json={
+                            "model": "claude-sonnet-4-20250514",
+                            "max_tokens": 500,
+                            "system": system_prompt,
+                            "messages": [{"role": "user", "content": texto}],
+                        },
+                        timeout=30,
+                    )
+                    resposta = r_ai.json().get("content", [{}])[0].get("text", "Erro ao processar.")
+                    telegram_via(via_token, resposta)
+                    log.info(f"  [JARVIS IA] Pergunta: '{texto}' | Resposta enviada")
+                else:
+                    telegram_via(via_token, "ANTHROPIC_API_KEY nao configurada.")
+            except Exception as e:
+                log.warning(f"  [JARVIS IA] Erro: {e}")
+                telegram_via(via_token, f"Erro: {e}")
 
 
 # ---------------------------------------------------------------------------
