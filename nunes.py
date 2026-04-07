@@ -3044,11 +3044,13 @@ def main() -> None:
                         if symbol not in dca_aplicado:
                             dca_aplicado.add(symbol)
                             dca_contagem[symbol] = dca_contagem.get(symbol, 0) + 1
+                            roi_no_dca[symbol] = roi  # ROI ATUAL (pos-DCA) — essencial pro stop relativo
+                            pico_pos_3x[symbol] = roi  # inicia rastreamento de pico
                             if dca_ativo is None:
                                 dca_ativo = symbol
                             salvar_estado()
-                            log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f} | +${aumento_real:.2f})")
-                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nBot vai monitorar saida com trailing escalonado.")
+                            log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f} | +${aumento_real:.2f} | ROI pos-DCA: {roi:+.1f}%)")
+                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nROI pos-DCA: {roi:+.1f}%\nStop e trailing ativos.")
                 margem_registrada[symbol] = margem_atual
 
                 # Registra horário de abertura da posição
