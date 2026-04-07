@@ -4041,7 +4041,60 @@ def main() -> None:
                     # Aqui so logamos e pulamos a busca de novas entradas
 
                 elif len(abertas) >= max_pos_dinamico:
-                    log.info(f"Maximo dinamico atingido ({len(abertas)}/{max_pos_dinamico} posicoes | saldo ${saldo_atual_dia:.0f}).")
+                    # Cheio mas continua cacando — se achar sinal forte,
+                    # substitui a pior posicao (ROI mais negativo, MA contra)
+                    log.info(f"Maximo atingido ({len(abertas)}/{max_pos_dinamico}) — cacando substituicao...")
+                    try:
+                        # Acha a pior posicao (mais negativa + MA contra)
+                        pior = None
+                        pior_roi = 0
+                        for p_sub in abertas:
+                            sym_sub = p_sub["symbol"]
+                            amt_sub = float(p_sub["positionAmt"])
+                            if amt_sub == 0 or sym_sub in dca_aplicado:
+                                continue
+                            roi_sub = calcular_roi(p_sub)
+                            margem_sub = float(p_sub.get("positionInitialMargin", 0))
+                            if roi_sub < pior_roi and margem_sub < saldo_atual_dia * RISCO_POR_TRADE * 0.5:
+                                # Candidata: ROI negativo + margem pequena (resto de parcial)
+                                pior = p_sub
+                                pior_roi = roi_sub
+
+                        if pior and pior_roi < -10:
+                            # Busca sinal forte pra substituir
+                            btc_t = tendencia_btc(client)
+                            pares = get_top_pares(client, TOP_PARES)
+                            simbolos_abertos = [p["symbol"] for p in abertas]
+                            for sym_novo in pares[:30]:
+                                if sym_novo in simbolos_abertos:
+                                    continue
+                                try:
+                                    sinal_novo = sinal_guardiao(client, sym_novo, btc_t)
+                                    if sinal_novo:
+                                        from nunes import calcular_score_3x
+                                        score_novo, _ = calcular_score_3x(client, sym_novo, sinal_novo)
+                                        if score_novo >= 70:  # so substitui se sinal MUITO bom
+                                            # Fecha a pior
+                                            sym_pior = pior["symbol"]
+                                            amt_pior = float(pior["positionAmt"])
+                                            side_pior = "SELL" if amt_pior > 0 else "BUY"
+                                            pnl_pior = float(pior.get("unrealizedProfit", pior.get("unRealizedProfit", 0)))
+                                            client.futures_create_order(symbol=sym_pior, side=side_pior,
+                                                type="MARKET", quantity=abs(amt_pior), reduceOnly=True)
+                                            log.info(f"  SUBSTITUICAO: {sym_pior} (ROI {pior_roi:+.0f}%) -> {sym_novo} {sinal_novo} (score {score_novo})")
+                                            telegram(
+                                                f"<b>Substituicao: {sym_pior} -> {sym_novo}</b>\n"
+                                                f"Fechou {sym_pior} ROI {pior_roi:+.0f}% (${pnl_pior:+.2f})\n"
+                                                f"Abriu {sym_novo} {sinal_novo} score {score_novo}\n"
+                                                f"Sinal mais forte substitui posicao fraca."
+                                            )
+                                            preco_novo = float(client.futures_symbol_ticker(symbol=sym_novo)["price"])
+                                            abrir_posicao(client, sym_novo, sinal_novo, preco_novo, get_banca(client))
+                                            break
+                                except Exception:
+                                    continue
+                    except Exception as e:
+                        log.debug(f"Erro substituicao: {e}")
                 elif racio_atual >= RACIO_MARGEM_MAX:
                     log.info(f"Racio de Margem {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}%. Sem novas entradas.")
                 else:
