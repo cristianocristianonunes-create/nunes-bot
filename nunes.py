@@ -2480,6 +2480,116 @@ def gerar_relatorio_mensal(client: Client) -> str:
     return msg
 
 
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+sentimento_mercado = {"sentimento": "neutro", "impacto": 0, "resumo": "", "timestamp": 0}
+
+
+def analisar_noticias_mercado() -> dict:
+    """
+    Busca noticias via RSS (gratis) e analisa impacto com Claude API.
+    Retorna: {"sentimento": "positivo/negativo/neutro", "impacto": -2 a +2, "resumo": str}
+    -2 = muito negativo (guerra, crash), -1 = negativo, 0 = neutro, +1 = positivo, +2 = muito positivo
+    """
+    global sentimento_mercado
+    try:
+        import feedparser
+
+        # RSS feeds gratuitos
+        feeds = [
+            "https://www.coindesk.com/arc/outboundfeeds/rss/",
+            "https://cointelegraph.com/rss",
+        ]
+
+        noticias = []
+        for url in feeds:
+            try:
+                feed = feedparser.parse(url)
+                for entry in feed.entries[:5]:  # 5 mais recentes de cada
+                    titulo = entry.get("title", "")
+                    resumo = entry.get("summary", "")[:200]
+                    noticias.append(f"- {titulo}: {resumo}")
+            except Exception:
+                continue
+
+        if not noticias:
+            return sentimento_mercado
+
+        # Envia pro Claude API pra analisar impacto
+        if not ANTHROPIC_API_KEY:
+            return sentimento_mercado
+
+        noticias_texto = "\n".join(noticias[:10])  # max 10 noticias
+
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 200,
+                "messages": [{"role": "user", "content": f"""Analise estas noticias cripto/financeiras e responda APENAS no formato:
+SENTIMENTO: positivo/negativo/neutro
+IMPACTO: numero de -2 a +2 (-2=crash iminente, -1=pressao baixa, 0=neutro, +1=otimismo, +2=rally)
+RESUMO: uma frase sobre o que afeta o mercado agora
+ACAO: LONG_FAVORECIDO ou SHORT_FAVORECIDO ou NEUTRO
+
+Noticias:
+{noticias_texto}"""}],
+            },
+            timeout=15,
+        )
+
+        resposta = r.json().get("content", [{}])[0].get("text", "")
+
+        # Parseia resposta
+        sentimento = "neutro"
+        impacto = 0
+        resumo = ""
+        acao = "NEUTRO"
+
+        for linha in resposta.split("\n"):
+            linha = linha.strip()
+            if linha.startswith("SENTIMENTO:"):
+                sentimento = linha.split(":", 1)[1].strip().lower()
+            elif linha.startswith("IMPACTO:"):
+                try:
+                    impacto = int(linha.split(":", 1)[1].strip())
+                except ValueError:
+                    pass
+            elif linha.startswith("RESUMO:"):
+                resumo = linha.split(":", 1)[1].strip()
+            elif linha.startswith("ACAO:"):
+                acao = linha.split(":", 1)[1].strip()
+
+        sentimento_mercado = {
+            "sentimento": sentimento,
+            "impacto": impacto,
+            "resumo": resumo,
+            "acao": acao,
+            "timestamp": time.time(),
+        }
+
+        log.info(f"  [NOTICIAS] {sentimento.upper()} (impacto {impacto:+d}) | {resumo}")
+
+        # Se impacto forte, avisa no Telegram
+        if abs(impacto) >= 2:
+            telegram(
+                f"<b>Alerta de mercado ({sentimento.upper()})</b>\n"
+                f"Impacto: {impacto:+d}/2\n"
+                f"{resumo}\n"
+                f"Acao: {acao}"
+            )
+
+        return sentimento_mercado
+
+    except Exception as e:
+        log.debug(f"  [NOTICIAS] Erro: {e}")
+        return sentimento_mercado
+
+
 def enviar_resumo_hora(client: Client, saldo_abertura: float) -> None:
     """Envia resumo horário no Telegram com saldo, PnL e posições."""
     try:
@@ -3795,6 +3905,14 @@ def main() -> None:
                     except Exception as e:
                         log.warning(f"Erro relatorio mensal: {e}")
 
+            # --- ANALISE DE NOTICIAS: a cada 15 min, le noticias e ajusta comportamento ---
+            if agora - alerta_dca_log.get("noticias_scan", 0) >= 900:
+                alerta_dca_log["noticias_scan"] = agora
+                try:
+                    analisar_noticias_mercado()
+                except Exception:
+                    pass
+
             # --- EQUILIBRAR MARGEM: topup inteligente em posicoes abaixo de 3% ---
             # Fase 2: bot detecta posicoes com margem abaixo do alvo e faz topup
             # quando MA está a favor (momento certo). Roda a cada 5 min.
@@ -4006,6 +4124,14 @@ def main() -> None:
                             continue
                         if sinal == "SHORT" and n_short >= MAX_MESMA_DIRECAO:
                             log.info(f"  {symbol}: SHORT bloqueado — ja tem {n_short} SHORTs (max {MAX_MESMA_DIRECAO})")
+                            continue
+
+                        # Filtro de noticias: impacto forte bloqueia direcao contraria
+                        if sentimento_mercado["impacto"] <= -2 and sinal == "LONG":
+                            log.info(f"  {symbol}: LONG bloqueado — noticias muito negativas ({sentimento_mercado['resumo'][:60]})")
+                            continue
+                        if sentimento_mercado["impacto"] >= 2 and sinal == "SHORT":
+                            log.info(f"  {symbol}: SHORT bloqueado — noticias muito positivas ({sentimento_mercado['resumo'][:60]})")
                             continue
 
                         log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | Preco: {preco}")
