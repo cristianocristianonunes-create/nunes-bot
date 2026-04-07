@@ -1612,9 +1612,43 @@ def detectar_padrao_reversao(client: Client, symbol: str, direcao: str) -> tuple
     return False, ""
 
 
+def calcular_rsi(df, periodo=14):
+    """Calcula RSI (Relative Strength Index). Retorna ultimo valor."""
+    delta = df["close"].diff()
+    ganho = delta.clip(lower=0).rolling(periodo).mean()
+    perda = (-delta.clip(upper=0)).rolling(periodo).mean()
+    rs = ganho / perda
+    rsi = 100 - (100 / (1 + rs))
+    return rsi.iloc[-1] if not pd.isna(rsi.iloc[-1]) else 50.0
+
+
+def btc_caindo_forte(client: Client) -> bool:
+    """Verifica se BTC caiu > 2% nas ultimas 4h. Se sim, LONG eh perigoso."""
+    try:
+        kl = client.futures_klines(symbol="BTCUSDT", interval="4h", limit=2)
+        abertura = float(kl[-1][1])  # open do candle 4h atual
+        atual = float(kl[-1][4])     # close atual
+        var = (atual - abertura) / abertura * 100
+        return var < -2.0
+    except Exception:
+        return False
+
+
+def btc_subindo_forte(client: Client) -> bool:
+    """Verifica se BTC subiu > 2% nas ultimas 4h. Se sim, SHORT eh perigoso."""
+    try:
+        kl = client.futures_klines(symbol="BTCUSDT", interval="4h", limit=2)
+        abertura = float(kl[-1][1])
+        atual = float(kl[-1][4])
+        var = (atual - abertura) / abertura * 100
+        return var > 2.0
+    except Exception:
+        return False
+
+
 def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, dict]:
     """
-    Sistema de score CNS para 3x automatico (0-110 pontos).
+    Sistema de score CNS para 3x automatico (0-140 pontos).
     Retorna (score, detalhes_dict).
 
     Criterios:
@@ -1625,7 +1659,9 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
     5. 1min alinhado (15 pts)
     6. Fibonacci favoravel (10 pts)
     7. Volume do candle 2 >= 1.2x media (10 pts)
-    8. Volume Profile: preco em zona de reversao (10 pts) — NOVO
+    8. Volume Profile: preco em zona de reversao (10 pts)
+    9. RSI favoravel (15 pts) — NOVO: evita 3x em sobrecompra/sobrevenda
+    10. BTC alinhado (15 pts) — NOVO: nao nada contra a mare
 
     Gatilho do 3x automatico: score >= 50
     """
@@ -1799,6 +1835,42 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
         else:
             detalhes["vol_profile"] = "sem_dados"
 
+        # 9. RSI: evita 3x quando ativo esta sobrecomprado/sobrevendido (15 pts)
+        rsi = calcular_rsi(df5)
+        detalhes["rsi"] = f"{rsi:.0f}"
+        if direcao == "LONG" and rsi < 40:
+            score += 15  # sobrevendido = bom pra LONG
+            detalhes["rsi_favoravel"] = True
+        elif direcao == "SHORT" and rsi > 60:
+            score += 15  # sobrecomprado = bom pra SHORT
+            detalhes["rsi_favoravel"] = True
+        elif direcao == "LONG" and rsi > 70:
+            score -= 10  # sobrecomprado = PERIGOSO pra LONG
+            detalhes["rsi_favoravel"] = False
+            detalhes["rsi_alerta"] = "sobrecomprado — reversao iminente"
+        elif direcao == "SHORT" and rsi < 30:
+            score -= 10  # sobrevendido = PERIGOSO pra SHORT
+            detalhes["rsi_favoravel"] = False
+            detalhes["rsi_alerta"] = "sobrevendido — reversao iminente"
+        else:
+            detalhes["rsi_favoravel"] = "neutro"
+
+        # 10. BTC ALINHADO: nao nadar contra a mare (15 pts)
+        if direcao == "LONG":
+            if btc_caindo_forte(client):
+                score -= 15  # BTC caindo forte, LONG perigoso
+                detalhes["btc"] = "CONTRA — BTC caindo >2% em 4h"
+            elif not btc_caindo_forte(client):
+                score += 15
+                detalhes["btc"] = "a favor"
+        else:  # SHORT
+            if btc_subindo_forte(client):
+                score -= 15  # BTC subindo forte, SHORT perigoso
+                detalhes["btc"] = "CONTRA — BTC subindo >2% em 4h"
+            elif not btc_subindo_forte(client):
+                score += 15
+                detalhes["btc"] = "a favor"
+
     except Exception as e:
         log.warning(f"  Erro score 3x {symbol}: {e}")
         detalhes["erro"] = str(e)
@@ -1927,7 +1999,21 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
         telegram(msg)
         dca_aplicado.add(symbol)
         dca_log[symbol] = time.time()
-        roi_no_dca[symbol] = calcular_roi(posicao)  # registra ROI para stop pós-DCA -30%
+        # ROI DEPOIS do DCA — busca posicao atualizada da Binance
+        # Bug anterior: usava ROI antes do DCA (-57%), stop ficava em -67%
+        # Correto: usar ROI depois (-10%), stop fica em -15%
+        try:
+            import time as _t; _t.sleep(0.5)  # espera ordem processar
+            pos_atualizada = client.futures_position_information(symbol=symbol)
+            for pa in pos_atualizada:
+                if float(pa["positionAmt"]) != 0:
+                    roi_no_dca[symbol] = calcular_roi(pa)
+                    log.info(f"  {symbol}: ROI pos-DCA registrado: {roi_no_dca[symbol]:+.1f}%")
+                    break
+            else:
+                roi_no_dca[symbol] = calcular_roi(posicao)  # fallback
+        except Exception:
+            roi_no_dca[symbol] = calcular_roi(posicao)  # fallback
         salvar_estado()
     except BinanceAPIException as e:
         log.error(f"Erro DCA {symbol}: {e}")
