@@ -3951,8 +3951,11 @@ def main() -> None:
                                 else:
                                     ma_favor = c_eq["ma7"] < c_eq["ma25"]
 
-                                if not ma_favor:
-                                    continue  # MA contra — espera virar
+                                # Posicao ja positiva (+10%+): topup mesmo com MA contra
+                                # Licao LABUSDT: +37% com $0.29 = centavos. Topup multiplica lucro.
+                                roi_eq = calcular_roi(p)
+                                if not ma_favor and roi_eq < 10:
+                                    continue  # MA contra E nao ta lucrando — espera
 
                                 # Momento bom — executa topup
                                 preco_eq = float(client.futures_symbol_ticker(symbol=sym_eq)["price"])
