@@ -2049,5 +2049,66 @@
     "causa": "Operador e bot rodando simultaneamente. Operador fez 4 topups na FETUSDT e 4 na NMRUSDT em 20 min. Duplicou acoes.",
     "fix": "Operador desligado permanentemente. Bot eh o unico processo.",
     "status": "CORRIGIDO"
+  },
+  {
+    "timestamp": "2026-04-07T19:22:14.582873+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0617,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 7.91,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-06T14:20:00Z",
+    "symbol": "CFGUSDT",
+    "tipo": "padrao_sucesso",
+    "padrao": "Score 53 + corpo 95% + fibonacci + Volume Profile = FUNCIONA",
+    "regra": "Score >= 50 com indicadores convergindo eh entrada segura"
+  },
+  {
+    "timestamp": "2026-04-06T14:20:00Z",
+    "symbol": "MASKUSDT",
+    "tipo": "padrao_sucesso",
+    "padrao": "Volume 3.6x no momento do 3x = momentum REAL, nao ruido",
+    "regra": "Volume >= 1.5x media no momento do 3x = bonus de confianca"
+  },
+  {
+    "timestamp": "2026-04-07T01:45:00Z",
+    "symbol": "MASKUSDT",
+    "tipo": "padrao_sucesso",
+    "padrao": "Trailing 1pp do pico: pico +18%, saiu +12% = capturou sem devolver",
+    "regra": "Trailing 1pp eh a medida certa pos-3x"
+  },
+  {
+    "timestamp": "2026-04-07T06:31:00Z",
+    "symbol": "BANKUSDT",
+    "tipo": "padrao_sucesso",
+    "padrao": "Entrada SHORT fresca + volume alto + trailing por volume = pico +135% saiu +112%",
+    "regra": "Cruzamento fresco com volume = melhor momento de entrada"
+  },
+  {
+    "timestamp": "2026-04-06T11:00:00Z",
+    "symbol": "KOMAUSDT",
+    "tipo": "padrao_sucesso",
+    "padrao": "NAO fez 3x quando 15min/1h estavam a favor. Recuperou sozinha -60% a +21%",
+    "regra": "Quando timeframes maiores indicam direcao, posicao pode recuperar sem gastar margem"
+  },
+  {
+    "timestamp": "2026-04-06T14:00:00Z",
+    "symbol": "BASEDUSDT",
+    "tipo": "padrao_sucesso",
+    "padrao": "SHORT com MA favor, travou +126% quando volume esfriou",
+    "regra": "SHORT em mercado de queda + volume esfriando = hora de travar"
+  },
+  {
+    "timestamp": "2026-04-07T00:00:00Z",
+    "symbol": "GERAL",
+    "tipo": "padrao_sucesso",
+    "padrao": "SHORTs lucraram mais que LONGs quando BTC lateral/caindo",
+    "regra": "Alinhar direcao do 3x com a tendencia do BTC. SHORT quando BTC cai, LONG quando BTC sobe."
   }
 ]

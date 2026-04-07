@@ -1775,13 +1775,17 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
         else:
             detalhes["fibonacci"] = "contra"
 
-        # 7. VOLUME DO CANDLE 2 >= 1.2x MEDIA (10 pts)
+        # 7. VOLUME DO CANDLE 2 (10 pts base + 10 bonus se muito alto)
+        # Licao: MASKUSDT com 3.6x volume = acertou. Volume alto = momentum real.
         vol_atual = c1["volume"]
         vol_media = c1["vol_media"] if pd.notna(c1["vol_media"]) else 0
         if vol_media > 0:
             vol_ratio = vol_atual / vol_media
             detalhes["vol_ratio"] = round(vol_ratio, 2)
-            if vol_ratio >= 1.2:
+            if vol_ratio >= 2.0:
+                score += 20  # volume muito alto = forte confianca (+10 bonus)
+                detalhes["volume_forte"] = f"ALTO {vol_ratio:.1f}x (+20)"
+            elif vol_ratio >= 1.2:
                 score += 10
                 detalhes["volume_forte"] = True
             elif vol_ratio >= 0.8:
