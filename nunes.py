@@ -2923,40 +2923,28 @@ def main() -> None:
                         peak_roi.pop(symbol, None)
                         continue
 
-                # --- SAIDA POS-3x: 2 camadas de protecao ---
-                # Camada 2 (prioridade): reversao tecnica -> fecha mesmo em ROI negativo
-                # Camada 1: trailing escalonado por faixa de pico + piso no zero
-                # Para AGRESSIVO/AUDACIOSO (3x em ROI muito profundo): saida rapida em +2%/+1%
+                # --- SAIDA POS-3x: LUCRO IMEDIATO ---
+                # Licao REZUSDT: subiu +24% e devolveu tudo em 1 min.
+                # Regra: cruzou zero = VENDE 90% AGORA. Sem trailing, sem esperar.
+                # Com DCA pesado, qualquer centavo positivo eh vitoria.
                 if symbol in dca_aplicado:
                     roi_entrada_dca = roi_no_dca.get(symbol, roi)
                     n_3x = dca_contagem.get(symbol, 1)
-
-                    # Atualiza pico pos-3x
-                    pico_3x = pico_pos_3x.get(symbol, roi)
-                    if roi > pico_3x:
-                        pico_3x = roi
-                        pico_pos_3x[symbol] = pico_3x
-
                     fechou_pos_3x = False
 
-                    # --- CAMADA 2: REVERSAO TECNICA (prioridade sobre Camada 1) ---
-                    # Se o padrao virou contra, fecha imediato mesmo em ROI negativo
-                    try:
-                        rev_bloqueado, rev_motivo = detectar_padrao_reversao(client, symbol, direcao)
-                    except Exception:
-                        rev_bloqueado, rev_motivo = False, ""
-
-                    if rev_bloqueado:
-                        log.warning(f"  {symbol}: [POS-3x #{n_3x}] REVERSAO TECNICA -> fechando 90% | ROI {roi:+.1f}% | pico {pico_3x:+.1f}% | {rev_motivo}")
+                    # LUCRO! Cruzou zero → vende 90% imediato
+                    if roi > 0:
+                        margem_pos = float(p.get("positionInitialMargin", 0))
+                        pnl_pos = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                        log.info(f"  {symbol}: [POS-3x #{n_3x}] LUCRO {roi:+.1f}% ${pnl_pos:+.2f} -> VENDENDO 90% AGORA!")
                         telegram(
-                            f"<b>Saida tecnica pos-3x: {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}% | Pico: {pico_3x:+.1f}%\n"
-                            f"Padrao virou contra: {rev_motivo}\n"
-                            f"Fechando 90% para proteger a banca."
+                            f"<b>3x LUCRO REALIZADO! {symbol}</b>\n"
+                            f"{direcao} | ROI: {roi:+.1f}% | ${pnl_pos*0.9:+.2f}\n"
+                            f"Vendido no primeiro positivo. Formiguinha!"
                         )
-                        registrar_aprendizado(client, symbol, direcao, "3x_saida_reversao", roi,
-                            f"3x #{n_3x} | Pico {pico_3x:+.1f}% | Reversao: {rev_motivo}")
-                        fechar_parcial(client, p, 0.90, f"Reversao tecnica pos-3x #{n_3x} (ROI {roi:.1f}%)")
+                        registrar_aprendizado(client, symbol, direcao, "3x_lucro_imediato", roi,
+                            f"3x #{n_3x} | Lucro imediato {roi:+.1f}% | Entrada DCA: {roi_entrada_dca:+.0f}%")
+                        fechar_parcial(client, p, 0.90, f"3x lucro imediato {roi:+.1f}%")
                         fechou_pos_3x = True
 
                     # --- STOP LOSS DINAMICO POS-3x: limita piora apos o 3x ---
@@ -2986,99 +2974,9 @@ def main() -> None:
                             fechar_parcial(client, p, 0.90, f"Stop pos-3x #{n_3x} {stop_dinamico:.1f}% (ROI {roi:.1f}%)")
                             fechou_pos_3x = True
 
-                    # --- MODO AGRESSIVO/AUDACIOSO: saida rapida em qualquer lucro pequeno ---
-                    # 3x em ROI muito profundo -> qualquer virada positiva ja compensa
-                    elif roi_entrada_dca <= -1000 and roi >= 1.0:
-                        log.info(f"  {symbol}: [POS-3x #{n_3x}] AUDACIOSO ROI {roi:+.1f}% >= +1% -> fechando 90%")
-                        telegram(
-                            f"<b>Lucro realizado (AUDACIOSO): {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}% | 3x #{n_3x} | Entrada: {roi_entrada_dca:+.0f}%\n"
-                            f"Saida rapida apos recuperacao profunda."
-                        )
-                        registrar_aprendizado(client, symbol, direcao, "3x_sucesso_audacioso", roi,
-                            f"3x #{n_3x} | Entrada DCA {roi_entrada_dca:+.0f}% | Saida +1%")
-                        fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} AUDACIOSO (ROI {roi:.1f}%)")
-                        fechou_pos_3x = True
-
-                    elif roi_entrada_dca <= -500 and roi >= 2.0:
-                        log.info(f"  {symbol}: [POS-3x #{n_3x}] AGRESSIVO ROI {roi:+.1f}% >= +2% -> fechando 90%")
-                        telegram(
-                            f"<b>Lucro realizado (AGRESSIVO): {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}% | 3x #{n_3x} | Entrada: {roi_entrada_dca:+.0f}%\n"
-                            f"Saida rapida apos recuperacao forte."
-                        )
-                        registrar_aprendizado(client, symbol, direcao, "3x_sucesso_agressivo", roi,
-                            f"3x #{n_3x} | Entrada DCA {roi_entrada_dca:+.0f}% | Saida +2%")
-                        fechar_parcial(client, p, 0.90, f"Saida 90% pos-3x #{n_3x} AGRESSIVO (ROI {roi:.1f}%)")
-                        fechou_pos_3x = True
-
-                    # --- CAMADA 1: TRAILING ESCALONADO POR FAIXA DE PICO (modo NORMAL) ---
-                    # So arma quando pico >= +1% (evita tremor lateral disparar)
-                    # MODO VOLUME: se DCA foi grande (>=50% banca) e volume 1min esta forte,
-                    # trailing afrouxa pra surfar o pump. Quando volume esfria, aperta.
-                    elif pico_3x >= 1.0:
-                        # Detecta se DCA foi grande e volume esta forte
-                        volume_mode = False
-                        vol_forte = False
-                        margem_pos = float(p.get("positionInitialMargin", 0))
-                        if margem_pos >= banca * 0.40 and roi > 0:
-                            volume_mode = True
-                            try:
-                                df1_vol = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=10)
-                                vol_atual = df1_vol["volume"].iloc[-1]
-                                vol_media = df1_vol["volume"].iloc[-5:].mean()
-                                vol_forte = vol_atual >= vol_media * 0.8  # volume sustentado
-                            except Exception:
-                                vol_forte = False
-
-                        if volume_mode and vol_forte and pico_3x >= 3.0:
-                            # MODO VOLUME: trailing mais frouxo — deixa o lucro correr
-                            # Só aperta quando volume cair
-                            if pico_3x < 10.0:
-                                stop = pico_3x * 0.3  # 30% do pico (vs 50% normal)
-                                faixa = f"VOLUME ALTO: 30% do pico ({stop:.1f}%)"
-                            elif pico_3x < 20.0:
-                                stop = pico_3x - 8.0   # -8pp (vs -6pp normal)
-                                faixa = f"VOLUME ALTO: pico -8pp ({stop:.1f}%)"
-                            elif pico_3x < 30.0:
-                                stop = pico_3x - 12.0  # -12pp (vs -8pp normal)
-                                faixa = f"VOLUME ALTO: pico -12pp ({stop:.1f}%)"
-                            else:
-                                stop = pico_3x - 15.0  # -15pp (vs -10pp normal)
-                                faixa = f"VOLUME ALTO: pico -15pp ({stop:.1f}%)"
-                        else:
-                            # Trailing normal (ou volume caiu — aperta)
-                            if pico_3x < 3.0:
-                                stop = 0.0
-                                faixa = "piso zero"
-                            elif pico_3x < 10.0:
-                                stop = pico_3x * 0.5
-                                faixa = f"metade do pico ({stop:.1f}%)"
-                            elif pico_3x < 20.0:
-                                stop = pico_3x - 6.0
-                                faixa = f"pico -6pp ({stop:.1f}%)"
-                            elif pico_3x < 30.0:
-                                stop = pico_3x - 8.0
-                                faixa = f"pico -8pp ({stop:.1f}%)"
-                            else:
-                                stop = pico_3x - 10.0
-                                faixa = f"pico -10pp ({stop:.1f}%)"
-
-                            if volume_mode and not vol_forte and pico_3x >= 5.0:
-                                faixa += " (volume esfriou — trailing apertado)"
-
-                        if roi <= stop:
-                            log.info(f"  {symbol}: [POS-3x #{n_3x}] TRAILING acionado! ROI {roi:+.1f}% <= stop {stop:+.1f}% | pico {pico_3x:+.1f}% | {faixa} -> fechando 90%")
-                            telegram(
-                                f"<b>Lucro travado: {symbol}</b>\n"
-                                f"{direcao} | ROI: {roi:+.1f}% | Pico: {pico_3x:+.1f}%\n"
-                                f"Trailing: {faixa}\n"
-                                f"Fechando 90%, 10% segue na posicao."
-                            )
-                            registrar_aprendizado(client, symbol, direcao, "3x_trailing", roi,
-                                f"3x #{n_3x} | Pico {pico_3x:+.1f}% | Stop {stop:+.1f}% ({faixa})")
-                            fechar_parcial(client, p, 0.90, f"Trailing pos-3x #{n_3x} pico {pico_3x:.1f}% (ROI {roi:.1f}%)")
-                            fechou_pos_3x = True
+                    # Trailing pós-3x REMOVIDO — lição REZUSDT:
+                    # Subiu +24% e devolveu tudo em 1 min. Com DCA pesado,
+                    # cruzou zero = vende. Regra acima já cobre.
 
                     if fechou_pos_3x:
                         dca_aplicado.discard(symbol)
