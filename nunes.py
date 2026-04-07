@@ -3101,6 +3101,72 @@ def main() -> None:
                 # Alertas de risco para todas as posições
                 verificar_alertas_risco(client, p, roi)
 
+                # --- INDICADORES CONTRA = FECHA (licao SUPERUSDT) ---
+                # Historico: 5/5 posicoes com 3+ indicadores contra falharam.
+                # SUPERUSDT: saimos com -$0.06, teria sido -$1.45+ se ficasse.
+                # Regra: avalia MA, RSI, Fibonacci, Volume Profile a cada 15 min.
+                # Se 3+ estao contra a direcao, fecha 90% imediato.
+                if symbol not in dca_aplicado:
+                    check_key = f"indicadores_check_{symbol}"
+                    if time.time() - alerta_dca_log.get(check_key, 0) >= 900:  # a cada 15 min
+                        alerta_dca_log[check_key] = time.time()
+                        try:
+                            df5_ind = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
+                            df5_ind["ma7"] = df5_ind["close"].rolling(7).mean()
+                            df5_ind["ma25"] = df5_ind["close"].rolling(25).mean()
+                            c_ind = df5_ind.iloc[-1]
+                            preco_ind = c_ind["close"]
+
+                            contra = 0
+
+                            # 1. MA
+                            if direcao == "LONG" and c_ind["ma7"] < c_ind["ma25"]:
+                                contra += 1
+                            elif direcao == "SHORT" and c_ind["ma7"] > c_ind["ma25"]:
+                                contra += 1
+
+                            # 2. RSI
+                            rsi_ind = calcular_rsi(df5_ind)
+                            if direcao == "LONG" and rsi_ind > 70:
+                                contra += 1
+                            elif direcao == "SHORT" and rsi_ind < 30:
+                                contra += 1
+
+                            # 3. Fibonacci
+                            hi20 = df5_ind["high"].iloc[-20:].max()
+                            lo20 = df5_ind["low"].iloc[-20:].min()
+                            fib_382 = hi20 - (hi20 - lo20) * 0.382
+                            fib_618 = hi20 - (hi20 - lo20) * 0.618
+                            if direcao == "LONG" and preco_ind > fib_382:
+                                contra += 1  # preco alto demais pra LONG
+                            elif direcao == "SHORT" and preco_ind < fib_618:
+                                contra += 1  # preco baixo demais pra SHORT
+
+                            # 4. Volume Profile
+                            vp_ind = calcular_volume_profile(df5_ind.tail(50), 24)
+                            if vp_ind["valid"]:
+                                if direcao == "LONG" and preco_ind > vp_ind["vah"]:
+                                    contra += 1
+                                elif direcao == "SHORT" and preco_ind < vp_ind["val"]:
+                                    contra += 1
+
+                            if contra >= 3:
+                                pnl_ind = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                                log.warning(f"  {symbol}: {contra}/4 indicadores CONTRA {direcao} -> fechando 90%")
+                                telegram(
+                                    f"<b>Indicadores contra: {symbol}</b>\n"
+                                    f"{direcao} | ROI: {roi:+.1f}% | {contra}/4 contra\n"
+                                    f"MA + RSI + Fib + VP = nao ficar contra a mare.\n"
+                                    f"Fechando 90%. Historico: 5/5 falhas nesse cenario."
+                                )
+                                fechar_parcial(client, p, 0.90, f"Indicadores {contra}/4 contra")
+                                registrar_aprendizado(client, symbol, direcao, "indicadores_contra", roi,
+                                    f"{contra}/4 indicadores contra — fechado preventivamente")
+                                peak_roi.pop(symbol, None)
+                                continue
+                        except Exception:
+                            pass
+
                 # --- DETECÇÃO DE MA REVERSAL CONTRA A POSIÇÃO ---
                 if roi >= 50 and symbol not in dca_aplicado:
                     try:

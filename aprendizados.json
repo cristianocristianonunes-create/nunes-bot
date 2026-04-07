@@ -2110,5 +2110,72 @@
     "tipo": "padrao_sucesso",
     "padrao": "SHORTs lucraram mais que LONGs quando BTC lateral/caindo",
     "regra": "Alinhar direcao do 3x com a tendencia do BTC. SHORT quando BTC cai, LONG quando BTC sobe."
+  },
+  {
+    "timestamp": "2026-04-07T19:52:16.758102+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0608,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 9.254,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-07T20:22:17.879539+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0599,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 10.597,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.78% suporte, MA25 +0.48% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-07T20:52:23.782749+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 10.448,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.69% suporte, MA25 +0.23% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-07T21:22:35.307463+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0609,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 9.104,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-07T21:52:44.602626+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0615,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 8.209,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-07T22:00:00Z",
+    "symbol": "SUPERUSDT",
+    "tipo": "padrao_sucesso",
+    "padrao": "Fechou com -$0.06 quando 3/4 indicadores estavam contra. Historico mostra 5/5 falhas nesse cenario.",
+    "regra": "Quando 3+ de 4 indicadores (MA, RSI, Fibonacci, Volume Profile) estao contra a direcao, FECHAR imediato. Nao importa o ROI atual."
   }
 ]
