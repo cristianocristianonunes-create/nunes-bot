@@ -3244,9 +3244,24 @@ def main() -> None:
                             )
                             alerta_dca_log[alerta_key] = time.time()
 
-                # --- ALVO MEDIANO BRUNO: fecha 50% quando ROI >= +200% (10% movimento × 20x) ---
-                # Bruno mostra que a mediana dos movimentos é 10% no ativo
-                # Com 20x isso = 200% ROI. Fecha metade e deixa o resto correr com trailing
+                # --- TAKE PROFIT FORMIGUINHA: fecha 50% em +15% ROI ---
+                # Licao real: maioria das posicoes fica entre +5% e +30% ROI
+                # e depois DEVOLVE. Fechar 50% cedo garante lucro no bolso.
+                # Resto (50%) continua correndo com trailing pra pegar altas maiores.
+                elif roi >= 15 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
+                    margem_tp = float(p.get("positionInitialMargin", 0))
+                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    log.info(f"  {symbol}: FORMIGUINHA +{roi:.0f}% -> fechando 50% (${pnl_tp*0.5:+.2f})")
+                    telegram(
+                        f"<b>Formiguinha: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.5:+.2f}\n"
+                        f"Garantindo 50% do lucro. Resto corre no trailing."
+                    )
+                    fechar_parcial(client, p, 0.50, f"Formiguinha +{roi:.0f}%")
+                    parcial_10pct.add(symbol)
+                    continue
+
+                # --- ALVO GRANDE: fecha 50% quando ROI >= +200% (10% movimento × 20x) ---
                 elif roi >= 200 and symbol not in parcial_10pct and symbol not in parcial_500:
                     log.info(f"  {symbol}: ALVO 10% atingido (ROI {roi:+.1f}%) -> fechando 50%")
                     telegram(
