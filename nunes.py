@@ -3485,7 +3485,7 @@ def main() -> None:
                                 pass
 
                 # --- ESTRATÉGIA 3x v2.2 (Guardião CNS) — Sistema de Score ---
-                # 3x na primeira oportunidade: a partir de -50% ROI com score >= 40
+                # 3x na primeira oportunidade: a partir de -50% ROI com score >= 50
                 # Quanto mais cedo o 3x, menos margem gasta e mais rapido resolve.
                 # -50% com DCA dinamico = 12% banca e breakeven 0.5%
                 # -120% com DCA dinamico = 32% banca e breakeven 0.5% (mesmo resultado, mais caro)
@@ -3508,18 +3508,22 @@ def main() -> None:
                             preco_atual_3x = float(p.get("markPrice", 0))
                             log.info(f"  {symbol}: ROI {roi:.1f}% | Score 3x: {score}/110")
 
-                            # Licao KOMAUSDT revisada: a -120% ROI, recuperacao natural
-                            # precisaria de 6% de movimento (pode levar horas/dias).
-                            # O 3x resolve em 0.5% (segundos). Se 15min/1h estao a favor,
-                            # o 3x tem MAIS chance de funcionar, nao menos.
-                            # Conclusao: na zona de 3x, SEMPRE disparar se score >= 40.
+                            # LICOES REAIS (9 erros, $114 de perda):
+                            # - Score 43 falhou (EDGEUSDT), 48 meio a meio, 53+ funcionou
+                            # - Score alto (70, 83) falha quando macro esta contra
+                            # - RSI e BTC agora penalizam no score (-10 a -15 pts)
+                            # - Score total agora 0-140, gatilho 50 eh mais seletivo
+                            #
+                            # REGRAS DE SEGURANCA:
+                            # 1. Score >= 50 obrigatorio (com RSI + BTC ja penalizando)
+                            # 2. Nao faz 3x se ja tem outro 3x ativo (um por vez)
+                            # 3. RSI desfavoravel ja reduz score em -10 (pode cair abaixo de 50)
+                            # 4. BTC contra ja reduz score em -15 (pode cair abaixo de 50)
 
-                            if score >= 40:
-                                # 3x NAO respeita limite de racio — resolve em segundos
-                                # com stop relativo (2% banca) + trailing. Racio alto e temporario.
-                                if dca_bloqueado_por_racio:
-                                    log.info(f"  {symbol}: Racio alto mas 3x permitido — stop + trailing protegem")
-                                log.info(f"  {symbol}: SCORE {score}/110 -> 3x #{n_3x + 1} DISPARADO")
+                            ja_tem_3x_ativo = len(dca_aplicado) > 0
+
+                            if score >= 50 and not ja_tem_3x_ativo:
+                                log.info(f"  {symbol}: SCORE {score}/140 -> 3x #{n_3x + 1} DISPARADO")
                                 aplicar_dca(client, p, banca)
                                 dca_aplicado.add(symbol)
                                 dca_contagem[symbol] = n_3x + 1
@@ -3535,8 +3539,9 @@ def main() -> None:
                                 )
                                 registrar_aprendizado(client, symbol, direcao, "3x_auto", roi,
                                     f"Score {score}/110 | #{n_3x + 1}")
-                            # dca_bloqueado_por_racio nao impede 3x — stop + trailing resolvem rapido
-                            elif score >= 30:
+                            elif ja_tem_3x_ativo and score >= 50:
+                                log.info(f"  {symbol}: Score {score} bom mas ja tem 3x ativo em {list(dca_aplicado)} — aguarda")
+                            elif score >= 40:
                                 log.info(f"  {symbol}: Score {score}/110 — fraco, aguardando")
                             else:
                                 log.info(f"  {symbol}: Score {score}/110 — insuficiente")
