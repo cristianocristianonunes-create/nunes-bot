@@ -91,8 +91,8 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
 
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
-INTERVALO_POSICOES    = 15   # segundos entre verificação de posições (rápido para pegar 3x)
-INTERVALO_ENTRADAS    = 60   # segundos entre busca de novas entradas (2H timeframe)
+INTERVALO_POSICOES    = 3    # segundos — acompanhamento quase real time
+INTERVALO_ENTRADAS    = 30   # segundos — busca novas entradas mais frequente
 RESUMO_HORA           = 22   # hora do resumo diário (horário local)
 META_CICLO_PCT        = float(os.getenv("META_CICLO_PCT", "5.0"))   # meta de lucro por ciclo (%)
 META_CICLO_FASE2_USD  = float(os.getenv("META_CICLO_FASE2_USD", "50.0"))  # meta fixa em USDT após $1.000
@@ -3626,16 +3626,13 @@ def main() -> None:
                     log.debug(f"Erro checkpoint BASEDUSDT: {e}")
                 ultimo_checkpoint_basedusdt = time.time()
 
-            # Acompanhamento em 3 niveis:
-            # - 0.5s: alguma posicao ja esta em 3x (trailing pos-3x precisa pegar picos rapidos)
-            # - 1.0s: alguma posicao esta perto do gatilho de 3x (ROI <= -100%)
-            # - INTERVALO_POSICOES (15s): operacao normal
-            if dca_aplicado:
-                time.sleep(0.5)  # 3x ativo: monitoramento ultra rapido para trailing/reversao
-            elif any(calcular_roi(p) <= -100 for p in abertas if float(p["positionAmt"]) != 0):
-                time.sleep(1)    # perto do gatilho de 3x: monitora para disparar na hora certa
+            # Acompanhamento em 2 niveis:
+            # - 0.5s: 3x ativo OU perto do gatilho — nao pode perder o time
+            # - 3s: operacao normal — quase real time
+            if dca_aplicado or any(calcular_roi(p) <= -40 for p in abertas if float(p["positionAmt"]) != 0):
+                time.sleep(0.5)  # 3x ou mola comprimindo: ultra rapido
             else:
-                time.sleep(INTERVALO_POSICOES)
+                time.sleep(INTERVALO_POSICOES)  # 3s — rapido pra pegar oportunidades
 
         except KeyboardInterrupt:
             log.info("Nunes encerrado pelo usuario.")
