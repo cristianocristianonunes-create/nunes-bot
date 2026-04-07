@@ -3917,7 +3917,7 @@ def main() -> None:
             # Fase 2: bot detecta posicoes com margem abaixo do alvo e faz topup
             # quando MA está a favor (momento certo). Roda a cada 5 min.
             agora = time.time()
-            if agora - alerta_dca_log.get("equilibrar_scan", 0) >= 300:
+            if agora - alerta_dca_log.get("equilibrar_scan", 0) >= 30:  # 30s — rapido pra pegar MA virando
                 alerta_dca_log["equilibrar_scan"] = agora
                 try:
                     saldo_eq = get_saldo_total(client)
