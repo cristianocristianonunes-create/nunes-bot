@@ -3248,14 +3248,14 @@ def main() -> None:
                 # Licao real: maioria das posicoes fica entre +5% e +30% ROI
                 # e depois DEVOLVE. Fechar 50% cedo garante lucro no bolso.
                 # Resto (50%) continua correndo com trailing pra pegar altas maiores.
-                elif roi >= 15 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
+                elif roi >= 20 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
                     margem_tp = float(p.get("positionInitialMargin", 0))
                     pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                     log.info(f"  {symbol}: FORMIGUINHA +{roi:.0f}% -> fechando 50% (${pnl_tp*0.5:+.2f})")
                     telegram(
                         f"<b>Formiguinha: {symbol}</b>\n"
                         f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.5:+.2f}\n"
-                        f"Garantindo 50% do lucro. Resto corre no trailing."
+                        f"50% no bolso. Resto com trailing apertado (5pp)."
                     )
                     fechar_parcial(client, p, 0.50, f"Formiguinha +{roi:.0f}%")
                     parcial_10pct.add(symbol)
@@ -3273,8 +3273,22 @@ def main() -> None:
                     parcial_10pct.add(symbol)
                     continue
 
-                # --- POSIÇÕES NORMAIS — TRAILING STOP ESCALONADO ---
+                # --- POSIÇÕES NORMAIS — TRAILING STOP ---
                 if roi > 0 and pico >= 5:
+                    # Pos-formiguinha (ja fechou 50%): trailing APERTADO de 5pp
+                    # Dados reais: bot devolve 20-30pp em media. Com 5pp, captura muito mais.
+                    if symbol in parcial_10pct and pico >= 10 and (pico - roi) >= 5:
+                        log.info(f"  {symbol}: pos-formiguinha trailing 5pp! Pico {pico:.0f}% caiu pra {roi:.0f}% -> fechando resto")
+                        telegram(
+                            f"<b>Trailing apertado: {symbol}</b>\n"
+                            f"{direcao} | Pico: {pico:.0f}% | Saida: {roi:+.1f}%\n"
+                            f"Pos-formiguinha: 5pp do pico. Lucro garantido."
+                        )
+                        fechar_parcial(client, p, 1.0, f"Pos-formiguinha trailing 5pp (pico {pico:.0f}%)")
+                        peak_roi.pop(symbol, None)
+                        parcial_10pct.discard(symbol)
+                        continue
+
                     # Travar lucro: pico >= 25% e caiu 15pp+ com volume esfriando
                     if pico >= 25 and roi > 0 and (pico - roi) >= 15:
                         try:
