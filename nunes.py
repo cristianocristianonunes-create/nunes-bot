@@ -2251,16 +2251,55 @@ def sinal_guardiao(client: Client, symbol: str, btc_tendencia: str = "lateral") 
             return None  # H4 deve confirmar
         if btc_tendencia == "baixa":
             return None
-        return "LONG"
-
-    if fechou_abaixo and cur_baixa and prev_baixa:
+        direcao_candidata = "LONG"
+    elif fechou_abaixo and cur_baixa and prev_baixa:
         if h4_trend != "baixa":
             return None
         if btc_tendencia == "alta":
             return None
-        return "SHORT"
+        direcao_candidata = "SHORT"
+    else:
+        return None
 
-    return None
+    # --- FILTROS NA ENTRADA (licao dos 13 perdedores) ---
+    # 87% das perdas vieram de entradas que passaram sem checar RSI/MA5min.
+    # Se esses filtros tivessem rodado ANTES: +$79 em vez de -$21 em 3 dias.
+    try:
+        # RSI 5min
+        df5_entrada = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+        df5_entrada["ma7"] = df5_entrada["close"].rolling(7).mean()
+        df5_entrada["ma25"] = df5_entrada["close"].rolling(25).mean()
+        rsi_entrada = calcular_rsi(df5_entrada)
+        c5_entrada = df5_entrada.iloc[-1]
+
+        # RSI contra: LONG sobrecomprado ou SHORT sobrevendido
+        if direcao_candidata == "LONG" and rsi_entrada > 70:
+            log.info(f"  {symbol}: LONG bloqueado na entrada — RSI {rsi_entrada:.0f} sobrecomprado")
+            return None
+        if direcao_candidata == "SHORT" and rsi_entrada < 30:
+            log.info(f"  {symbol}: SHORT bloqueado na entrada — RSI {rsi_entrada:.0f} sobrevendido")
+            return None
+
+        # MA 5min contra: nao entra nadando contra o micro
+        if direcao_candidata == "LONG" and c5_entrada["ma7"] < c5_entrada["ma25"]:
+            log.info(f"  {symbol}: LONG bloqueado — MA7 < MA25 no 5min (micro contra)")
+            return None
+        if direcao_candidata == "SHORT" and c5_entrada["ma7"] > c5_entrada["ma25"]:
+            log.info(f"  {symbol}: SHORT bloqueado — MA7 > MA25 no 5min (micro contra)")
+            return None
+
+        # BTC forte contra (redundancia com check acima, mas agora quantitativo)
+        if direcao_candidata == "LONG" and btc_caindo_forte(client):
+            log.info(f"  {symbol}: LONG bloqueado — BTC caindo >2% em 4h")
+            return None
+        if direcao_candidata == "SHORT" and btc_subindo_forte(client):
+            log.info(f"  {symbol}: SHORT bloqueado — BTC subindo >2% em 4h")
+            return None
+
+    except Exception:
+        pass  # se falhar, deixa passar (conservador: melhor entrar que travar)
+
+    return direcao_candidata
 
 # ---------------------------------------------------------------------------
 # Gestão de posição
