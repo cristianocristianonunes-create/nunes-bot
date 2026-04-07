@@ -2652,6 +2652,26 @@ def proteger_racio(client: Client, abertas: list) -> bool:
 # ---------------------------------------------------------------------------
 # Execução de ordens
 # ---------------------------------------------------------------------------
+# Ativos baseados em acao — so operam com mercado US aberto
+ATIVOS_ACAO = {"TSLAUSDT", "MSFTUSDT", "AAPLUSDT", "AMZNUSDT", "GOOGLUSDT",
+               "METAUSDT", "NVDAUSDT", "COINUSDT", "MSTRUSDT"}
+
+
+def mercado_us_aberto() -> bool:
+    """Verifica se mercado americano esta aberto (10:30-17:00 BRT / 13:30-20:00 UTC)."""
+    hora_utc = datetime.now(timezone.utc).hour
+    minuto_utc = datetime.now(timezone.utc).minute
+    dia_semana = datetime.now(timezone.utc).weekday()  # 0=seg, 6=dom
+    if dia_semana >= 5:  # fim de semana
+        return False
+    # 13:30 a 20:00 UTC = 10:30 a 17:00 BRT
+    if hora_utc == 13 and minuto_utc >= 30:
+        return True
+    if 14 <= hora_utc < 20:
+        return True
+    return False
+
+
 def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca: float, qualidade: str = "NORMAL", risco_base: float = None, score_entrada: int = 0) -> None:
     # TRAVA DE DIRECAO: max 5 na mesma direcao (dentro de abrir_posicao = impossivel burlar)
     pos_check = posicoes_abertas(client)
@@ -2662,6 +2682,12 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
         return
     if direcao == "SHORT" and n_short >= 5:
         log.info(f"  {symbol}: BLOQUEADO — ja tem {n_short} SHORTs (max 5)")
+        return
+
+    # TRAVA DE ATIVO DE ACAO: so opera com mercado US aberto
+    # Licao TSLAUSDT: 3x fora do horario = sem volume pra corrigir
+    if symbol in ATIVOS_ACAO and not mercado_us_aberto():
+        log.info(f"  {symbol}: BLOQUEADO — ativo de acao, mercado US fechado")
         return
 
     saldo_total    = get_saldo_total(client)
@@ -3640,6 +3666,11 @@ def main() -> None:
                 # -50% com DCA dinamico = 12% banca e breakeven 0.5%
                 # -120% com DCA dinamico = 32% banca e breakeven 0.5% (mesmo resultado, mais caro)
                 elif roi <= -50.0:
+                    # Ativo de acao: so faz 3x com mercado US aberto
+                    if symbol in ATIVOS_ACAO and not mercado_us_aberto():
+                        log.info(f"  {symbol}: ROI {roi:.1f}% | 3x bloqueado — mercado US fechado (ativo de acao)")
+                        continue
+
                     n_3x = dca_contagem.get(symbol, 0)
                     # Cooldown de 10 min por symbol (reduzido: trailing pos-3x protege)
                     cooldown_key = f"3x_cooldown_{symbol}"
