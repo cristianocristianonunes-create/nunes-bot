@@ -2947,6 +2947,22 @@ def main() -> None:
                         fechar_parcial(client, p, 0.90, f"3x lucro imediato {roi:+.1f}%")
                         fechou_pos_3x = True
 
+                    # --- PISO ZERO VIOLADO: subiu e voltou negativo = corta ---
+                    # Se o pico pos-3x foi positivo e agora voltou negativo, acabou.
+                    elif roi <= 0:
+                        pico_3x = pico_pos_3x.get(symbol, roi)
+                        if pico_3x > 0:
+                            log.warning(f"  {symbol}: [POS-3x #{n_3x}] PISO ZERO VIOLADO | pico {pico_3x:+.1f}% voltou {roi:+.1f}% -> fechando 90%")
+                            telegram(
+                                f"<b>Piso zero violado: {symbol}</b>\n"
+                                f"{direcao} | Pico: {pico_3x:+.1f}% | Atual: {roi:+.1f}%\n"
+                                f"Subiu e devolveu. Cortando."
+                            )
+                            registrar_aprendizado(client, symbol, direcao, "3x_piso_zero", roi,
+                                f"3x #{n_3x} | Pico {pico_3x:+.1f}% voltou {roi:+.1f}%")
+                            fechar_parcial(client, p, 0.90, f"Piso zero pos-3x (pico {pico_3x:+.1f}%)")
+                            fechou_pos_3x = True
+
                     # --- STOP LOSS DINAMICO POS-3x: limita piora apos o 3x ---
                     # O stop eh RELATIVO ao ROI de entrada do 3x (roi_no_dca), nao absoluto.
                     # Se o 3x entrou em -10% ROI, o stop em -13.2% = piorou 3.2pp desde o 3x.
@@ -3019,6 +3035,25 @@ def main() -> None:
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ESCALONADO ---
                 if roi > 0 and pico >= 5:
+                    # Travar lucro: pico >= 25% e caiu 15pp+ com volume esfriando
+                    if pico >= 25 and roi > 0 and (pico - roi) >= 15:
+                        try:
+                            df1_vol = get_candles(client, symbol, Client.KLINE_INTERVAL_1MINUTE, limit=10)
+                            vol_a = df1_vol["volume"].iloc[-1]
+                            vol_m = df1_vol["volume"].iloc[-5:].mean()
+                            if vol_a < vol_m * 0.7:
+                                log.info(f"  {symbol}: pico {pico:.0f}% caiu pra {roi:.0f}% + vol esfriou -> travando")
+                                telegram(
+                                    f"<b>Lucro travado: {symbol}</b>\n"
+                                    f"{direcao} | Pico: {pico:.0f}% | Saida: {roi:+.1f}%\n"
+                                    f"Volume esfriou. Garantindo lucro."
+                                )
+                                fechar_parcial(client, p, 0.90, f"Pico {pico:.0f}% vol esfriou (ROI {roi:.1f}%)")
+                                peak_roi.pop(symbol, None)
+                                continue
+                        except Exception:
+                            pass
+
                     # Detecta cripto com alta variação 24h (pump) — trailing mais apertado
                     cripto_pump = False
                     try:
