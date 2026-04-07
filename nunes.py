@@ -3257,7 +3257,7 @@ def main() -> None:
                 # Se 3+ estao contra a direcao, fecha 90% imediato.
                 if symbol not in dca_aplicado:
                     check_key = f"indicadores_check_{symbol}"
-                    if time.time() - alerta_dca_log.get(check_key, 0) >= 900:  # a cada 15 min
+                    if time.time() - alerta_dca_log.get(check_key, 0) >= 300:  # a cada 15 min
                         alerta_dca_log[check_key] = time.time()
                         try:
                             df5_ind = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
@@ -3458,7 +3458,7 @@ def main() -> None:
                     else:
                         # Acompanhamento a cada 5 min
                         alerta_key = f"3x_acomp_{symbol}"
-                        if time.time() - alerta_dca_log.get(alerta_key, 0) >= 300:
+                        if time.time() - alerta_dca_log.get(alerta_key, 0) >= 120:
                             grafico = analise_grafico_3x(client, symbol, direcao)
                             if roi > 0 and pico_3x >= 1.0:
                                 status_txt = f"ROI: {roi:+.1f}% | Pico: {pico_3x:+.1f}% | Trailing armado"
@@ -3642,7 +3642,7 @@ def main() -> None:
                         if cruzou_agora:
                             cruzamento_agora = True
                             alerta_cruz_key = f"cruz_agora_{symbol}"
-                            if time.time() - alerta_dca_log.get(alerta_cruz_key, 0) >= 900:
+                            if time.time() - alerta_dca_log.get(alerta_cruz_key, 0) >= 120:
                                 grafico = analise_grafico_3x(client, symbol, direcao)
                                 telegram(
                                     f"<b>Candle 1: Cruzamento {symbol}</b>\n"
@@ -3715,7 +3715,7 @@ def main() -> None:
                         if roi <= nivel:
                             titulo = marcos_negativos[nivel]
                             alerta_key = f"marco_neg_{symbol}_{nivel}"
-                            if time.time() - alerta_dca_log.get(alerta_key, 0) >= 1800:
+                            if time.time() - alerta_dca_log.get(alerta_key, 0) >= 120:
                                 telegram(
                                     f"<b>{titulo}: {symbol}</b>\n"
                                     f"{direcao} | ROI: {roi:+.1f}%\n"
@@ -3746,7 +3746,7 @@ def main() -> None:
 
                                 if min_favor:
                                     topup_key = f"topup_rev_{symbol}"
-                                    if time.time() - alerta_dca_log.get(topup_key, 0) >= 1800:
+                                    if time.time() - alerta_dca_log.get(topup_key, 0) >= 300:
                                         # Checa racio antes
                                         if get_racio_margem(client) < RACIO_MARGEM_MAX:
                                             preco_tp = float(client.futures_symbol_ticker(symbol=symbol)["price"])
@@ -4006,7 +4006,7 @@ def main() -> None:
                         # (normal seria 15pp com volume check)
                         if pico_prot >= 10 and roi_prot > 0 and (pico_prot - roi_prot) >= 5:
                             alerta_key = f"prot_saldo_{sym_prot}"
-                            if time.time() - alerta_dca_log.get(alerta_key, 0) >= 300:
+                            if time.time() - alerta_dca_log.get(alerta_key, 0) >= 120:
                                 pnl_prot = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                                 log.info(f"  {sym_prot}: saldo defensivo — trailing apertado pico {pico_prot:.0f}% caiu pra {roi_prot:.0f}%")
                                 fechar_parcial(client, p, 0.90, f"Saldo defensivo: pico {pico_prot:.0f}% saida {roi_prot:.0f}%")
