@@ -1186,7 +1186,8 @@ topup_recente:         dict[str, float] = {}  # symbols que tiveram topup recent
 score_historico:       dict[str, list] = {}  # symbol -> [(timestamp, score, preco)] para validar continuidade
 posicoes_cns:        set[str]        = set() # symbols que entraram pelo modo CNS
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
-parcial_10pct:         set[str]        = set() # symbols que já fecharam 50% em +10% ROI
+parcial_10pct:         set[str]        = set() # symbols que já fecharam 30% em +20% ROI (cascata 1)
+parcial_nivel2:        set[str]        = set() # symbols que já fecharam 30% em +40% ROI (cascata 2)
 pico_pos_3x:           dict[str, float] = {}  # pico de ROI apos o 3x (para trailing escalonado)
 topup_equilibrar:      dict[str, float] = {}  # symbol -> margem faltante para equilibrar a 3% da banca
 
@@ -2651,13 +2652,26 @@ def proteger_racio(client: Client, abertas: list) -> bool:
 # ---------------------------------------------------------------------------
 # Execução de ordens
 # ---------------------------------------------------------------------------
-def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca: float, qualidade: str = "NORMAL", risco_base: float = None) -> None:
+def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca: float, qualidade: str = "NORMAL", risco_base: float = None, score_entrada: int = 0) -> None:
     saldo_total    = get_saldo_total(client)
     alav_ideal     = alavancagem_dinamica(saldo_total)
     _risco_base    = risco_base if risco_base is not None else RISCO_POR_TRADE
-    # Aplica peso por tier (Guardião v2): Tier A 1.5x, Tier B 1.0x, Tier C 0.7x
+
+    # Margem proporcional ao score: mais confianca = mais margem = mais lucro
+    # Score 50-70: 60% da margem base (conservador)
+    # Score 70-100: 100% (normal)
+    # Score 100+: 140% (alta confianca)
+    if score_entrada >= 100:
+        fator_score = 1.4
+    elif score_entrada >= 70:
+        fator_score = 1.0
+    elif score_entrada >= 50:
+        fator_score = 0.6
+    else:
+        fator_score = 1.0  # sem score (entrada manual/guardiao)
+
     peso = peso_tier(symbol)
-    risco = _risco_base * peso
+    risco = _risco_base * peso * fator_score
     margem = round(banca * risco, 2)
     # Garante notional mínimo de $5.50 (Binance exige $5)
     if margem * alav_ideal < 5.50:
@@ -3244,25 +3258,49 @@ def main() -> None:
                             )
                             alerta_dca_log[alerta_key] = time.time()
 
-                # --- TAKE PROFIT FORMIGUINHA: fecha 50% em +15% ROI ---
-                # Licao real: maioria das posicoes fica entre +5% e +30% ROI
-                # e depois DEVOLVE. Fechar 50% cedo garante lucro no bolso.
-                # Resto (50%) continua correndo com trailing pra pegar altas maiores.
+                # --- SAIDA EM CASCATA: 3 pontos de realizacao de lucro ---
+                # Nivel 1: +20% ROI → fecha 30% (formiguinha no bolso)
+                # Nivel 2: +40% ROI → fecha 30% (lucro forte garantido)
+                # Nivel 3: +80% ROI → fecha 30% (lucro grande)
+                # Resto (10%): trailing apertado 5pp do pico
                 elif roi >= 20 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
-                    margem_tp = float(p.get("positionInitialMargin", 0))
                     pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: FORMIGUINHA +{roi:.0f}% -> fechando 50% (${pnl_tp*0.5:+.2f})")
+                    log.info(f"  {symbol}: CASCATA 1 +{roi:.0f}% -> fechando 30%")
                     telegram(
-                        f"<b>Formiguinha: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.5:+.2f}\n"
-                        f"50% no bolso. Resto com trailing apertado (5pp)."
+                        f"<b>Cascata 1: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.30:+.2f}\n"
+                        f"30% no bolso. Proximo nivel: +40%."
                     )
-                    fechar_parcial(client, p, 0.50, f"Formiguinha +{roi:.0f}%")
+                    fechar_parcial(client, p, 0.30, f"Cascata 1 +{roi:.0f}%")
                     parcial_10pct.add(symbol)
                     continue
 
-                # --- ALVO GRANDE: fecha 50% quando ROI >= +200% (10% movimento × 20x) ---
-                elif roi >= 200 and symbol not in parcial_10pct and symbol not in parcial_500:
+                elif roi >= 40 and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
+                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    log.info(f"  {symbol}: CASCATA 2 +{roi:.0f}% -> fechando 30%")
+                    telegram(
+                        f"<b>Cascata 2: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.30:+.2f}\n"
+                        f"Mais 30% no bolso! Proximo nivel: +80%."
+                    )
+                    fechar_parcial(client, p, 0.43, f"Cascata 2 +{roi:.0f}%")  # 30% do restante (70%) = 0.43
+                    parcial_nivel2.add(symbol)
+                    continue
+
+                elif roi >= 80 and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
+                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    log.info(f"  {symbol}: CASCATA 3 +{roi:.0f}% -> fechando 30%")
+                    telegram(
+                        f"<b>Cascata 3: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.75:+.2f}\n"
+                        f"Lucro grande! 10% restante corre com trailing 5pp."
+                    )
+                    fechar_parcial(client, p, 0.75, f"Cascata 3 +{roi:.0f}%")  # 30% do restante (40%) = 0.75
+                    parcial_500.add(symbol)
+                    continue
+
+                # --- ALVO ENORME: fecha tudo quando ROI >= +200% ---
+                elif roi >= 200 and symbol not in parcial_500:
                     log.info(f"  {symbol}: ALVO 10% atingido (ROI {roi:+.1f}%) -> fechando 50%")
                     telegram(
                         f"<b>Alvo Bruno atingido: {symbol}</b>\n"
@@ -3836,6 +3874,8 @@ def main() -> None:
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
                     MAX_ENTRADAS_POR_SCAN = 10
+                    MAX_MESMA_DIRECAO = 5  # max 5 LONG ou 5 SHORT — diversifica
+
                     abertos_scan = 0
                     for symbol, sinal, direcao_tf, preco, qualidade in sinais_encontrados:
                         if abertos_scan >= MAX_ENTRADAS_POR_SCAN:
@@ -3846,6 +3886,18 @@ def main() -> None:
                         if get_racio_margem(client) >= RACIO_MARGEM_MAX:
                             log.info(f"Racio limite atingido — parando entradas.")
                             break
+
+                        # Diversificacao: max 5 na mesma direcao
+                        pos_atual = posicoes_abertas(client)
+                        n_long = sum(1 for p in pos_atual if float(p["positionAmt"]) > 0)
+                        n_short = sum(1 for p in pos_atual if float(p["positionAmt"]) < 0)
+                        if sinal == "LONG" and n_long >= MAX_MESMA_DIRECAO:
+                            log.info(f"  {symbol}: LONG bloqueado — ja tem {n_long} LONGs (max {MAX_MESMA_DIRECAO})")
+                            continue
+                        if sinal == "SHORT" and n_short >= MAX_MESMA_DIRECAO:
+                            log.info(f"  {symbol}: SHORT bloqueado — ja tem {n_short} SHORTs (max {MAX_MESMA_DIRECAO})")
+                            continue
+
                         log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | Preco: {preco}")
                         abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
                         ultimo_entrada = time.time()
