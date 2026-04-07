@@ -2653,6 +2653,17 @@ def proteger_racio(client: Client, abertas: list) -> bool:
 # Execução de ordens
 # ---------------------------------------------------------------------------
 def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca: float, qualidade: str = "NORMAL", risco_base: float = None, score_entrada: int = 0) -> None:
+    # TRAVA DE DIRECAO: max 5 na mesma direcao (dentro de abrir_posicao = impossivel burlar)
+    pos_check = posicoes_abertas(client)
+    n_long = sum(1 for p in pos_check if float(p["positionAmt"]) > 0)
+    n_short = sum(1 for p in pos_check if float(p["positionAmt"]) < 0)
+    if direcao == "LONG" and n_long >= 5:
+        log.info(f"  {symbol}: BLOQUEADO — ja tem {n_long} LONGs (max 5)")
+        return
+    if direcao == "SHORT" and n_short >= 5:
+        log.info(f"  {symbol}: BLOQUEADO — ja tem {n_short} SHORTs (max 5)")
+        return
+
     saldo_total    = get_saldo_total(client)
     alav_ideal     = alavancagem_dinamica(saldo_total)
     _risco_base    = risco_base if risco_base is not None else RISCO_POR_TRADE
