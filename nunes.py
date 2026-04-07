@@ -3471,6 +3471,38 @@ def main() -> None:
                 except Exception as e:
                     log.debug(f"Erro equilibrar scan: {e}")
 
+            # --- PROTECAO DE SALDO: realizar lucro quando saldo esta caindo ---
+            # Meta: saldo E PnL subindo juntos. Se saldo caiu desde inicio do dia,
+            # forca realizacao de lucro em qualquer positiva >= +5% pra subir o saldo.
+            try:
+                saldo_agora = get_saldo_total(client)
+                pnl_agora = sum(float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0))) for p in abertas)
+                patrimonio = saldo_agora + pnl_agora
+                perda_dia = saldo_agora - saldo_abertura_dia
+
+                if perda_dia < -1.0:  # saldo caiu mais de $1 no dia
+                    # Realiza lucro em positivas >= +5% pra subir o saldo
+                    for p in abertas:
+                        sym_prot = p["symbol"]
+                        if sym_prot in dca_aplicado:
+                            continue  # 3x tem logica propria
+                        roi_prot = calcular_roi(p)
+                        pnl_prot = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                        if roi_prot >= 5.0 and pnl_prot >= 0.10:
+                            alerta_key = f"prot_saldo_{sym_prot}"
+                            if time.time() - alerta_dca_log.get(alerta_key, 0) >= 300:
+                                log.info(f"  {sym_prot}: saldo caindo (dia ${perda_dia:+.2f}) — realizando lucro +{roi_prot:.0f}%")
+                                fechar_parcial(client, p, 0.90, f"Protecao saldo: ROI {roi_prot:+.1f}% (dia ${perda_dia:+.2f})")
+                                telegram(
+                                    f"<b>Protecao de saldo: {sym_prot}</b>\n"
+                                    f"ROI: {roi_prot:+.1f}% | ${pnl_prot*0.9:+.2f}\n"
+                                    f"Saldo caiu ${abs(perda_dia):.2f} no dia — realizando pra subir."
+                                )
+                                alerta_dca_log[alerta_key] = time.time()
+                                break  # uma por ciclo
+            except Exception:
+                pass
+
             # --- BUSCA DE NOVAS ENTRADAS (a cada 30 segundos) ---
             # PRIORIDADE: equilibrar posicoes existentes ANTES de abrir novas
             # Posicao forte > posicao nova — margem desequilibrada gera 3x mais caro
