@@ -207,7 +207,7 @@ def disparar_3x(symbol, direcao, p):
                         log.info(f"  [{elapsed}s] {symbol} ROI {roic:+.1f}%")
             except Exception:
                 pass
-            time.sleep(1)  # check a cada 1 segundo — nao pode perder o time
+            time.sleep(0.5)  # check a cada 0.5s — igual ao bot principal
 
         # 10 min sem resolver — deixa o ciclo normal cuidar
         log.info(f"  {symbol} 10 min sem resolver — monitoramento normal assume")
