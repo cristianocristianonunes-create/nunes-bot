@@ -185,16 +185,24 @@ def disparar_3x(symbol, direcao, p):
                     pnlc = float(pc.get("unRealizedProfit", pc.get("unrealizedProfit", 0)))
                     roic = (pnlc / mc * 100) if mc > 0 else 0
 
-                    # LUCRO! Cruzou zero → vende 90% IMEDIATO
+                    # LUCRO! Registra pico, trailing ultra apertado (1pp)
                     if roic > 0:
-                        log.info(f"  {symbol} LUCRO {roic:+.1f}% ${pnlc:+.2f} → VENDENDO 90% AGORA!")
-                        fechar_parcial(symbol, 0.90, f"3x lucro imediato {roic:+.1f}%")
-                        telegram(
-                            f"<b>3x LUCRO REALIZADO! {symbol}</b>\n"
-                            f"{direcao} | ROI: {roic:+.1f}% | ${pnlc*0.9:+.2f}\n"
-                            f"Vendido no primeiro positivo. Formiguinha!"
-                        )
-                        return True
+                        if "pico" not in locals() or roic > pico:
+                            pico = roic
+
+                        # Caiu 1pp do pico → vende
+                        if pico >= 1.0 and roic <= pico - 1.0:
+                            log.info(f"  {symbol} LUCRO TRAVADO! Pico {pico:+.1f}% saida {roic:+.1f}%")
+                            fechar_parcial(symbol, 0.90, f"3x pico {pico:+.1f}% saida {roic:+.1f}%")
+                            telegram(
+                                f"<b>3x LUCRO REALIZADO! {symbol}</b>\n"
+                                f"{direcao} | Pico: {pico:+.1f}% | Saida: {roic:+.1f}%\n"
+                                f"${pnlc*0.9:+.2f} de lucro. Formiguinha!"
+                            )
+                            return True
+                        else:
+                            if int(time.time() - inicio_3x) % 5 == 0:
+                                log.info(f"  {symbol} POSITIVO {roic:+.1f}% | pico {pico:+.1f}% | subindo...")
 
                     # STOP: piorou alem do limite
                     if roic <= stop_val:

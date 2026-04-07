@@ -2932,20 +2932,34 @@ def main() -> None:
                     n_3x = dca_contagem.get(symbol, 1)
                     fechou_pos_3x = False
 
-                    # LUCRO! Cruzou zero → vende 90% imediato
+                    # LUCRO! Cruzou zero → registra pico, trailing ultra apertado
+                    # Deixa subir enquanto tiver forca. Caiu 1pp do pico → vende.
                     if roi > 0:
+                        pico_3x = pico_pos_3x.get(symbol, 0)
+                        if roi > pico_3x:
+                            pico_pos_3x[symbol] = roi
+                            pico_3x = roi
+
                         margem_pos = float(p.get("positionInitialMargin", 0))
                         pnl_pos = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                        log.info(f"  {symbol}: [POS-3x #{n_3x}] LUCRO {roi:+.1f}% ${pnl_pos:+.2f} -> VENDENDO 90% AGORA!")
-                        telegram(
-                            f"<b>3x LUCRO REALIZADO! {symbol}</b>\n"
-                            f"{direcao} | ROI: {roi:+.1f}% | ${pnl_pos*0.9:+.2f}\n"
-                            f"Vendido no primeiro positivo. Formiguinha!"
-                        )
-                        registrar_aprendizado(client, symbol, direcao, "3x_lucro_imediato", roi,
-                            f"3x #{n_3x} | Lucro imediato {roi:+.1f}% | Entrada DCA: {roi_entrada_dca:+.0f}%")
-                        fechar_parcial(client, p, 0.90, f"3x lucro imediato {roi:+.1f}%")
-                        fechou_pos_3x = True
+
+                        # Trailing ultra apertado: caiu 1pp do pico → vende
+                        # Se pico +24% e roi +23% → vende com +23%
+                        # Se pico +2% e roi +1% → vende com +1%
+                        if pico_3x >= 1.0 and roi <= pico_3x - 1.0:
+                            log.info(f"  {symbol}: [POS-3x #{n_3x}] LUCRO TRAVADO! Pico {pico_3x:+.1f}% caiu pra {roi:+.1f}% -> vendendo 90%")
+                            telegram(
+                                f"<b>3x LUCRO REALIZADO! {symbol}</b>\n"
+                                f"{direcao} | Pico: {pico_3x:+.1f}% | Saida: {roi:+.1f}%\n"
+                                f"${pnl_pos*0.9:+.2f} de lucro. Formiguinha!"
+                            )
+                            registrar_aprendizado(client, symbol, direcao, "3x_lucro_imediato", roi,
+                                f"3x #{n_3x} | Pico {pico_3x:+.1f}% saida {roi:+.1f}% | Entrada DCA: {roi_entrada_dca:+.0f}%")
+                            fechar_parcial(client, p, 0.90, f"3x pico {pico_3x:+.1f}% saida {roi:+.1f}%")
+                            fechou_pos_3x = True
+                        else:
+                            # Ainda subindo ou recem cruzou — registra e espera
+                            log.info(f"  {symbol}: [POS-3x #{n_3x}] POSITIVO {roi:+.1f}% | pico {pico_3x:+.1f}% | subindo...")
 
                     # --- PISO ZERO VIOLADO: subiu e voltou negativo = corta ---
                     # Se o pico pos-3x foi positivo e agora voltou negativo, acabou.
