@@ -2177,5 +2177,50 @@
     "tipo": "padrao_sucesso",
     "padrao": "Fechou com -$0.06 quando 3/4 indicadores estavam contra. Historico mostra 5/5 falhas nesse cenario.",
     "regra": "Quando 3+ de 4 indicadores (MA, RSI, Fibonacci, Volume Profile) estao contra a direcao, FECHAR imediato. Nao importa o ROI atual."
+  },
+  {
+    "timestamp": "2026-04-07T22:11:46.649942+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0612,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 8.657,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-07T22:13:18.495944+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0614,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 8.358,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-07T22:14:53.550207+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0611,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 8.806,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-07T22:35:00Z",
+    "symbol": "TSLAUSDT",
+    "tipo": "erro_stop_nao_cortou",
+    "perda": -4.39,
+    "causa": "3x manual (fora de aplicar_dca) nao registrou roi_no_dca. Stop usou ROI antigo (-26%) como base. Cortou em -13% em vez de -10%.",
+    "fix": "Quando fizer 3x manual, SEMPRE registrar roi_no_dca e dca_aplicado no estado.",
+    "status": "PENDENTE"
   }
 ]
