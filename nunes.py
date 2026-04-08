@@ -3870,7 +3870,24 @@ def main() -> None:
 
                             ja_tem_3x_ativo = len(dca_aplicado) > 0
 
-                            if score >= 50 and not ja_tem_3x_ativo:
+                            # Licao RENDER/ONDO: 3x SHORT so deu certo com 1h alinhado
+                            # Exige MA7 vs MA25 no 1h a favor da direcao
+                            ma_1h_ok = True
+                            try:
+                                df1h_3x = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
+                                df1h_3x["ma7"] = df1h_3x["close"].rolling(7).mean()
+                                df1h_3x["ma25"] = df1h_3x["close"].rolling(25).mean()
+                                c1h_3x = df1h_3x.iloc[-1]
+                                if direcao == "LONG":
+                                    ma_1h_ok = c1h_3x["ma7"] > c1h_3x["ma25"]
+                                else:
+                                    ma_1h_ok = c1h_3x["ma7"] < c1h_3x["ma25"]
+                                if not ma_1h_ok:
+                                    log.info(f"  {symbol}: Score {score} bom mas 1h contra {direcao} — aguardando alinhamento macro")
+                            except Exception:
+                                pass  # se falhar leitura, nao bloqueia
+
+                            if score >= 50 and not ja_tem_3x_ativo and ma_1h_ok:
                                 log.info(f"  {symbol}: SCORE {score}/140 -> 3x #{n_3x + 1} DISPARADO")
                                 aplicar_dca(client, p, banca)
                                 dca_aplicado.add(symbol)
