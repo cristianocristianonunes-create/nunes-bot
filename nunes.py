@@ -4020,8 +4020,8 @@ def main() -> None:
                                         continue
                                     roi_evac = calcular_roi(p_evac)
                                     margem_evac = float(p_evac.get("positionInitialMargin", 0))
-                                    # Fecha formiguinhas negativas ou com lucro < +5%
-                                    if roi_evac < 5 and margem_evac < banca * 0.02:
+                                    # So evacua formiguinhas NEGATIVAS — positivas ficam
+                                    if roi_evac < 0 and margem_evac < banca * 0.02:
                                         try:
                                             side_evac = "SELL" if amt_evac > 0 else "BUY"
                                             client.futures_create_order(
