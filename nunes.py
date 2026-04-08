@@ -82,7 +82,7 @@ RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 4
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
 
-MAX_POSICOES          = 20   # Homem Formiga: mais posicoes, menor margem cada
+MAX_POSICOES          = 30   # Homem Formiga: 30 x $0.42 = $12.60 margem = ~21% racio
 
 
 def risco_atual() -> float:
@@ -4369,7 +4369,7 @@ def main() -> None:
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
                     MAX_ENTRADAS_POR_SCAN = 10
-                    MAX_MESMA_DIRECAO = 12  # max 12 LONG ou 12 SHORT — Homem Formiga precisa de volume
+                    MAX_MESMA_DIRECAO = 18  # max 18 LONG ou 18 SHORT — colonia segue o mercado
 
                     abertos_scan = 0
                     for symbol, sinal, direcao_tf, preco, qualidade in sinais_encontrados:
