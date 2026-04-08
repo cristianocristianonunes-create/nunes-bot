@@ -3625,6 +3625,43 @@ def main() -> None:
                             )
                             alerta_dca_log[alerta_key] = time.time()
 
+                # --- FORMIGA SOLDADO: 3x ofensivo em formiguinha vencedora ---
+                # ROI >= +15% com MA acelerando = formiga virou soldado
+                # Triplica margem pra amplificar lucro. So uma vez por symbol.
+                elif roi >= 15 and symbol not in dca_aplicado and symbol not in parcial_10pct:
+                    soldado_key = f"soldado_{symbol}"
+                    if soldado_key not in alerta_dca_log:
+                        try:
+                            df5_sol = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+                            df5_sol["ma7"] = df5_sol["close"].rolling(7).mean()
+                            df5_sol["ma25"] = df5_sol["close"].rolling(25).mean()
+                            c_sol = df5_sol.iloc[-1]
+                            c_sol_prev = df5_sol.iloc[-2]
+                            if direcao == "LONG":
+                                ma_favor = c_sol["ma7"] > c_sol["ma25"]
+                                acelerando = (c_sol["ma7"] - c_sol["ma25"]) > (c_sol_prev["ma7"] - c_sol_prev["ma25"])
+                            else:
+                                ma_favor = c_sol["ma7"] < c_sol["ma25"]
+                                acelerando = (c_sol["ma25"] - c_sol["ma7"]) > (c_sol_prev["ma25"] - c_sol_prev["ma7"])
+
+                            if ma_favor and acelerando and get_racio_margem(client) < RACIO_MARGEM_MAX:
+                                margem_atual = float(p.get("positionInitialMargin", 0))
+                                reforco = margem_atual * 2  # triplica (adiciona 2x)
+                                preco_sol = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+                                qty_sol = round((reforco * ALAVANCAGEM) / preco_sol, get_precisao_quantidade(client, symbol))
+                                if qty_sol > 0 and MODO == "real":
+                                    side_sol = "BUY" if direcao == "LONG" else "SELL"
+                                    client.futures_create_order(symbol=symbol, side=side_sol, type="MARKET", quantity=qty_sol)
+                                    alerta_dca_log[soldado_key] = time.time()
+                                    log.info(f"  {symbol}: FORMIGA SOLDADO! +${reforco:.2f} margem (3x) | ROI {roi:+.1f}% MA acelerando")
+                                    telegram(
+                                        f"<b>Formiga Soldado: {symbol}</b>\n"
+                                        f"{direcao} | ROI: {roi:+.1f}% | +${reforco:.2f} reforço\n"
+                                        f"MA acelerando — formiga virou soldado!"
+                                    )
+                        except Exception:
+                            pass
+
                 # --- SAIDA EM CASCATA: trava lucro real no bolso ---
                 # Nivel 1: +20% ROI → fecha 30%
                 # Nivel 2: +40% ROI → fecha 30% do restante
