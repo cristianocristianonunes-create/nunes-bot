@@ -2380,11 +2380,9 @@ def sinal_formiguinha(client: Client, symbol: str, btc_tendencia: str = "lateral
         else:
             return None  # 5min e 1h discordam
 
-        # BTC contra
-        if direcao == "LONG" and btc_tendencia == "baixa":
-            return None
-        if direcao == "SHORT" and btc_tendencia == "alta":
-            return None
+        # BTC contra — desabilitado pra formiguinhas
+        # MA 5min + 1h ja confirma a direcao real da cripto
+        # Muitas altcoins caem quando BTC sobe (capital migra)
 
         # Ativos de acao: so com mercado US aberto
         if symbol in ATIVOS_ACAO and not mercado_us_aberto():
