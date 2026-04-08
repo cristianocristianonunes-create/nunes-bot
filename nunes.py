@@ -81,7 +81,7 @@ RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa — ainda mais
 RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 40-50%, margem segura.
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
-MAX_POSICOES          = 50   # Homem Formiga: 50 formigas = ~22% racio
+MAX_POSICOES          = 70   # Homem Formiga: 70 formigas = ~12% racio com $60
 
 def risco_atual() -> float:
     """Risco por trade: 0.7% normal, 0.5% com posicao presa."""
@@ -102,7 +102,7 @@ def max_posicoes_por_saldo(saldo: float) -> int:
         return 10
     margem_real = 0.26  # media observada na Binance
     max_por_racio = int((saldo * RACIO_MARGEM_NORMAL / 100) / margem_real)
-    return max(10, min(MAX_POSICOES, max_por_racio))
+    return max(10, min(70, max_por_racio))
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
@@ -2921,10 +2921,10 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
     pos_check = posicoes_abertas(client)
     n_long = sum(1 for p in pos_check if float(p["positionAmt"]) > 0)
     n_short = sum(1 for p in pos_check if float(p["positionAmt"]) < 0)
-    if direcao == "LONG" and n_long >= 25:
+    if direcao == "LONG" and n_long >= 40:
         log.info(f"  {symbol}: BLOQUEADO — ja tem {n_long} LONGs (max 18)")
         return
-    if direcao == "SHORT" and n_short >= 25:
+    if direcao == "SHORT" and n_short >= 40:
         log.info(f"  {symbol}: BLOQUEADO — ja tem {n_short} SHORTs (max 18)")
         return
 
@@ -4377,7 +4377,7 @@ def main() -> None:
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
                     MAX_ENTRADAS_POR_SCAN = 10
-                    MAX_MESMA_DIRECAO = 25  # max 18 LONG ou 18 SHORT — colonia segue o mercado
+                    MAX_MESMA_DIRECAO = 40  # max 18 LONG ou 18 SHORT — colonia segue o mercado
 
                     abertos_scan = 0
                     for symbol, sinal, direcao_tf, preco, qualidade in sinais_encontrados:
