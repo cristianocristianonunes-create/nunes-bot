@@ -78,8 +78,8 @@ MODO               = os.getenv("MODO", "simulacao")
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
 RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.007"))  # 0.7% — Homem Formiga: muitas posicoes pequenas
 RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa — ainda mais conservador
-RACIO_MARGEM_NORMAL    = 20.0   # 20% — cabe ~28 formiguinhas. Historico: so forcou fechamento a 20%.
-RACIO_MARGEM_EMERGENCIA = 20.0  # emergencia usa mesmo limite (ja eh o teto seguro)
+RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 40-50%, margem segura.
+RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
 
 MAX_POSICOES          = 20   # Homem Formiga: mais posicoes, menor margem cada
