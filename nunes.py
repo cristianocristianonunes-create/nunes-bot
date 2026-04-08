@@ -101,7 +101,7 @@ def limites_por_saldo(saldo: float) -> tuple[int, float]:
     Normal: 1% por trade. Emergência: 0.5% (mais volume, menos exposição).
     Notional mínimo $5 da Binance é garantido em abrir_posicao().
     """
-    return 10, risco_atual()
+    return MAX_POSICOES, risco_atual()
 
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
