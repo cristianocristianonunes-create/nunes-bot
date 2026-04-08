@@ -76,18 +76,24 @@ MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
 
 MODO               = os.getenv("MODO", "simulacao")
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
-RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.01"))  # 1% padrão CNS
-RISCO_POR_TRADE_EMERGENCIA = 0.007  # 0.7% no modo emergência — mais formiguinhas, menos exposição
-RACIO_MARGEM_NORMAL    = 10.0   # limite padrao
-RACIO_MARGEM_EMERGENCIA = 20.0  # quando tem posicao presa (ROI < -200%), libera formiguinhas. Historico: racio so forcou fechamento a 20%.
+RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.007"))  # 0.7% — Homem Formiga: muitas posicoes pequenas
+RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa — ainda mais conservador
+RACIO_MARGEM_NORMAL    = 20.0   # 20% — cabe ~28 formiguinhas. Historico: so forcou fechamento a 20%.
+RACIO_MARGEM_EMERGENCIA = 20.0  # emergencia usa mesmo limite (ja eh o teto seguro)
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
 
-MAX_POSICOES          = 10   # 5 antigas + 5 novas com filtro = equilibrio
+MAX_POSICOES          = 20   # Homem Formiga: mais posicoes, menor margem cada
 
 
 def risco_atual() -> float:
-    """Risco por trade: 0.5% em emergência, 1% normal."""
-    return RISCO_POR_TRADE_EMERGENCIA if RACIO_MARGEM_MAX == RACIO_MARGEM_EMERGENCIA else RISCO_POR_TRADE
+    """Risco por trade: 0.7% normal, 0.5% com posicao presa."""
+    # Checa se tem posicao presa — usa variavel global que o loop atualiza
+    try:
+        if _tem_posicao_presa:
+            return RISCO_POR_TRADE_EMERGENCIA
+    except NameError:
+        pass
+    return RISCO_POR_TRADE
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
@@ -3055,16 +3061,12 @@ def main() -> None:
 
             # --- RACIO DINAMICO: emergencia quando tem posicao presa ---
             # Posicao com ROI < -200% = presa, precisa de 3x pra resolver.
-            # Enquanto isso, libera formiguinhas com racio maior (15%).
-            # Sem posicao presa = modo normal (10%).
+            # Detecta posicao presa — ajusta risco (0.7% normal, 0.5% presa)
+            global _tem_posicao_presa
             abertas_racio = posicoes_abertas(client)
-            tem_presa = any(calcular_roi(p) < -200 for p in abertas_racio if float(p["positionAmt"]) != 0)
-            novo_racio = RACIO_MARGEM_EMERGENCIA if tem_presa else RACIO_MARGEM_NORMAL
-            if novo_racio != RACIO_MARGEM_MAX:
-                modo = "EMERGENCIA" if tem_presa else "NORMAL"
-                risco_txt = "0.5%" if tem_presa else "1.0%"
-                log.info(f"Modo {modo}: racio {RACIO_MARGEM_MAX:.0f}%->{novo_racio:.0f}% | risco {risco_txt}")
-                RACIO_MARGEM_MAX = novo_racio
+            _tem_posicao_presa = any(calcular_roi(p) < -200 for p in abertas_racio if float(p["positionAmt"]) != 0)
+            if _tem_posicao_presa:
+                log.info(f"Posicao presa detectada — risco reduzido pra {RISCO_POR_TRADE_EMERGENCIA*100:.1f}%")
 
             # --- VERIFICACAO DE META DE CICLO (a cada 15s) ---
             if time.time() - ultimo_check_ciclo >= 15:
