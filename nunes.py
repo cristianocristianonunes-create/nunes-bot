@@ -3022,6 +3022,7 @@ def main() -> None:
     while bot_ativo:
         try:
             global dca_ativo, posicoes_herdadas
+            agora = time.time()
             processar_comandos(client)
             banca = get_banca(client)
 
@@ -3948,6 +3949,7 @@ def main() -> None:
                         log.warning(f"Erro relatorio mensal: {e}")
 
             # --- ANALISE DE NOTICIAS: a cada 15 min, le noticias e ajusta comportamento ---
+            agora = time.time()
             if agora - alerta_dca_log.get("noticias_scan", 0) >= 900:
                 alerta_dca_log["noticias_scan"] = agora
                 try:
@@ -3958,7 +3960,6 @@ def main() -> None:
             # --- EQUILIBRAR MARGEM: topup inteligente em posicoes abaixo de 3% ---
             # Fase 2: bot detecta posicoes com margem abaixo do alvo e faz topup
             # quando MA está a favor (momento certo). Roda a cada 5 min.
-            agora = time.time()
             if agora - alerta_dca_log.get("equilibrar_scan", 0) >= 30:  # 30s — rapido pra pegar MA virando
                 alerta_dca_log["equilibrar_scan"] = agora
                 try:
