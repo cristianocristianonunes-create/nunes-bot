@@ -4409,8 +4409,44 @@ def main() -> None:
                     sinais_cns = detectar_sinais_cns(client, simbolos_abertos)
                     sinais_encontrados.extend(sinais_cns)
 
-                    # Ordena: CNS (ativos prioritários) primeiro, depois COPY, depois GUARDIAO
-                    ordem_qualidade = {"CNS": 0, "COPY": 1, "GUARDIAO": 2, "PREMIUM": 3, "NORMAL": 4}
+                    # --- MOMENTUM: top massacradas (SHORT) e top foguetes (LONG) ---
+                    # Cristiano olha a variacao 24h: quem ta sangrando = SHORT, quem ta subindo = LONG
+                    try:
+                        tickers_24h = client.futures_ticker()
+                        for t in tickers_24h:
+                            sym_m = t["symbol"]
+                            if not sym_m.endswith("USDT") or sym_m in simbolos_abertos:
+                                continue
+                            var24 = float(t.get("priceChangePercent", 0))
+                            vol24 = float(t.get("quoteVolume", 0))
+                            if vol24 < 1_000_000:  # volume minimo 24h
+                                continue
+                            # Massacrada: caindo forte = SHORT
+                            if var24 <= -8:
+                                # Confirma que 5min tambem ta caindo
+                                try:
+                                    k5m = client.futures_klines(symbol=sym_m, interval="5m", limit=10)
+                                    c_now = float(k5m[-1][4])
+                                    c_prev = float(k5m[-2][4])
+                                    if c_now < c_prev:  # candle atual vermelho
+                                        sinais_encontrados.append((sym_m, "SHORT", "momentum", float(t["lastPrice"]), "MOMENTUM"))
+                                except Exception:
+                                    pass
+                            # Foguete: subindo forte = LONG
+                            elif var24 >= 8:
+                                try:
+                                    k5m = client.futures_klines(symbol=sym_m, interval="5m", limit=10)
+                                    c_now = float(k5m[-1][4])
+                                    c_prev = float(k5m[-2][4])
+                                    if c_now > c_prev:  # candle atual verde
+                                        sinais_encontrados.append((sym_m, "LONG", "momentum", float(t["lastPrice"]), "MOMENTUM"))
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
+                    # Ordena: MOMENTUM primeiro (mais urgente), depois CNS, depois GUARDIAO
+                    ordem_qualidade = {"MOMENTUM": 0, "CNS": 1, "COPY": 2, "GUARDIAO": 3, "PREMIUM": 4, "NORMAL": 5}
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
                     MAX_ENTRADAS_POR_SCAN = 10
