@@ -4113,7 +4113,6 @@ def main() -> None:
                                 try:
                                     sinal_novo = sinal_guardiao(client, sym_novo, btc_t)
                                     if sinal_novo:
-                                        from nunes import calcular_score_3x
                                         score_novo, _ = calcular_score_3x(client, sym_novo, sinal_novo)
                                         if score_novo >= 70:  # so substitui se sinal MUITO bom
                                             # Fecha a pior
