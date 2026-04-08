@@ -3544,6 +3544,22 @@ def main() -> None:
                             )
                             alerta_dca_log[alerta_key] = time.time()
 
+                # --- FORMIGUINHA AGRESSIVA (modo emergencia) ---
+                # Quando tem posicao presa (ROI < -200%), cada centavo conta.
+                # Fecha 90% em +15% ROI — nao espera cascata.
+                # Rapido: entra com sinal bom, trava lucro, proxima.
+                elif RACIO_MARGEM_MAX == RACIO_MARGEM_EMERGENCIA and roi >= 15 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
+                    pnl_fm = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    log.info(f"  {symbol}: FORMIGUINHA AGRESSIVA +{roi:.0f}% -> fechando 90% (modo emergencia)")
+                    telegram(
+                        f"<b>Formiguinha agressiva: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_fm*0.90:+.2f}\n"
+                        f"Modo emergencia: lucro rapido no bolso."
+                    )
+                    fechar_parcial(client, p, 0.90, f"Formiguinha agressiva +{roi:.0f}% (emergencia)")
+                    peak_roi.pop(symbol, None)
+                    continue
+
                 # --- SAIDA EM CASCATA: 3 pontos de realizacao de lucro ---
                 # Nivel 1: +20% ROI → fecha 30% (formiguinha no bolso)
                 # Nivel 2: +40% ROI → fecha 30% (lucro forte garantido)
