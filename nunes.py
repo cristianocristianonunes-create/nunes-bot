@@ -3705,7 +3705,7 @@ def main() -> None:
                     continue
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
-                if roi > 0 and pico >= 20:  # Homem Formiga: trailing so a partir de +20% — deixa caminhar
+                if False:  # TRAILING DESABILITADO — deixa formigas correrem livres
                     # Pos-formiguinha (ja fechou 50%): trailing APERTADO de 5pp
                     # Dados reais: bot devolve 20-30pp em media. Com 5pp, captura muito mais.
                     if symbol in parcial_10pct and pico >= 10 and (pico - roi) >= 5:
