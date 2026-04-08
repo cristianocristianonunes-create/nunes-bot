@@ -1291,14 +1291,14 @@ def registrar_aprendizado(client: Client, symbol: str, direcao: str, tipo: str, 
 
         # Carrega aprendizados existentes e adiciona
         try:
-            with open(APRENDIZADOS_FILE, "r") as f:
+            with open(APRENDIZADOS_FILE, "r", encoding="utf-8") as f:
                 aprendizados = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             aprendizados = []
 
         aprendizados.append(caso)
-        with open(APRENDIZADOS_FILE, "w") as f:
-            json.dump(aprendizados, f, indent=2)
+        with open(APRENDIZADOS_FILE, "w", encoding="utf-8") as f:
+            json.dump(aprendizados, f, indent=2, ensure_ascii=False)
 
         resultado = "SUCESSO" if "sucesso" in tipo else "FRACASSO"
         log.info(f"  [APRENDIZADO] {resultado}: {symbol} {direcao} | ROI: {roi_final:+.1f}% | {detalhes}")
@@ -1973,6 +1973,16 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
     margem_total = margem_atual + adicional
     recuperacao_pct = perda_atual / (leverage * (fator_desconto * margem_atual + adicional)) * 100
     modo_3x = f"DCA DINAMICO ({adicional/banca*100:.0f}% banca | breakeven ~{recuperacao_pct:.2f}%)"
+
+    # Limita ao saldo DISPONIVEL (nao total) — evita Margin Insufficient
+    saldo_disponivel = get_banca(client)
+    margem_segura = saldo_disponivel * 0.85  # reserva 15% de seguranca
+    if adicional > margem_segura:
+        adicional_orig = adicional
+        adicional = round(max(margem_segura, margem_atual * 2.0), 2)  # piso: 3x classico
+        # Recalcula recuperacao com valor ajustado
+        recuperacao_pct = perda_atual / (leverage * (fator_desconto * margem_atual + adicional)) * 100
+        modo_3x = f"DCA DINAMICO ({adicional/banca*100:.0f}% banca | breakeven ~{recuperacao_pct:.2f}%) [ajustado: ${adicional_orig:.0f}->${adicional:.0f}]"
 
     log.info(f"  {symbol}: {modo_3x} | ROI {roi:+.1f}% | Adicional: ${adicional:.2f} | Recuperacao: {recuperacao_pct:.2f}%")
 
