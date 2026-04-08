@@ -3038,6 +3038,16 @@ def main() -> None:
             processar_comandos(client)
             banca = get_banca(client)
 
+            # --- LIMPEZA: remove simbolos fechados do dca_aplicado ---
+            # Bug: KMNOUSDT fechado manualmente ficou em dca_aplicado,
+            # bloqueando todos os 3x por horas (DRIFT score 78 nao disparou).
+            simbolos_abertos = {p["symbol"] for p in posicoes_abertas(client) if float(p["positionAmt"]) != 0}
+            fantasmas = dca_aplicado - simbolos_abertos
+            if fantasmas:
+                log.info(f"Limpeza dca_aplicado: {fantasmas} fechadas mas ainda marcadas — removendo")
+                dca_aplicado -= fantasmas
+                salvar_estado()
+
             # --- RACIO DINAMICO: emergencia quando tem posicao presa ---
             # Posicao com ROI < -200% = presa, precisa de 3x pra resolver.
             # Enquanto isso, libera formiguinhas com racio maior (15%).
