@@ -81,7 +81,7 @@ RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa — ainda mais
 RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 40-50%, margem segura.
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
-MAX_POSICOES          = 70   # Homem Formiga: 70 formigas = ~12% racio com $60
+MAX_POSICOES          = 100  # Homem Formiga: 100 formigas = ~11.5% racio com $60
 
 def risco_atual() -> float:
     """Risco por trade: 0.7% normal, 0.5% com posicao presa."""
@@ -102,7 +102,7 @@ def max_posicoes_por_saldo(saldo: float) -> int:
         return 10
     margem_real = 0.26  # media observada na Binance
     max_por_racio = int((saldo * RACIO_MARGEM_NORMAL / 100) / margem_real)
-    return max(10, min(70, max_por_racio))
+    return max(10, min(100, max_por_racio))
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
