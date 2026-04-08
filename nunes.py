@@ -3033,7 +3033,7 @@ def main() -> None:
 
     while bot_ativo:
         try:
-            global dca_ativo, posicoes_herdadas
+            global dca_ativo, posicoes_herdadas, dca_aplicado
             agora = time.time()
             processar_comandos(client)
             banca = get_banca(client)
