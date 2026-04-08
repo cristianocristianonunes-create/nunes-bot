@@ -786,7 +786,7 @@ def processar_comandos(client: Client) -> None:
             saldo_op = get_saldo_total(client)
             racio_op = get_racio_margem(client)
             usd_brl_op = get_usd_brl(client)
-            alvo_margem = saldo_op * RISCO_POR_TRADE
+            alvo_margem = saldo_op * risco_atual()
             acoes = []
 
             for p in abertas:
@@ -3832,7 +3832,7 @@ def main() -> None:
                     # a favor, faz topup pra equilibrar margem no momento da reversao.
                     if -50 < roi <= -30 and symbol not in dca_aplicado and status_ma == "candle 2 confirmando":
                         margem_pos_neg = float(p.get("positionInitialMargin", 0))
-                        alvo_eq = banca * RISCO_POR_TRADE
+                        alvo_eq = banca * risco_atual()
                         falta_eq = alvo_eq - margem_pos_neg
                         if falta_eq > 0.50:
                             # Confirma no 1min tambem
@@ -4068,7 +4068,7 @@ def main() -> None:
                 alerta_dca_log["equilibrar_scan"] = agora
                 try:
                     saldo_eq = get_saldo_total(client)
-                    alvo_margem = saldo_eq * RISCO_POR_TRADE
+                    alvo_margem = saldo_eq * risco_atual()
                     racio_eq = get_racio_margem(client)
 
                     if racio_eq < RACIO_MARGEM_MAX:  # topup usa limite mais conservador (6%)
