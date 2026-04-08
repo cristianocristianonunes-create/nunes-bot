@@ -3705,7 +3705,7 @@ def main() -> None:
                     continue
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
-                if roi > 0 and pico >= 5:
+                if roi > 0 and pico >= 20:  # Homem Formiga: trailing so a partir de +20% — deixa caminhar
                     # Pos-formiguinha (ja fechou 50%): trailing APERTADO de 5pp
                     # Dados reais: bot devolve 20-30pp em media. Com 5pp, captura muito mais.
                     if symbol in parcial_10pct and pico >= 10 and (pico - roi) >= 5:
@@ -3759,12 +3759,14 @@ def main() -> None:
                             tolerancia = 0.20  # 20% — só protege lucro grande
                         else:
                             tolerancia = 0.50  # 50% — muita paciência, deixa crescer
+                    elif pico >= 80:
+                        tolerancia = 0.25  # 25% do pico — lucro enorme, protege
                     elif pico >= 50:
-                        tolerancia = 0.20  # 20% do pico — protege lucro grande
+                        tolerancia = 0.35  # 35% do pico — lucro grande, ainda com folga
                     elif pico >= 20:
-                        tolerancia = 0.30  # 30% do pico — deixa formiguinha caminhar
+                        tolerancia = 0.50  # 50% do pico — formiguinha caminhando, paciencia
                     else:
-                        tolerancia = 0.50  # 50% do pico — formiguinha nova, muita paciencia
+                        tolerancia = 0.70  # 70% — nunca deveria chegar aqui (trailing so ativa a +20%)
 
                     queda_do_pico = pico - roi
                     queda_pct = queda_do_pico / pico if pico > 0 else 0
