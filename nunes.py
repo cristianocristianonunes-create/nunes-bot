@@ -2324,6 +2324,70 @@ def sinal_guardiao(client: Client, symbol: str, btc_tendencia: str = "lateral") 
 
     return direcao_candidata
 
+def sinal_formiguinha(client: Client, symbol: str, btc_tendencia: str = "lateral") -> str | None:
+    """
+    Filtro leve para formiguinhas — Homem Formiga.
+    Sem Bollinger Squeeze. Criterios rapidos:
+    1. MA7 > MA25 no 5min (direcao micro)
+    2. MA7 > MA25 no 1h (direcao macro)
+    3. RSI entre 30-70 (nem sobrecomprado nem sobrevendido)
+    4. Volume candle atual >= 0.8x media (nao precisa spike, so atividade)
+    5. BTC nao contra
+    """
+    try:
+        # 5min
+        df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+        df5["ma7"] = df5["close"].rolling(7).mean()
+        df5["ma25"] = df5["close"].rolling(25).mean()
+        df5["vol_media"] = df5["volume"].rolling(20).mean()
+        c5 = df5.iloc[-1]
+
+        rsi_val = calcular_rsi(df5)
+
+        # RSI fora da faixa = nao entra
+        if rsi_val > 70 or rsi_val < 30:
+            return None
+
+        # Volume minimo
+        if pd.notna(c5["vol_media"]) and c5["vol_media"] > 0:
+            if c5["volume"] < c5["vol_media"] * 0.8:
+                return None
+
+        # 1h
+        df1h = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
+        df1h["ma7"] = df1h["close"].rolling(7).mean()
+        df1h["ma25"] = df1h["close"].rolling(25).mean()
+        c1h = df1h.iloc[-1]
+
+        # Determina direcao: 5min E 1h devem concordar
+        long_5m = c5["ma7"] > c5["ma25"]
+        short_5m = c5["ma7"] < c5["ma25"]
+        long_1h = c1h["ma7"] > c1h["ma25"]
+        short_1h = c1h["ma7"] < c1h["ma25"]
+
+        if long_5m and long_1h:
+            direcao = "LONG"
+        elif short_5m and short_1h:
+            direcao = "SHORT"
+        else:
+            return None  # 5min e 1h discordam
+
+        # BTC contra
+        if direcao == "LONG" and btc_tendencia == "baixa":
+            return None
+        if direcao == "SHORT" and btc_tendencia == "alta":
+            return None
+
+        # Ativos de acao: so com mercado US aberto
+        if symbol in ATIVOS_ACAO and not mercado_us_aberto():
+            return None
+
+        return direcao
+
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Gestão de posição
 # ---------------------------------------------------------------------------
@@ -4261,8 +4325,15 @@ def main() -> None:
 
                     def analisar_par(symbol):
                         try:
-                            # Sistema Águia Spread: Bollinger Squeeze no 2H
+                            # Tenta Guardiao primeiro (Bollinger Squeeze — sinal forte)
                             sinal = sinal_guardiao(client, symbol, btc_tendencia)
+                            tipo_sinal = "squeeze"
+
+                            # Se Guardiao nao achou, tenta formiguinha (MA + RSI — sinal rapido)
+                            if not sinal:
+                                sinal = sinal_formiguinha(client, symbol, btc_tendencia)
+                                tipo_sinal = "formiguinha"
+
                             if not sinal:
                                 return
 
@@ -4282,7 +4353,7 @@ def main() -> None:
                                 qualidade = "COPY"
 
                             with lock_sinais:
-                                sinais_encontrados.append((symbol, sinal, "squeeze", preco, qualidade))
+                                sinais_encontrados.append((symbol, sinal, tipo_sinal, preco, qualidade))
                         except Exception as e:
                             log.warning(f"Erro ao analisar {symbol}: {e}")
 
