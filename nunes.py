@@ -77,7 +77,7 @@ MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
 MODO               = os.getenv("MODO", "simulacao")
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
 RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.01"))  # 1% padrão CNS
-RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "10.0"))  # % máximo do Rácio de Margem — seguro com trailing+stop pos-3x
+RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "15.0"))  # MODO EMERGENCIA: 15% temporario (era 10%) — DRIFT SHORT prendendo margem, formiguinhas compensam. VOLTAR PRA 10% quando DRIFT resolver.
 
 MAX_POSICOES          = 10   # 5 antigas + 5 novas com filtro = equilibrio
 
