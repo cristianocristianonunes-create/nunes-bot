@@ -82,7 +82,7 @@ RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 4
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
 
-MAX_POSICOES          = 30   # Homem Formiga: 30 x $0.42 = $12.60 margem = ~21% racio
+MAX_POSICOES          = 40   # Homem Formiga: 40 formigas, racio ~4% com 28 = cabe mais
 
 
 def risco_atual() -> float:
