@@ -77,7 +77,9 @@ MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
 MODO               = os.getenv("MODO", "simulacao")
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
 RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.01"))  # 1% padrão CNS
-RACIO_MARGEM_MAX   = float(os.getenv("RACIO_MARGEM_MAX", "15.0"))  # MODO EMERGENCIA: 15% temporario (era 10%) — DRIFT SHORT prendendo margem, formiguinhas compensam. VOLTAR PRA 10% quando DRIFT resolver.
+RACIO_MARGEM_NORMAL    = 10.0   # limite padrao
+RACIO_MARGEM_EMERGENCIA = 15.0  # quando tem posicao presa (ROI < -200%), libera formiguinhas
+RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
 
 MAX_POSICOES          = 10   # 5 antigas + 5 novas com filtro = equilibrio
 
@@ -3035,6 +3037,19 @@ def main() -> None:
             agora = time.time()
             processar_comandos(client)
             banca = get_banca(client)
+
+            # --- RACIO DINAMICO: emergencia quando tem posicao presa ---
+            # Posicao com ROI < -200% = presa, precisa de 3x pra resolver.
+            # Enquanto isso, libera formiguinhas com racio maior (15%).
+            # Sem posicao presa = modo normal (10%).
+            global RACIO_MARGEM_MAX
+            abertas_racio = posicoes_abertas(client)
+            tem_presa = any(calcular_roi(p) < -200 for p in abertas_racio if float(p["positionAmt"]) != 0)
+            novo_racio = RACIO_MARGEM_EMERGENCIA if tem_presa else RACIO_MARGEM_NORMAL
+            if novo_racio != RACIO_MARGEM_MAX:
+                modo = "EMERGENCIA" if tem_presa else "NORMAL"
+                log.info(f"Racio ajustado: {RACIO_MARGEM_MAX:.0f}% -> {novo_racio:.0f}% (modo {modo})")
+                RACIO_MARGEM_MAX = novo_racio
 
             # --- VERIFICACAO DE META DE CICLO (a cada 15s) ---
             if time.time() - ultimo_check_ciclo >= 15:
