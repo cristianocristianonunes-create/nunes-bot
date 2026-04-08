@@ -4369,7 +4369,7 @@ def main() -> None:
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
                     MAX_ENTRADAS_POR_SCAN = 10
-                    MAX_MESMA_DIRECAO = 5  # max 5 LONG ou 5 SHORT — diversifica
+                    MAX_MESMA_DIRECAO = 12  # max 12 LONG ou 12 SHORT — Homem Formiga precisa de volume
 
                     abertos_scan = 0
                     for symbol, sinal, direcao_tf, preco, qualidade in sinais_encontrados:
