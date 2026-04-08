@@ -77,9 +77,9 @@ MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
 MODO               = os.getenv("MODO", "simulacao")
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
 RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.01"))  # 1% padrão CNS
-RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% no modo emergência — mais formiguinhas, menos exposição
+RISCO_POR_TRADE_EMERGENCIA = 0.007  # 0.7% no modo emergência — mais formiguinhas, menos exposição
 RACIO_MARGEM_NORMAL    = 10.0   # limite padrao
-RACIO_MARGEM_EMERGENCIA = 15.0  # quando tem posicao presa (ROI < -200%), libera formiguinhas
+RACIO_MARGEM_EMERGENCIA = 20.0  # quando tem posicao presa (ROI < -200%), libera formiguinhas. Historico: racio so forcou fechamento a 20%.
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
 
 MAX_POSICOES          = 10   # 5 antigas + 5 novas com filtro = equilibrio
