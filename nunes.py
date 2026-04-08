@@ -3633,74 +3633,9 @@ def main() -> None:
                             )
                             alerta_dca_log[alerta_key] = time.time()
 
-                # --- FORMIGUINHA AGRESSIVA (modo emergencia) ---
-                # Quando tem posicao presa (ROI < -200%), cada centavo conta.
-                # Fecha 90% em +15% ROI — nao espera cascata.
-                # Rapido: entra com sinal bom, trava lucro, proxima.
-                elif RACIO_MARGEM_MAX == RACIO_MARGEM_EMERGENCIA and roi >= 15 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
-                    pnl_fm = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: FORMIGUINHA AGRESSIVA +{roi:.0f}% -> fechando 90% (modo emergencia)")
-                    telegram(
-                        f"<b>Formiguinha agressiva: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_fm*0.90:+.2f}\n"
-                        f"Modo emergencia: lucro rapido no bolso."
-                    )
-                    fechar_parcial(client, p, 0.90, f"Formiguinha agressiva +{roi:.0f}% (emergencia)")
-                    peak_roi.pop(symbol, None)
-                    continue
-
-                # --- SAIDA EM CASCATA: 3 pontos de realizacao de lucro ---
-                # Nivel 1: +20% ROI → fecha 30% (formiguinha no bolso)
-                # Nivel 2: +40% ROI → fecha 30% (lucro forte garantido)
-                # Nivel 3: +80% ROI → fecha 30% (lucro grande)
-                # Resto (10%): trailing apertado 5pp do pico
-                elif roi >= 20 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
-                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: CASCATA 1 +{roi:.0f}% -> fechando 30%")
-                    telegram(
-                        f"<b>Cascata 1: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.30:+.2f}\n"
-                        f"30% no bolso. Proximo nivel: +40%."
-                    )
-                    fechar_parcial(client, p, 0.30, f"Cascata 1 +{roi:.0f}%")
-                    parcial_10pct.add(symbol)
-                    continue
-
-                elif roi >= 40 and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
-                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: CASCATA 2 +{roi:.0f}% -> fechando 30%")
-                    telegram(
-                        f"<b>Cascata 2: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.30:+.2f}\n"
-                        f"Mais 30% no bolso! Proximo nivel: +80%."
-                    )
-                    fechar_parcial(client, p, 0.43, f"Cascata 2 +{roi:.0f}%")  # 30% do restante (70%) = 0.43
-                    parcial_nivel2.add(symbol)
-                    continue
-
-                elif roi >= 80 and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
-                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: CASCATA 3 +{roi:.0f}% -> fechando 30%")
-                    telegram(
-                        f"<b>Cascata 3: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.75:+.2f}\n"
-                        f"Lucro grande! 10% restante corre com trailing 5pp."
-                    )
-                    fechar_parcial(client, p, 0.75, f"Cascata 3 +{roi:.0f}%")  # 30% do restante (40%) = 0.75
-                    parcial_500.add(symbol)
-                    continue
-
-                # --- ALVO ENORME: fecha tudo quando ROI >= +200% ---
-                elif roi >= 200 and symbol not in parcial_500:
-                    log.info(f"  {symbol}: ALVO 10% atingido (ROI {roi:+.1f}%) -> fechando 50%")
-                    telegram(
-                        f"<b>Alvo Bruno atingido: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}% (+10% no preco)\n"
-                        f"Fechando 50% — mediana historica. Resto corre no trailing."
-                    )
-                    fechar_parcial(client, p, 0.50, f"Alvo mediano Bruno +200% (ROI {roi:.1f}%)")
-                    parcial_10pct.add(symbol)
-                    continue
+                # --- CASCATA + FORMIGUINHA AGRESSIVA: DESABILITADOS ---
+                # Homem Formiga: formigas correm livres. Sem fechamento parcial.
+                # Indicadores contra mata negativas. Positivas correm sem limite.
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
                 if False:  # TRAILING DESABILITADO — deixa formigas correrem livres
