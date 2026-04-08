@@ -3821,7 +3821,8 @@ def main() -> None:
                 # Quanto mais cedo o 3x, menos margem gasta e mais rapido resolve.
                 # -50% com DCA dinamico = 12% banca e breakeven 0.5%
                 # -120% com DCA dinamico = 32% banca e breakeven 0.5% (mesmo resultado, mais caro)
-                elif roi <= -50.0:
+                # NOTA: este bloco roda JUNTO com monitoramento negativo (não é elif)
+                if roi <= -50.0:
                     # Ativo de acao: so faz 3x com mercado US aberto
                     if symbol in ATIVOS_ACAO and not mercado_us_aberto():
                         log.info(f"  {symbol}: ROI {roi:.1f}% | 3x bloqueado — mercado US fechado (ativo de acao)")
