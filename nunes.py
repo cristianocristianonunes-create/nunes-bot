@@ -3640,6 +3640,22 @@ def main() -> None:
                     )
                     fechar_parcial(client, p, 0.30, f"Cascata 1 +{roi:.0f}%")
                     parcial_10pct.add(symbol)
+                    # Topup: repoe forca da formiga apos cascata
+                    try:
+                        p_atualizada = [pp for pp in posicoes_abertas(client) if pp["symbol"] == symbol and float(pp["positionAmt"]) != 0]
+                        if p_atualizada:
+                            margem_pos = float(p_atualizada[0].get("positionInitialMargin", 0))
+                            alvo = get_saldo_total(client) * risco_atual()
+                            falta = alvo - margem_pos
+                            if falta > 0.05 and get_racio_margem(client) < RACIO_MARGEM_MAX:
+                                preco_tp = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+                                qty_tp = round((falta * ALAVANCAGEM) / preco_tp, get_precisao_quantidade(client, symbol))
+                                if qty_tp > 0 and MODO == "real":
+                                    side_tp = "BUY" if direcao == "LONG" else "SELL"
+                                    client.futures_create_order(symbol=symbol, side=side_tp, type="MARKET", quantity=qty_tp)
+                                    log.info(f"  {symbol}: TOPUP pos-cascata +${falta:.2f} — formiga reforçada")
+                    except Exception:
+                        pass
                     continue
 
                 elif roi >= 40 and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
@@ -3647,6 +3663,21 @@ def main() -> None:
                     log.info(f"  {symbol}: CASCATA 2 +{roi:.0f}% -> fechando 30%")
                     fechar_parcial(client, p, 0.43, f"Cascata 2 +{roi:.0f}%")
                     parcial_nivel2.add(symbol)
+                    try:
+                        p_atualizada = [pp for pp in posicoes_abertas(client) if pp["symbol"] == symbol and float(pp["positionAmt"]) != 0]
+                        if p_atualizada:
+                            margem_pos = float(p_atualizada[0].get("positionInitialMargin", 0))
+                            alvo = get_saldo_total(client) * risco_atual()
+                            falta = alvo - margem_pos
+                            if falta > 0.05 and get_racio_margem(client) < RACIO_MARGEM_MAX:
+                                preco_tp = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+                                qty_tp = round((falta * ALAVANCAGEM) / preco_tp, get_precisao_quantidade(client, symbol))
+                                if qty_tp > 0 and MODO == "real":
+                                    side_tp = "BUY" if direcao == "LONG" else "SELL"
+                                    client.futures_create_order(symbol=symbol, side=side_tp, type="MARKET", quantity=qty_tp)
+                                    log.info(f"  {symbol}: TOPUP pos-cascata +${falta:.2f} — formiga reforçada")
+                    except Exception:
+                        pass
                     continue
 
                 elif roi >= 80 and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
@@ -3654,6 +3685,21 @@ def main() -> None:
                     log.info(f"  {symbol}: CASCATA 3 +{roi:.0f}% -> fechando 30%")
                     fechar_parcial(client, p, 0.75, f"Cascata 3 +{roi:.0f}%")
                     parcial_500.add(symbol)
+                    try:
+                        p_atualizada = [pp for pp in posicoes_abertas(client) if pp["symbol"] == symbol and float(pp["positionAmt"]) != 0]
+                        if p_atualizada:
+                            margem_pos = float(p_atualizada[0].get("positionInitialMargin", 0))
+                            alvo = get_saldo_total(client) * risco_atual()
+                            falta = alvo - margem_pos
+                            if falta > 0.05 and get_racio_margem(client) < RACIO_MARGEM_MAX:
+                                preco_tp = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+                                qty_tp = round((falta * ALAVANCAGEM) / preco_tp, get_precisao_quantidade(client, symbol))
+                                if qty_tp > 0 and MODO == "real":
+                                    side_tp = "BUY" if direcao == "LONG" else "SELL"
+                                    client.futures_create_order(symbol=symbol, side=side_tp, type="MARKET", quantity=qty_tp)
+                                    log.info(f"  {symbol}: TOPUP pos-cascata +${falta:.2f} — formiga reforçada")
+                    except Exception:
+                        pass
                     continue
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
