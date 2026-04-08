@@ -4074,16 +4074,11 @@ def main() -> None:
                 max_pos_dinamico, risco_dinamico = limites_por_saldo(saldo_atual_dia)
                 racio_atual = get_racio_margem(client)
 
-                # Conta quantas posicoes estao desequilibradas
-                alvo_eq = saldo_atual_dia * RISCO_POR_TRADE
-                desequilibradas = [p for p in abertas
-                    if float(p["positionAmt"]) != 0
-                    and float(p.get("positionInitialMargin", 0)) < alvo_eq * 0.5  # menos de metade do alvo
-                    and p["symbol"] not in dca_aplicado]
-                # Desequilibradas sao tratadas no bloco de equilibrar (30s)
-                # NAO bloqueia busca de novas entradas — licao: bot ficou sem
-                # varredura por horas porque herdadas tinham margem baixa
-                if len(abertas) >= max_pos_dinamico:
+                # BLOQUEIO ABSOLUTO: racio alto = ZERO entradas novas (nem substituicao)
+                # Prioridade eh recuperar posicoes existentes com 3x no momento certo
+                if racio_atual >= RACIO_MARGEM_MAX:
+                    log.info(f"Racio de Margem {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}%. BLOQUEIO TOTAL — sem entradas nem substituicoes.")
+                elif len(abertas) >= max_pos_dinamico:
                     # Cheio mas continua cacando — se achar sinal forte,
                     # substitui a pior posicao (ROI mais negativo, MA contra)
                     log.info(f"Maximo atingido ({len(abertas)}/{max_pos_dinamico}) — cacando substituicao...")
@@ -4138,8 +4133,6 @@ def main() -> None:
                                     continue
                     except Exception as e:
                         log.debug(f"Erro substituicao: {e}")
-                elif racio_atual >= RACIO_MARGEM_MAX:
-                    log.info(f"Racio de Margem {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}%. Sem novas entradas.")
                 else:
                     sessao = sessao_atual()
                     # Asiática escaneia mais pares (mercado mais movimentado)
