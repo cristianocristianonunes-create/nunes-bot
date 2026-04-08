@@ -3760,11 +3760,11 @@ def main() -> None:
                         else:
                             tolerancia = 0.50  # 50% — muita paciência, deixa crescer
                     elif pico >= 50:
-                        tolerancia = 0.15  # 15% do pico
+                        tolerancia = 0.20  # 20% do pico — protege lucro grande
                     elif pico >= 20:
-                        tolerancia = 0.20  # 20% do pico
+                        tolerancia = 0.30  # 30% do pico — deixa formiguinha caminhar
                     else:
-                        tolerancia = 0.40  # 40% do pico
+                        tolerancia = 0.50  # 50% do pico — formiguinha nova, muita paciencia
 
                     queda_do_pico = pico - roi
                     queda_pct = queda_do_pico / pico if pico > 0 else 0
