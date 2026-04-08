@@ -3215,7 +3215,10 @@ def main() -> None:
                     aumento_real = margem_atual - margem_anterior
                     margem_base_ok = margem_anterior >= 2.0  # so detecta 3x se margem base era razoavel
                     proporcao_ok = margem_atual > margem_anterior * 2.0  # dobrou no minimo
-                    if margem_base_ok and proporcao_ok and not foi_topup and aumento_real > 3.0:
+                    # So detecta 3x se posicao ja existia (>2min). Entrada nova nao eh 3x.
+                    # Bug CRCLUSDT: abriu com $19 e bot achou que era 3x de $7.86 anterior.
+                    posicao_existe_ha_tempo = symbol in posicao_abertura and (time.time() - posicao_abertura.get(symbol, 0)) > 120
+                    if margem_base_ok and proporcao_ok and not foi_topup and aumento_real > 3.0 and posicao_existe_ha_tempo:
                         if symbol not in dca_aplicado:
                             dca_aplicado.add(symbol)
                             dca_contagem[symbol] = dca_contagem.get(symbol, 0) + 1
