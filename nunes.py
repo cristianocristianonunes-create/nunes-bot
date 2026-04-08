@@ -93,26 +93,11 @@ def risco_atual() -> float:
 
 def max_posicoes_por_saldo(saldo: float) -> int:
     """
-    Homem Formiga: calcula max posicoes pelo saldo.
-    Formula: (saldo * racio_max) / (saldo * risco) = racio_max / risco
-    Com 25% racio e 0.7% risco = 35 posicoes teoricas.
-    Garante minimo 10 e maximo 50 (API rate limit).
-    Tambem considera notional minimo $5 da Binance (margem * alavancagem >= $5).
+    Homem Formiga: max posicoes pelo racio disponivel.
+    Na pratica, margem real por formiguinha eh ~$0.26 (menor que teorico).
+    Usa 50 como padrao, limitado pelo racio real no loop principal.
     """
-    risco = risco_atual()
-    margem_por_trade = saldo * risco
-    notional = margem_por_trade * ALAVANCAGEM
-
-    # Se notional < $5, precisa de margem maior = menos posicoes
-    if notional < 5.0:
-        margem_por_trade = 5.0 / ALAVANCAGEM
-        risco_efetivo = margem_por_trade / saldo if saldo > 0 else 0.01
-    else:
-        risco_efetivo = risco
-
-    # Max posicoes = racio limite / risco efetivo
-    max_pos = int(RACIO_MARGEM_NORMAL / (risco_efetivo * 100))
-    return max(10, min(50, max_pos))
+    return 50
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
