@@ -2919,10 +2919,10 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
     pos_check = posicoes_abertas(client)
     n_long = sum(1 for p in pos_check if float(p["positionAmt"]) > 0)
     n_short = sum(1 for p in pos_check if float(p["positionAmt"]) < 0)
-    if direcao == "LONG" and n_long >= 40:
+    if direcao == "LONG" and n_long >= 60:
         log.info(f"  {symbol}: BLOQUEADO — ja tem {n_long} LONGs (max 18)")
         return
-    if direcao == "SHORT" and n_short >= 40:
+    if direcao == "SHORT" and n_short >= 60:
         log.info(f"  {symbol}: BLOQUEADO — ja tem {n_short} SHORTs (max 18)")
         return
 
@@ -4377,7 +4377,7 @@ def main() -> None:
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
                     MAX_ENTRADAS_POR_SCAN = 10
-                    MAX_MESMA_DIRECAO = 40  # max 18 LONG ou 18 SHORT — colonia segue o mercado
+                    MAX_MESMA_DIRECAO = 60  # max 18 LONG ou 18 SHORT — colonia segue o mercado
 
                     abertos_scan = 0
                     for symbol, sinal, direcao_tf, preco, qualidade in sinais_encontrados:
