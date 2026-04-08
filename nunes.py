@@ -4076,13 +4076,10 @@ def main() -> None:
                     if float(p["positionAmt"]) != 0
                     and float(p.get("positionInitialMargin", 0)) < alvo_eq * 0.5  # menos de metade do alvo
                     and p["symbol"] not in dca_aplicado]
-                if desequilibradas and racio_atual < RACIO_MARGEM_MAX:
-                    n_deseq = len(desequilibradas)
-                    log.info(f"Prioridade: {n_deseq} posicoes desequilibradas — equilibrar antes de abrir novas")
-                    # O bloco de equilibrar ja roda acima a cada 5 min
-                    # Aqui so logamos e pulamos a busca de novas entradas
-
-                elif len(abertas) >= max_pos_dinamico:
+                # Desequilibradas sao tratadas no bloco de equilibrar (30s)
+                # NAO bloqueia busca de novas entradas — licao: bot ficou sem
+                # varredura por horas porque herdadas tinham margem baixa
+                if len(abertas) >= max_pos_dinamico:
                     # Cheio mas continua cacando — se achar sinal forte,
                     # substitui a pior posicao (ROI mais negativo, MA contra)
                     log.info(f"Maximo atingido ({len(abertas)}/{max_pos_dinamico}) — cacando substituicao...")
