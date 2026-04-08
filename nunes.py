@@ -3625,9 +3625,36 @@ def main() -> None:
                             )
                             alerta_dca_log[alerta_key] = time.time()
 
-                # --- CASCATA + FORMIGUINHA AGRESSIVA: DESABILITADOS ---
-                # Homem Formiga: formigas correm livres. Sem fechamento parcial.
-                # Indicadores contra mata negativas. Positivas correm sem limite.
+                # --- SAIDA EM CASCATA: trava lucro real no bolso ---
+                # Nivel 1: +20% ROI → fecha 30%
+                # Nivel 2: +40% ROI → fecha 30% do restante
+                # Nivel 3: +80% ROI → fecha 30% do restante
+                # Resto corre livre
+                elif roi >= 20 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
+                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    log.info(f"  {symbol}: CASCATA 1 +{roi:.0f}% -> fechando 30%")
+                    telegram(
+                        f"<b>Cascata 1: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.30:+.2f}\n"
+                        f"30% no bolso. Resto corre."
+                    )
+                    fechar_parcial(client, p, 0.30, f"Cascata 1 +{roi:.0f}%")
+                    parcial_10pct.add(symbol)
+                    continue
+
+                elif roi >= 40 and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
+                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    log.info(f"  {symbol}: CASCATA 2 +{roi:.0f}% -> fechando 30%")
+                    fechar_parcial(client, p, 0.43, f"Cascata 2 +{roi:.0f}%")
+                    parcial_nivel2.add(symbol)
+                    continue
+
+                elif roi >= 80 and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
+                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    log.info(f"  {symbol}: CASCATA 3 +{roi:.0f}% -> fechando 30%")
+                    fechar_parcial(client, p, 0.75, f"Cascata 3 +{roi:.0f}%")
+                    parcial_500.add(symbol)
+                    continue
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
                 if False:  # TRAILING DESABILITADO — deixa formigas correrem livres
