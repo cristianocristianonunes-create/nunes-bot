@@ -93,16 +93,8 @@ def risco_atual() -> float:
     return RISCO_POR_TRADE
 
 def max_posicoes_por_saldo(saldo: float) -> int:
-    """
-    Homem Formiga: max posicoes pelo saldo real.
-    Margem real ~$0.26/formiguinha. Limite: 25% racio.
-    $15: 14 formigas | $60: 50 | $200: 50 (cap)
-    """
-    if saldo <= 0:
-        return 10
-    margem_real = 0.26  # media observada na Binance
-    max_por_racio = int((saldo * RACIO_MARGEM_NORMAL / 100) / margem_real)
-    return max(10, min(100, max_por_racio))
+    """Homem Formiga: 100 fixo. Racio real no loop controla o limite."""
+    return MAX_POSICOES
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
