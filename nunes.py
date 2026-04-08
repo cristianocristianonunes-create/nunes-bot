@@ -82,12 +82,8 @@ RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 4
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
 
-MAX_POSICOES          = 40   # Homem Formiga: 40 formigas, racio ~4% com 28 = cabe mais
-
-
 def risco_atual() -> float:
     """Risco por trade: 0.7% normal, 0.5% com posicao presa."""
-    # Checa se tem posicao presa — usa variavel global que o loop atualiza
     try:
         if _tem_posicao_presa:
             return RISCO_POR_TRADE_EMERGENCIA
@@ -95,13 +91,35 @@ def risco_atual() -> float:
         pass
     return RISCO_POR_TRADE
 
+def max_posicoes_por_saldo(saldo: float) -> int:
+    """
+    Homem Formiga: calcula max posicoes pelo saldo.
+    Formula: (saldo * racio_max) / (saldo * risco) = racio_max / risco
+    Com 25% racio e 0.7% risco = 35 posicoes teoricas.
+    Garante minimo 10 e maximo 50 (API rate limit).
+    Tambem considera notional minimo $5 da Binance (margem * alavancagem >= $5).
+    """
+    risco = risco_atual()
+    margem_por_trade = saldo * risco
+    notional = margem_por_trade * ALAVANCAGEM
+
+    # Se notional < $5, precisa de margem maior = menos posicoes
+    if notional < 5.0:
+        margem_por_trade = 5.0 / ALAVANCAGEM
+        risco_efetivo = margem_por_trade / saldo if saldo > 0 else 0.01
+    else:
+        risco_efetivo = risco
+
+    # Max posicoes = racio limite / risco efetivo
+    max_pos = int(RACIO_MARGEM_NORMAL / (risco_efetivo * 100))
+    return max(10, min(50, max_pos))
+
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
-    Sistema Guardião (CNS): 10 posições fixas, risco dinâmico.
-    Normal: 1% por trade. Emergência: 0.5% (mais volume, menos exposição).
-    Notional mínimo $5 da Binance é garantido em abrir_posicao().
+    Homem Formiga: max posicoes dinamico pelo saldo.
+    Mais saldo = mais formigas. Menos saldo = menos formigas.
     """
-    return MAX_POSICOES, risco_atual()
+    return max_posicoes_por_saldo(saldo), risco_atual()
 
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
