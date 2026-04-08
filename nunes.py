@@ -3343,7 +3343,9 @@ def main() -> None:
                 # Posicoes muito negativas (< -50%) estao no caminho do 3x — nao fechar.
                 # Licao KMNOUSDT: fechou a -108% por indicadores e perdeu $5.72.
                 # O spread comprimindo ERA a oportunidade, nao o problema.
-                if symbol not in dca_aplicado and roi > -50:
+                # Homem Formiga: se ta no lucro, deixa a formiguinha correr ate +15%.
+                # Indicadores contra so fecha se NEGATIVO (formiguinha fraca = sacrifica).
+                if symbol not in dca_aplicado and roi > -50 and roi <= 0:
                     check_key = f"indicadores_check_{symbol}"
                     if time.time() - alerta_dca_log.get(check_key, 0) >= 300:  # a cada 15 min
                         alerta_dca_log[check_key] = time.time()
