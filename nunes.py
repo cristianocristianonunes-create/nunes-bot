@@ -3662,12 +3662,16 @@ def main() -> None:
                         except Exception:
                             pass
 
-                # --- SAIDA EM CASCATA: trava lucro real no bolso ---
-                # Nivel 1: +20% ROI → fecha 30%
-                # Nivel 2: +40% ROI → fecha 30% do restante
-                # Nivel 3: +80% ROI → fecha 30% do restante
-                # Resto corre livre
+                # --- SAIDA EM CASCATA: so trava lucro quando conta esta VERDE ---
+                # Licao: cascata individual cortava vencedoras cedo demais.
+                # Saldo subia mas PnL ficava sempre negativo porque vencedoras
+                # eram podadas antes de compensar as perdedoras.
+                # Agora: so fecha parcial quando PnL total >= 0 (conta verde).
                 elif roi >= 20 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
+                    pnl_total_cascata = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0)
+                    if pnl_total_cascata < 0:
+                        log.info(f"  {symbol}: ROI +{roi:.0f}% mas PnL total {pnl_total_cascata:+.2f} — vencedora precisa crescer mais")
+                        continue  # nao fecha, deixa crescer
                     pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                     log.info(f"  {symbol}: CASCATA 1 +{roi:.0f}% -> fechando 30%")
                     telegram(
@@ -3696,8 +3700,12 @@ def main() -> None:
                     continue
 
                 elif roi >= 40 and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
+                    pnl_total_c2 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0)
+                    if pnl_total_c2 < 0:
+                        log.info(f"  {symbol}: ROI +{roi:.0f}% mas PnL total {pnl_total_c2:+.2f} — crescendo pra compensar")
+                        continue
                     pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: CASCATA 2 +{roi:.0f}% -> fechando 30%")
+                    log.info(f"  {symbol}: CASCATA 2 +{roi:.0f}% -> fechando 30% (PnL total VERDE)")
                     fechar_parcial(client, p, 0.43, f"Cascata 2 +{roi:.0f}%")
                     parcial_nivel2.add(symbol)
                     try:
@@ -3718,8 +3726,12 @@ def main() -> None:
                     continue
 
                 elif roi >= 80 and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
+                    pnl_total_c3 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0)
+                    if pnl_total_c3 < 0:
+                        log.info(f"  {symbol}: ROI +{roi:.0f}% mas PnL total {pnl_total_c3:+.2f} — crescendo pra compensar")
+                        continue
                     pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: CASCATA 3 +{roi:.0f}% -> fechando 30%")
+                    log.info(f"  {symbol}: CASCATA 3 +{roi:.0f}% -> fechando 30% (PnL total VERDE)")
                     fechar_parcial(client, p, 0.75, f"Cascata 3 +{roi:.0f}%")
                     parcial_500.add(symbol)
                     try:
