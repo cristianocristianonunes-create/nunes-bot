@@ -3135,7 +3135,7 @@ def main() -> None:
             for p_limpa in abertas_racio:
                 amt_limpa = float(p_limpa["positionAmt"])
                 margem_limpa = float(p_limpa.get("positionInitialMargin", 0))
-                if amt_limpa != 0 and margem_limpa < 0.02:
+                if amt_limpa != 0 and margem_limpa < 0.05:
                     try:
                         side_limpa = "SELL" if amt_limpa > 0 else "BUY"
                         client.futures_create_order(
