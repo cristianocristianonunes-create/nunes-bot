@@ -3130,12 +3130,12 @@ def main() -> None:
             if _tem_posicao_presa:
                 log.info(f"Posicao presa detectada — risco reduzido pra {RISCO_POR_TRADE_EMERGENCIA*100:.1f}%")
 
-            # --- LIMPEZA DE FANTASMAS: mata posicoes com margem < $0.20 ---
+            # --- LIMPEZA DE FANTASMAS: mata posicoes com margem < $0.02 ---
             # Restos de fechamentos parciais. Nao produzem lucro, ocupam vaga.
             for p_limpa in abertas_racio:
                 amt_limpa = float(p_limpa["positionAmt"])
                 margem_limpa = float(p_limpa.get("positionInitialMargin", 0))
-                if amt_limpa != 0 and margem_limpa < 0.20:
+                if amt_limpa != 0 and margem_limpa < 0.02:
                     try:
                         side_limpa = "SELL" if amt_limpa > 0 else "BUY"
                         client.futures_create_order(
