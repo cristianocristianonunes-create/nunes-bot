@@ -3668,10 +3668,15 @@ def main() -> None:
                 # eram podadas antes de compensar as perdedoras.
                 # Agora: so fecha parcial quando PnL total >= 0 (conta verde).
                 elif roi >= 20 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
-                    pnl_total_cascata = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0)
-                    if pnl_total_cascata < 0:
-                        log.info(f"  {symbol}: ROI +{roi:.0f}% mas PnL total {pnl_total_cascata:+.2f} — vencedora precisa crescer mais")
-                        continue  # nao fecha, deixa crescer
+                    # Calcula: pnl negativo total + pnl desta posicao
+                    # So fecha se o lucro desta posicao >= 2x o negativo total
+                    # Assim apos fechar 30%, PnL total fica positivo
+                    pnl_negativo = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
+                    pnl_esta = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    # Precisa do dobro: metade cobre o negativo, metade fica de lucro
+                    if pnl_esta < abs(pnl_negativo) * 2:
+                        log.info(f"  {symbol}: ROI +{roi:.0f}% PnL ${pnl_esta:+.2f} mas negativas ${pnl_negativo:.2f} — precisa do dobro pra cascata")
+                        continue
                     pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                     log.info(f"  {symbol}: CASCATA 1 +{roi:.0f}% -> fechando 30%")
                     telegram(
@@ -3700,9 +3705,10 @@ def main() -> None:
                     continue
 
                 elif roi >= 40 and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
-                    pnl_total_c2 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0)
-                    if pnl_total_c2 < 0:
-                        log.info(f"  {symbol}: ROI +{roi:.0f}% mas PnL total {pnl_total_c2:+.2f} — crescendo pra compensar")
+                    pnl_negativo_c2 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
+                    pnl_esta_c2 = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    if pnl_esta_c2 < abs(pnl_negativo_c2) * 2:
+                        log.info(f"  {symbol}: ROI +{roi:.0f}% PnL ${pnl_esta_c2:+.2f} mas negativas ${pnl_negativo_c2:.2f} — precisa do dobro")
                         continue
                     pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                     log.info(f"  {symbol}: CASCATA 2 +{roi:.0f}% -> fechando 30% (PnL total VERDE)")
@@ -3726,9 +3732,10 @@ def main() -> None:
                     continue
 
                 elif roi >= 80 and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
-                    pnl_total_c3 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0)
-                    if pnl_total_c3 < 0:
-                        log.info(f"  {symbol}: ROI +{roi:.0f}% mas PnL total {pnl_total_c3:+.2f} — crescendo pra compensar")
+                    pnl_negativo_c3 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
+                    pnl_esta_c3 = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    if pnl_esta_c3 < abs(pnl_negativo_c3) * 2:
+                        log.info(f"  {symbol}: ROI +{roi:.0f}% PnL ${pnl_esta_c3:+.2f} mas negativas ${pnl_negativo_c3:.2f} — precisa do dobro")
                         continue
                     pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                     log.info(f"  {symbol}: CASCATA 3 +{roi:.0f}% -> fechando 30% (PnL total VERDE)")
