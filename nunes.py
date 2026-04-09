@@ -3625,6 +3625,21 @@ def main() -> None:
                             )
                             alerta_dca_log[alerta_key] = time.time()
 
+                # --- STOP DO SOLDADO: se virou soldado e ROI caiu, fecha no positivo ---
+                # Soldado tem margem 3x. Se devolver o lucro, perda eh 3x pior.
+                # Fecha tudo se ROI cair abaixo de +2% (ainda positivo, sem perda).
+                elif f"soldado_{symbol}" in alerta_dca_log and roi <= 2:
+                    pnl_sol = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                    log.info(f"  {symbol}: STOP SOLDADO! ROI caiu pra {roi:+.1f}% — fechando antes de virar negativo")
+                    telegram(
+                        f"<b>Stop Soldado: {symbol}</b>\n"
+                        f"{direcao} | ROI: {roi:+.1f}% | PnL: ${pnl_sol:+.2f}\n"
+                        f"Soldado recuou — saiu no positivo."
+                    )
+                    fechar_parcial(client, p, 1.0, f"Stop soldado ROI {roi:+.1f}%")
+                    peak_roi.pop(symbol, None)
+                    continue
+
                 # --- FORMIGA SOLDADO: 3x ofensivo em formiguinha vencedora ---
                 # ROI >= +15% com MA acelerando = formiga virou soldado
                 # Triplica margem pra amplificar lucro. So uma vez por symbol.
