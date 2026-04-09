@@ -3130,6 +3130,22 @@ def main() -> None:
             if _tem_posicao_presa:
                 log.info(f"Posicao presa detectada — risco reduzido pra {RISCO_POR_TRADE_EMERGENCIA*100:.1f}%")
 
+            # --- LIMPEZA DE FANTASMAS: mata posicoes com margem < $0.20 ---
+            # Restos de fechamentos parciais. Nao produzem lucro, ocupam vaga.
+            for p_limpa in abertas_racio:
+                amt_limpa = float(p_limpa["positionAmt"])
+                margem_limpa = float(p_limpa.get("positionInitialMargin", 0))
+                if amt_limpa != 0 and margem_limpa < 0.20:
+                    try:
+                        side_limpa = "SELL" if amt_limpa > 0 else "BUY"
+                        client.futures_create_order(
+                            symbol=p_limpa["symbol"], side=side_limpa,
+                            type="MARKET", quantity=abs(amt_limpa), reduceOnly=True
+                        )
+                        log.info(f"  Fantasma eliminada: {p_limpa['symbol']} (margem ${margem_limpa:.4f})")
+                    except Exception:
+                        pass
+
             # --- VERIFICACAO DE META DE CICLO (a cada 15s) ---
             if time.time() - ultimo_check_ciclo >= 15:
                 ultimo_check_ciclo = time.time()
