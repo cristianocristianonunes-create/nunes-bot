@@ -2104,6 +2104,110 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
         pico_pos_3x.pop(symbol, None)
 
 
+def alimentar_formiga(client: Client, symbol: str, direcao: str, nivel: int, fator: float) -> bool:
+    """
+    Alimenta uma formiga vencedora APOS realizacao de lucro pela cascata.
+    Verifica 4 confirmacoes antes de adicionar margem:
+    1. MA 5min a favor E acelerando
+    2. Volume mantendo
+    3. 1h alinhado (regra de ouro: 100% dos wins de DCA tinham)
+    4. Nao em zona de exaustao Fibonacci
+    Retorna True se alimentou.
+    """
+    try:
+        if get_racio_margem(client) >= RACIO_MARGEM_MAX:
+            log.info(f"  {symbol}: reforco #{nivel} bloqueado — racio alto")
+            return False
+
+        # Pega posicao atualizada (apos a cascata ter fechado parte)
+        pos_info = client.futures_position_information(symbol=symbol)
+        posicao_atual = next((pp for pp in pos_info if abs(float(pp["positionAmt"])) > 0), None)
+        if not posicao_atual:
+            return False
+
+        margem_pos = float(posicao_atual.get("positionInitialMargin", 0))
+        if margem_pos < 0.10:
+            log.info(f"  {symbol}: reforco #{nivel} bloqueado — margem ${margem_pos:.4f} muito pequena")
+            return False
+
+        df5_ref = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
+        df5_ref["ma7"] = df5_ref["close"].rolling(7).mean()
+        df5_ref["ma25"] = df5_ref["close"].rolling(25).mean()
+        df5_ref["vol_media"] = df5_ref["volume"].rolling(20).mean()
+        cr1 = df5_ref.iloc[-1]
+        cr2 = df5_ref.iloc[-2]
+
+        # 1. MA a favor E acelerando
+        if direcao == "LONG":
+            ma_favor = cr1["ma7"] > cr1["ma25"]
+            acelerando = (cr1["ma7"] - cr1["ma25"]) > (cr2["ma7"] - cr2["ma25"]) > 0
+        else:
+            ma_favor = cr1["ma7"] < cr1["ma25"]
+            acelerando = (cr1["ma25"] - cr1["ma7"]) > (cr2["ma25"] - cr2["ma7"]) > 0
+
+        # 2. Volume mantendo
+        vol_ok = (pd.notna(cr1["vol_media"]) and cr1["vol_media"] > 0
+                  and cr1["volume"] >= cr1["vol_media"] * 0.8)
+
+        # 3. 1h alinhado
+        df1h_ref = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
+        df1h_ref["ma7"] = df1h_ref["close"].rolling(7).mean()
+        df1h_ref["ma25"] = df1h_ref["close"].rolling(25).mean()
+        c1h_ref = df1h_ref.iloc[-1]
+        if direcao == "LONG":
+            h1_ok = c1h_ref["ma7"] > c1h_ref["ma25"]
+        else:
+            h1_ok = c1h_ref["ma7"] < c1h_ref["ma25"]
+
+        # 4. Nao em zona de exaustao Fibonacci
+        high20 = df5_ref["high"].iloc[-20:].max()
+        low20 = df5_ref["low"].iloc[-20:].min()
+        preco_atual = cr1["close"]
+        if direcao == "LONG":
+            nao_exausto = preco_atual < (low20 + (high20 - low20) * 0.786)
+        else:
+            nao_exausto = preco_atual > (high20 - (high20 - low20) * 0.786)
+
+        if not (ma_favor and acelerando and vol_ok and h1_ok and nao_exausto):
+            motivos = []
+            if not (ma_favor and acelerando): motivos.append("MA")
+            if not vol_ok: motivos.append("vol")
+            if not h1_ok: motivos.append("1h")
+            if not nao_exausto: motivos.append("exausto")
+            log.info(f"  {symbol}: reforco #{nivel} bloqueado: {','.join(motivos)}")
+            return False
+
+        # ALIMENTA
+        reforco_usdt = margem_pos * fator
+        step_ref = get_step_size(client, symbol)
+        qty_ref = arredondar_quantidade((reforco_usdt * ALAVANCAGEM) / preco_atual, step_ref)
+        side_ref = "BUY" if direcao == "LONG" else "SELL"
+
+        if qty_ref <= 0:
+            return False
+
+        if MODO == "real":
+            client.futures_create_order(
+                symbol=symbol, side=side_ref,
+                type="MARKET", quantity=qty_ref
+            )
+        reforco_aplicado[symbol] = nivel
+        topup_recente[symbol] = time.time()
+        log.info(f"  {symbol}: REFORCO #{nivel} +${reforco_usdt:.2f} (apos cascata)")
+        telegram(
+            f"<b>Reforco #{nivel}: {symbol}</b>\n"
+            f"{direcao} | Margem: ${margem_pos:.2f} -> ${margem_pos + reforco_usdt:.2f}\n"
+            f"Cascata realizou lucro, formiga alimentada.\n"
+            f"4 confirmacoes OK."
+        )
+        registrar_aprendizado(client, symbol, direcao, "reforco_aplicado", 0,
+            f"Nivel #{nivel} pos-cascata | +${reforco_usdt:.2f}")
+        return True
+    except Exception as e:
+        log.warning(f"  Erro alimentar {symbol}: {e}")
+        return False
+
+
 def fechar_parcial(client: Client, posicao: dict, pct: float, motivo: str) -> None:
     """Fecha X% da posição a mercado."""
     symbol     = posicao["symbol"]
@@ -3734,103 +3838,8 @@ def main() -> None:
                 # SOLDADO REMOVIDO — conflitava com cascata (triplicava em +15%, cascata cortava em +20%)
                 # Filosofia formiguinha: deixar correr, nao interferir no crescimento
 
-                # --- REFORCO ESCALONADO DE VENCEDORAS (alimentar formigas fortes) ---
-                # Auditoria: vencedoras nunca acumulavam massa pra cobrir perdedoras.
-                # Solucao: alimentar quem ja provou direcao (ROI alto + 4 confirmacoes).
-                # Niveis: +200% (0.5x), +500% (1x), +1000% (1.5x). Auditor monitora resultado.
-                if (cfg("reforco_habilitado", True)
-                        and roi >= cfg("reforco_1_roi", 200)
-                        and symbol not in dca_aplicado
-                        and not symbol_bloqueado(symbol)):
-                    nivel_atual = reforco_aplicado.get(symbol, 0)
-
-                    if roi >= cfg("reforco_3_roi", 1000) and nivel_atual < 3:
-                        proximo_nivel = 3
-                        fator_ref = cfg("reforco_3_fator", 1.5)
-                    elif roi >= cfg("reforco_2_roi", 500) and nivel_atual < 2:
-                        proximo_nivel = 2
-                        fator_ref = cfg("reforco_2_fator", 1.0)
-                    elif roi >= cfg("reforco_1_roi", 200) and nivel_atual < 1:
-                        proximo_nivel = 1
-                        fator_ref = cfg("reforco_1_fator", 0.5)
-                    else:
-                        proximo_nivel = 0
-                        fator_ref = 0
-
-                    if proximo_nivel > 0 and get_racio_margem(client) < RACIO_MARGEM_MAX:
-                        try:
-                            df5_ref = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
-                            df5_ref["ma7"] = df5_ref["close"].rolling(7).mean()
-                            df5_ref["ma25"] = df5_ref["close"].rolling(25).mean()
-                            df5_ref["vol_media"] = df5_ref["volume"].rolling(20).mean()
-                            cr1 = df5_ref.iloc[-1]
-                            cr2 = df5_ref.iloc[-2]
-
-                            # 1. MA a favor E acelerando
-                            if direcao == "LONG":
-                                ma_favor_ref = cr1["ma7"] > cr1["ma25"]
-                                acelerando_ref = (cr1["ma7"] - cr1["ma25"]) > (cr2["ma7"] - cr2["ma25"]) > 0
-                            else:
-                                ma_favor_ref = cr1["ma7"] < cr1["ma25"]
-                                acelerando_ref = (cr1["ma25"] - cr1["ma7"]) > (cr2["ma25"] - cr2["ma7"]) > 0
-
-                            # 2. Volume mantendo
-                            vol_ok_ref = (pd.notna(cr1["vol_media"]) and cr1["vol_media"] > 0
-                                          and cr1["volume"] >= cr1["vol_media"] * 0.8)
-
-                            # 3. 1h alinhado
-                            df1h_ref = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
-                            df1h_ref["ma7"] = df1h_ref["close"].rolling(7).mean()
-                            df1h_ref["ma25"] = df1h_ref["close"].rolling(25).mean()
-                            c1h_ref = df1h_ref.iloc[-1]
-                            if direcao == "LONG":
-                                h1_ok_ref = c1h_ref["ma7"] > c1h_ref["ma25"]
-                            else:
-                                h1_ok_ref = c1h_ref["ma7"] < c1h_ref["ma25"]
-
-                            # 4. Nao em zona de exaustao Fibonacci (78.6%)
-                            high20 = df5_ref["high"].iloc[-20:].max()
-                            low20 = df5_ref["low"].iloc[-20:].min()
-                            preco_ref = cr1["close"]
-                            if direcao == "LONG":
-                                nao_exausto_ref = preco_ref < (low20 + (high20 - low20) * 0.786)
-                            else:
-                                nao_exausto_ref = preco_ref > (high20 - (high20 - low20) * 0.786)
-
-                            if ma_favor_ref and acelerando_ref and vol_ok_ref and h1_ok_ref and nao_exausto_ref:
-                                margem_pos_ref = float(p.get("positionInitialMargin", 0))
-                                reforco_usdt = margem_pos_ref * fator_ref
-                                preco_now_ref = float(client.futures_symbol_ticker(symbol=symbol)["price"])
-                                step_ref = get_step_size(client, symbol)
-                                qty_ref = arredondar_quantidade((reforco_usdt * ALAVANCAGEM) / preco_now_ref, step_ref)
-                                side_ref = "BUY" if direcao == "LONG" else "SELL"
-
-                                if qty_ref > 0:
-                                    if MODO == "real":
-                                        client.futures_create_order(
-                                            symbol=symbol, side=side_ref,
-                                            type="MARKET", quantity=qty_ref
-                                        )
-                                    reforco_aplicado[symbol] = proximo_nivel
-                                    topup_recente[symbol] = time.time()
-                                    log.info(f"  {symbol}: REFORCO #{proximo_nivel} +${reforco_usdt:.2f} | ROI {roi:+.0f}%")
-                                    telegram(
-                                        f"<b>Reforco #{proximo_nivel}: {symbol}</b>\n"
-                                        f"{direcao} | ROI {roi:+.0f}%\n"
-                                        f"Margem: ${margem_pos_ref:.2f} -> ${margem_pos_ref + reforco_usdt:.2f}\n"
-                                        f"4 confirmacoes OK. Formiga ganhou comida."
-                                    )
-                                    registrar_aprendizado(client, symbol, direcao, "reforco_aplicado", roi,
-                                        f"Nivel #{proximo_nivel} | +${reforco_usdt:.2f}")
-                            else:
-                                motivos = []
-                                if not (ma_favor_ref and acelerando_ref): motivos.append("MA")
-                                if not vol_ok_ref: motivos.append("vol")
-                                if not h1_ok_ref: motivos.append("1h")
-                                if not nao_exausto_ref: motivos.append("exausto")
-                                log.info(f"  {symbol}: ROI {roi:+.0f}% reforco #{proximo_nivel} bloqueado: {','.join(motivos)}")
-                        except Exception as e:
-                            log.warning(f"  Erro reforco {symbol}: {e}")
+                # REFORCO REMOVIDO daqui — agora roda DEPOIS de cada cascata realizar lucro
+                # (logica corrigida: realiza primeiro, alimenta depois)
 
                 # --- SAIDA EM CASCATA: limiares controlados pelo auditor ---
                 if roi >= cfg("cascata_1_roi", 50) and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
@@ -3852,22 +3861,10 @@ def main() -> None:
                     )
                     fechar_parcial(client, p, 0.30, f"Cascata 1 +{roi:.0f}%")
                     parcial_10pct.add(symbol)
-                    # Topup: repoe forca da formiga apos cascata
-                    try:
-                        p_atualizada = [pp for pp in posicoes_abertas(client) if pp["symbol"] == symbol and float(pp["positionAmt"]) != 0]
-                        if p_atualizada:
-                            margem_pos = float(p_atualizada[0].get("positionInitialMargin", 0))
-                            alvo = get_saldo_total(client) * risco_atual()
-                            falta = alvo - margem_pos
-                            if falta > 0.05 and get_racio_margem(client) < RACIO_MARGEM_MAX:
-                                preco_tp = float(client.futures_symbol_ticker(symbol=symbol)["price"])
-                                qty_tp = round((falta * ALAVANCAGEM) / preco_tp, get_precisao_quantidade(client, symbol))
-                                if qty_tp > 0 and MODO == "real":
-                                    side_tp = "BUY" if direcao == "LONG" else "SELL"
-                                    client.futures_create_order(symbol=symbol, side=side_tp, type="MARKET", quantity=qty_tp)
-                                    log.info(f"  {symbol}: TOPUP pos-cascata +${falta:.2f} — formiga reforçada")
-                    except Exception:
-                        pass
+                    # REFORCO POS-CASCATA: alimenta a formiga apos realizar lucro
+                    if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
+                        time.sleep(0.5)  # espera ordem de fechamento processar
+                        alimentar_formiga(client, symbol, direcao, 1, cfg("reforco_1_fator", 0.5))
                     continue
 
                 if roi >= cfg("cascata_2_roi", 100) and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
@@ -3880,21 +3877,10 @@ def main() -> None:
                     log.info(f"  {symbol}: CASCATA 2 +{roi:.0f}% -> fechando 30% (PnL total VERDE)")
                     fechar_parcial(client, p, 0.43, f"Cascata 2 +{roi:.0f}%")
                     parcial_nivel2.add(symbol)
-                    try:
-                        p_atualizada = [pp for pp in posicoes_abertas(client) if pp["symbol"] == symbol and float(pp["positionAmt"]) != 0]
-                        if p_atualizada:
-                            margem_pos = float(p_atualizada[0].get("positionInitialMargin", 0))
-                            alvo = get_saldo_total(client) * risco_atual()
-                            falta = alvo - margem_pos
-                            if falta > 0.05 and get_racio_margem(client) < RACIO_MARGEM_MAX:
-                                preco_tp = float(client.futures_symbol_ticker(symbol=symbol)["price"])
-                                qty_tp = round((falta * ALAVANCAGEM) / preco_tp, get_precisao_quantidade(client, symbol))
-                                if qty_tp > 0 and MODO == "real":
-                                    side_tp = "BUY" if direcao == "LONG" else "SELL"
-                                    client.futures_create_order(symbol=symbol, side=side_tp, type="MARKET", quantity=qty_tp)
-                                    log.info(f"  {symbol}: TOPUP pos-cascata +${falta:.2f} — formiga reforçada")
-                    except Exception:
-                        pass
+                    # REFORCO POS-CASCATA NIVEL 2
+                    if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
+                        time.sleep(0.5)
+                        alimentar_formiga(client, symbol, direcao, 2, cfg("reforco_2_fator", 1.0))
                     continue
 
                 if roi >= cfg("cascata_3_roi", 200) and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
@@ -3907,21 +3893,10 @@ def main() -> None:
                     log.info(f"  {symbol}: CASCATA 3 +{roi:.0f}% -> fechando 30% (PnL total VERDE)")
                     fechar_parcial(client, p, 0.75, f"Cascata 3 +{roi:.0f}%")
                     parcial_500.add(symbol)
-                    try:
-                        p_atualizada = [pp for pp in posicoes_abertas(client) if pp["symbol"] == symbol and float(pp["positionAmt"]) != 0]
-                        if p_atualizada:
-                            margem_pos = float(p_atualizada[0].get("positionInitialMargin", 0))
-                            alvo = get_saldo_total(client) * risco_atual()
-                            falta = alvo - margem_pos
-                            if falta > 0.05 and get_racio_margem(client) < RACIO_MARGEM_MAX:
-                                preco_tp = float(client.futures_symbol_ticker(symbol=symbol)["price"])
-                                qty_tp = round((falta * ALAVANCAGEM) / preco_tp, get_precisao_quantidade(client, symbol))
-                                if qty_tp > 0 and MODO == "real":
-                                    side_tp = "BUY" if direcao == "LONG" else "SELL"
-                                    client.futures_create_order(symbol=symbol, side=side_tp, type="MARKET", quantity=qty_tp)
-                                    log.info(f"  {symbol}: TOPUP pos-cascata +${falta:.2f} — formiga reforçada")
-                    except Exception:
-                        pass
+                    # REFORCO POS-CASCATA NIVEL 3
+                    if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
+                        time.sleep(0.5)
+                        alimentar_formiga(client, symbol, direcao, 3, cfg("reforco_3_fator", 1.5))
                     continue
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
