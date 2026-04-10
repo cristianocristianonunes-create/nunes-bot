@@ -3218,8 +3218,11 @@ def main() -> None:
                     except Exception:
                         pass
 
-            # --- VERIFICACAO DE META DE CICLO (a cada 15s) ---
-            if time.time() - ultimo_check_ciclo >= 15:
+            # --- META DE CICLO DESABILITADA ---
+            # Decisao Cristiano: meta de ciclo cortava vencedoras em +10% ROI
+            # quando o lucro acumulado batia 5% do saldo. So a cascata controla agora.
+            # As formiguinhas correm livres ate +500% (cascata 1).
+            if False:  # if time.time() - ultimo_check_ciclo >= 15:
                 ultimo_check_ciclo = time.time()
                 try:
                     abertas_ciclo   = posicoes_abertas(client)
