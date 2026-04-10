@@ -81,7 +81,7 @@ RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa — ainda mais
 RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 40-50%, margem segura.
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
-MAX_POSICOES          = 15   # Auditoria: com saldo < $500, menos formigas = mais margem cada = lucro real
+MAX_POSICOES          = 30   # Cascata 2000% precisa de mais bilhetes — 30 exploradoras com $0.26 cada
 
 # ---------------------------------------------------------------------------
 # Config dinamico — parametros ajustados pelo auditor_continuo.py em tempo real
@@ -118,15 +118,15 @@ def risco_atual() -> float:
     return RISCO_POR_TRADE
 
 def max_posicoes_por_saldo(saldo: float) -> int:
-    """Escala com o saldo: mais dinheiro = mais formigas com margem decente."""
+    """Escala com o saldo: mais dinheiro = mais formigas exploradoras."""
     if saldo >= 1000:
-        return 50
+        return 100
     elif saldo >= 500:
-        return 30
+        return 60
     elif saldo >= 200:
-        return 20
+        return 45
     else:
-        return MAX_POSICOES  # 15 — cada formiga com margem que gera lucro real
+        return MAX_POSICOES  # 30 — exploradoras suficientes pra encontrar foguetes
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
