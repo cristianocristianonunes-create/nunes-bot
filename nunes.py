@@ -1252,6 +1252,7 @@ topup_recente:         dict[str, float] = {}  # symbols que tiveram topup recent
 score_historico:       dict[str, list] = {}  # symbol -> [(timestamp, score, preco)] para validar continuidade
 posicoes_cns:        set[str]        = set() # symbols que entraram pelo modo CNS
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
+reforco_aplicado:      dict[str, int]   = {}    # symbol -> nivel do ultimo reforco (1, 2 ou 3)
 parcial_10pct:         set[str]        = set() # symbols que já fecharam 30% em +20% ROI (cascata 1)
 parcial_nivel2:        set[str]        = set() # symbols que já fecharam 30% em +40% ROI (cascata 2)
 pico_pos_3x:           dict[str, float] = {}  # pico de ROI apos o 3x (para trailing escalonado)
@@ -3733,8 +3734,106 @@ def main() -> None:
                 # SOLDADO REMOVIDO — conflitava com cascata (triplicava em +15%, cascata cortava em +20%)
                 # Filosofia formiguinha: deixar correr, nao interferir no crescimento
 
+                # --- REFORCO ESCALONADO DE VENCEDORAS (alimentar formigas fortes) ---
+                # Auditoria: vencedoras nunca acumulavam massa pra cobrir perdedoras.
+                # Solucao: alimentar quem ja provou direcao (ROI alto + 4 confirmacoes).
+                # Niveis: +200% (0.5x), +500% (1x), +1000% (1.5x). Auditor monitora resultado.
+                if (cfg("reforco_habilitado", True)
+                        and roi >= cfg("reforco_1_roi", 200)
+                        and symbol not in dca_aplicado
+                        and not symbol_bloqueado(symbol)):
+                    nivel_atual = reforco_aplicado.get(symbol, 0)
+
+                    if roi >= cfg("reforco_3_roi", 1000) and nivel_atual < 3:
+                        proximo_nivel = 3
+                        fator_ref = cfg("reforco_3_fator", 1.5)
+                    elif roi >= cfg("reforco_2_roi", 500) and nivel_atual < 2:
+                        proximo_nivel = 2
+                        fator_ref = cfg("reforco_2_fator", 1.0)
+                    elif roi >= cfg("reforco_1_roi", 200) and nivel_atual < 1:
+                        proximo_nivel = 1
+                        fator_ref = cfg("reforco_1_fator", 0.5)
+                    else:
+                        proximo_nivel = 0
+                        fator_ref = 0
+
+                    if proximo_nivel > 0 and get_racio_margem(client) < RACIO_MARGEM_MAX:
+                        try:
+                            df5_ref = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
+                            df5_ref["ma7"] = df5_ref["close"].rolling(7).mean()
+                            df5_ref["ma25"] = df5_ref["close"].rolling(25).mean()
+                            df5_ref["vol_media"] = df5_ref["volume"].rolling(20).mean()
+                            cr1 = df5_ref.iloc[-1]
+                            cr2 = df5_ref.iloc[-2]
+
+                            # 1. MA a favor E acelerando
+                            if direcao == "LONG":
+                                ma_favor_ref = cr1["ma7"] > cr1["ma25"]
+                                acelerando_ref = (cr1["ma7"] - cr1["ma25"]) > (cr2["ma7"] - cr2["ma25"]) > 0
+                            else:
+                                ma_favor_ref = cr1["ma7"] < cr1["ma25"]
+                                acelerando_ref = (cr1["ma25"] - cr1["ma7"]) > (cr2["ma25"] - cr2["ma7"]) > 0
+
+                            # 2. Volume mantendo
+                            vol_ok_ref = (pd.notna(cr1["vol_media"]) and cr1["vol_media"] > 0
+                                          and cr1["volume"] >= cr1["vol_media"] * 0.8)
+
+                            # 3. 1h alinhado
+                            df1h_ref = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
+                            df1h_ref["ma7"] = df1h_ref["close"].rolling(7).mean()
+                            df1h_ref["ma25"] = df1h_ref["close"].rolling(25).mean()
+                            c1h_ref = df1h_ref.iloc[-1]
+                            if direcao == "LONG":
+                                h1_ok_ref = c1h_ref["ma7"] > c1h_ref["ma25"]
+                            else:
+                                h1_ok_ref = c1h_ref["ma7"] < c1h_ref["ma25"]
+
+                            # 4. Nao em zona de exaustao Fibonacci (78.6%)
+                            high20 = df5_ref["high"].iloc[-20:].max()
+                            low20 = df5_ref["low"].iloc[-20:].min()
+                            preco_ref = cr1["close"]
+                            if direcao == "LONG":
+                                nao_exausto_ref = preco_ref < (low20 + (high20 - low20) * 0.786)
+                            else:
+                                nao_exausto_ref = preco_ref > (high20 - (high20 - low20) * 0.786)
+
+                            if ma_favor_ref and acelerando_ref and vol_ok_ref and h1_ok_ref and nao_exausto_ref:
+                                margem_pos_ref = float(p.get("positionInitialMargin", 0))
+                                reforco_usdt = margem_pos_ref * fator_ref
+                                preco_now_ref = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+                                step_ref = get_step_size(client, symbol)
+                                qty_ref = arredondar_quantidade((reforco_usdt * ALAVANCAGEM) / preco_now_ref, step_ref)
+                                side_ref = "BUY" if direcao == "LONG" else "SELL"
+
+                                if qty_ref > 0:
+                                    if MODO == "real":
+                                        client.futures_create_order(
+                                            symbol=symbol, side=side_ref,
+                                            type="MARKET", quantity=qty_ref
+                                        )
+                                    reforco_aplicado[symbol] = proximo_nivel
+                                    topup_recente[symbol] = time.time()
+                                    log.info(f"  {symbol}: REFORCO #{proximo_nivel} +${reforco_usdt:.2f} | ROI {roi:+.0f}%")
+                                    telegram(
+                                        f"<b>Reforco #{proximo_nivel}: {symbol}</b>\n"
+                                        f"{direcao} | ROI {roi:+.0f}%\n"
+                                        f"Margem: ${margem_pos_ref:.2f} -> ${margem_pos_ref + reforco_usdt:.2f}\n"
+                                        f"4 confirmacoes OK. Formiga ganhou comida."
+                                    )
+                                    registrar_aprendizado(client, symbol, direcao, "reforco_aplicado", roi,
+                                        f"Nivel #{proximo_nivel} | +${reforco_usdt:.2f}")
+                            else:
+                                motivos = []
+                                if not (ma_favor_ref and acelerando_ref): motivos.append("MA")
+                                if not vol_ok_ref: motivos.append("vol")
+                                if not h1_ok_ref: motivos.append("1h")
+                                if not nao_exausto_ref: motivos.append("exausto")
+                                log.info(f"  {symbol}: ROI {roi:+.0f}% reforco #{proximo_nivel} bloqueado: {','.join(motivos)}")
+                        except Exception as e:
+                            log.warning(f"  Erro reforco {symbol}: {e}")
+
                 # --- SAIDA EM CASCATA: limiares controlados pelo auditor ---
-                elif roi >= cfg("cascata_1_roi", 50) and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
+                if roi >= cfg("cascata_1_roi", 50) and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
                     # Calcula: pnl negativo total + pnl desta posicao
                     # So fecha se o lucro desta posicao >= 2x o negativo total
                     # Assim apos fechar 30%, PnL total fica positivo
@@ -3771,7 +3870,7 @@ def main() -> None:
                         pass
                     continue
 
-                elif roi >= cfg("cascata_2_roi", 100) and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
+                if roi >= cfg("cascata_2_roi", 100) and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
                     pnl_negativo_c2 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
                     pnl_esta_c2 = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                     if pnl_esta_c2 < abs(pnl_negativo_c2) * 2:
@@ -3798,7 +3897,7 @@ def main() -> None:
                         pass
                     continue
 
-                elif roi >= cfg("cascata_3_roi", 200) and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
+                if roi >= cfg("cascata_3_roi", 200) and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
                     pnl_negativo_c3 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
                     pnl_esta_c3 = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                     if pnl_esta_c3 < abs(pnl_negativo_c3) * 2:
@@ -3908,7 +4007,7 @@ def main() -> None:
                         log.info(f"  {symbol}{pump_tag}: ROI {roi:+.1f}% | pico {pico:.0f}% | trailing ok (tol {tolerancia:.0%})")
 
                 # --- MONITORAMENTO NEGATIVO (Rácio de Margem protege — 3x é a oportunidade) ---
-                elif roi < 0:
+                if roi < 0 and symbol not in dca_aplicado:
                     # Analisa distância real da MA7 em relação à MA25 no 5min
                     # Detecta CRUZAMENTO ACONTECENDO e envia alerta especial
                     status_ma = "distante"
@@ -4187,9 +4286,9 @@ def main() -> None:
                         except Exception as e:
                             log.warning(f"  Erro 3x score {symbol}: {e}")
                 # --- MONITORANDO (positivo mas abaixo do limiar de reversão) ---
-                else:
+                if roi > 0 and symbol not in dca_aplicado:
                     # Saída apenas pelo trailing stop (sem reversão de MA)
-                    if roi > 0:
+                    if True:
                         # --- TOPUP AUTOMÁTICO (margem $1-$2, ROI positivo, MA a favor, rácio ok) ---
                         margem_atual = float(p.get("positionInitialMargin", 0))
                         ultimo_topup = alerta_dca_log.get(f"topup_{symbol}", 0)

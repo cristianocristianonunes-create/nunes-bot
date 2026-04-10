@@ -35,7 +35,7 @@ AUDITOR_LOG = "C:/robo-trade/auditor.log"
 AUDITOR_STATE = "C:/robo-trade/auditor_estado.json"
 APRENDIZADOS_FILE = "C:/robo-trade/aprendizados.json"
 
-INTERVALO_HORAS = 1
+INTERVALO_MINUTOS = 15  # Ciclo rapido: detecta degradacao e reforcos em tempo util
 DIAS_HISTORICO = 14
 
 logging.basicConfig(
@@ -365,6 +365,29 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
                 config["score_minimo_3x"] = 70
                 mudancas.append(f"Score 3x forcado a 70 por degradacao")
 
+    # --- MONITORAMENTO DOS REFORCOS DE FORMIGAS ---
+    # Auditor monitora se reforcos estao gerando lucro real ou virando prejuizo
+    try:
+        with open(APRENDIZADOS_FILE, "r", encoding="utf-8") as f:
+            apr = json.load(f)
+        reforcos = [d for d in apr if d.get("tipo") == "reforco_aplicado"]
+        if len(reforcos) >= 5:
+            symbols_reforcados = [r["symbol"] for r in reforcos[-10:]]
+            pnl_sym = metricas.get("pnl_por_symbol", {})
+            wins_ref = sum(1 for s in symbols_reforcados if pnl_sym.get(s, 0) > 0)
+            losses_ref = sum(1 for s in symbols_reforcados if pnl_sym.get(s, 0) < 0)
+            total_ref = wins_ref + losses_ref
+            if total_ref >= 5:
+                wr_ref = wins_ref / total_ref
+                if wr_ref < 0.4 and config.get("reforco_habilitado", True):
+                    config["reforco_habilitado"] = False
+                    mudancas.append(f"REFORCO DESABILITADO: WR {wr_ref*100:.0f}% em {total_ref} reforcos (auditor desligou)")
+                elif wr_ref >= 0.7 and not config.get("reforco_habilitado", True):
+                    config["reforco_habilitado"] = True
+                    mudancas.append(f"REFORCO REABILITADO: WR {wr_ref*100:.0f}% em {total_ref} reforcos")
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
     # --- DIRECAO PREFERIDA baseada no BTC ---
     # Se 80%+ dos wins recentes sao LONG ou SHORT, sugere direcao
     # (nao bloqueia, so informa — o sinal_guardiao ja filtra por BTC)
@@ -463,14 +486,14 @@ def executar_ciclo(client: Client, estado: dict) -> dict:
         hist = hist[-200:]
     estado["mudancas_aplicadas"] = hist
 
-    log.info(f"Ciclo #{ciclo} concluido. Proximo em {INTERVALO_HORAS}h.")
+    log.info(f"Ciclo #{ciclo} concluido. Proximo em {INTERVALO_MINUTOS}min.")
     return estado
 
 
 def main():
     log.info("=" * 50)
     log.info("AUDITOR CONTINUO INICIADO — MODO AUTONOMO")
-    log.info(f"Intervalo: {INTERVALO_HORAS}h | Historico: {DIAS_HISTORICO}d")
+    log.info(f"Intervalo: {INTERVALO_MINUTOS}min | Historico: {DIAS_HISTORICO}d")
     log.info("Analisa -> Decide -> Aplica -> Avisa")
     log.info("=" * 50)
 
@@ -480,7 +503,7 @@ def main():
     telegram(
         f"<b>Auditor Continuo iniciado — AUTONOMO</b>\n"
         f"Analisa, decide, aplica e avisa.\n"
-        f"Intervalo: {INTERVALO_HORAS}h\n"
+        f"Intervalo: {INTERVALO_MINUTOS}min\n"
         f"Ciclos anteriores: {estado.get('ciclos_executados', 0)}"
     )
 
@@ -492,7 +515,7 @@ def main():
             log.error(f"Erro no ciclo: {e}")
             telegram(f"<b>Erro no auditor:</b> {e}")
 
-        time.sleep(INTERVALO_HORAS * 3600)
+        time.sleep(INTERVALO_MINUTOS * 60)
 
 
 if __name__ == "__main__":
