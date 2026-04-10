@@ -81,7 +81,32 @@ RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa — ainda mais
 RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 40-50%, margem segura.
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
-MAX_POSICOES          = 100  # Homem Formiga: 100 formigas = ~11.5% racio com $60
+MAX_POSICOES          = 15   # Auditoria: com saldo < $500, menos formigas = mais margem cada = lucro real
+
+# ---------------------------------------------------------------------------
+# Config dinamico — parametros ajustados pelo auditor_continuo.py em tempo real
+# ---------------------------------------------------------------------------
+CONFIG_DINAMICO_FILE = "C:/robo-trade/config_dinamico.json"
+_config_dinamico_cache: dict = {}
+_config_dinamico_ts: float = 0
+
+def carregar_config_dinamico() -> dict:
+    """Recarrega config do auditor a cada 30s (cache)."""
+    global _config_dinamico_cache, _config_dinamico_ts
+    if time.time() - _config_dinamico_ts < 30:
+        return _config_dinamico_cache
+    try:
+        with open(CONFIG_DINAMICO_FILE, "r", encoding="utf-8") as f:
+            _config_dinamico_cache = json.load(f)
+        _config_dinamico_ts = time.time()
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    return _config_dinamico_cache
+
+def cfg(chave: str, padrao=None):
+    """Pega valor do config dinamico. Retorna padrao se nao existir ou for None."""
+    val = carregar_config_dinamico().get(chave)
+    return val if val is not None else padrao
 
 def risco_atual() -> float:
     """Risco por trade: 0.7% normal, 0.5% com posicao presa."""
@@ -93,8 +118,15 @@ def risco_atual() -> float:
     return RISCO_POR_TRADE
 
 def max_posicoes_por_saldo(saldo: float) -> int:
-    """Homem Formiga: 100 fixo. Racio real no loop controla o limite."""
-    return MAX_POSICOES
+    """Escala com o saldo: mais dinheiro = mais formigas com margem decente."""
+    if saldo >= 1000:
+        return 50
+    elif saldo >= 500:
+        return 30
+    elif saldo >= 200:
+        return 20
+    else:
+        return MAX_POSICOES  # 15 — cada formiga com margem que gera lucro real
 
 def limites_por_saldo(saldo: float) -> tuple[int, float]:
     """
@@ -135,6 +167,27 @@ TIERS_CNS = {
     "GASUSDT": 0.7, "CRVUSDT": 0.7, "DASHUSDT": 0.7, "APTUSDT": 0.7,
 }
 PARES_CNS = list(TIERS_CNS.keys())
+
+# ---------------------------------------------------------------------------
+# Blacklist dinâmica — atualizada pelo auditor_continuo.py
+# Ativos com histórico comprovadamente ruim. Não abre posição nova.
+# ---------------------------------------------------------------------------
+BLACKLIST_FILE = "C:/robo-trade/blacklist.json"
+
+def carregar_blacklist() -> set:
+    """Carrega blacklist do disco. Atualizada pelo auditor_continuo.py."""
+    try:
+        with open(BLACKLIST_FILE, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+        return set(dados.get("symbols", []))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+BLACKLIST: set = carregar_blacklist()
+
+def symbol_bloqueado(symbol: str) -> bool:
+    """Retorna True se o ativo está na blacklist."""
+    return symbol in BLACKLIST
 
 def peso_tier(symbol: str) -> float:
     """Retorna o peso do ativo baseado no tier (1.5/1.0/0.7)."""
@@ -1232,7 +1285,7 @@ def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None, ciclos_positivos=None
             dados["saldo_ciclo_inicio"] = saldo_ciclo_inicio
         if ciclos_positivos is not None:
             dados["ciclos_positivos"] = ciclos_positivos
-        with open(ESTADO_FILE, "w") as f:
+        with open(ESTADO_FILE, "w", encoding="utf-8") as f:
             json.dump(dados, f)
     except Exception as e:
         log.warning(f"Erro ao salvar estado: {e}")
@@ -1380,7 +1433,7 @@ def carregar_estado():
     """Restaura peak_roi, dca_aplicado, herdadas e ciclo do disco ao iniciar."""
     global peak_roi, dca_aplicado, dca_contagem, margem_registrada, posicoes_herdadas
     try:
-        with open(ESTADO_FILE, "r") as f:
+        with open(ESTADO_FILE, "r", encoding="utf-8") as f:
             dados = json.load(f)
         peak_roi          = dados.get("peak_roi", {})
         dca_aplicado      = set(dados.get("dca_aplicado", []))
@@ -2907,6 +2960,11 @@ def mercado_us_aberto() -> bool:
 
 
 def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca: float, qualidade: str = "NORMAL", risco_base: float = None, score_entrada: int = 0) -> None:
+    # BLACKLIST: ativo com histórico comprovadamente ruim
+    if symbol_bloqueado(symbol):
+        log.info(f"  {symbol}: BLOQUEADO pela blacklist (historico ruim)")
+        return
+
     # TRAVA DE DIRECAO: max 18 na mesma direcao (Homem Formiga)
     pos_check = posicoes_abertas(client)
     n_long = sum(1 for p in pos_check if float(p["positionAmt"]) > 0)
@@ -3106,10 +3164,24 @@ def main() -> None:
 
     while bot_ativo:
         try:
-            global dca_ativo, posicoes_herdadas, dca_aplicado, RACIO_MARGEM_MAX
+            global dca_ativo, posicoes_herdadas, dca_aplicado, RACIO_MARGEM_MAX, BLACKLIST
             agora = time.time()
             processar_comandos(client)
             banca = get_banca(client)
+
+            # --- CONFIG DINAMICO: recarrega parametros do auditor ---
+            _racio_override = cfg("racio_margem_max_override")
+            if _racio_override is not None:
+                RACIO_MARGEM_MAX = float(_racio_override)
+            _modo_op = cfg("modo_operacional", "NORMAL")
+            if _modo_op == "PAUSA":
+                RACIO_MARGEM_MAX = 10.0  # bloqueia tudo
+            elif _modo_op == "PROTECAO":
+                RACIO_MARGEM_MAX = min(RACIO_MARGEM_MAX, 15.0)
+            elif _modo_op == "CAUTELA":
+                RACIO_MARGEM_MAX = min(RACIO_MARGEM_MAX, 20.0)
+            # Recarrega blacklist (auditor pode ter atualizado)
+            BLACKLIST = carregar_blacklist()
 
             # --- LIMPEZA: remove simbolos fechados do dca_aplicado ---
             # Bug: KMNOUSDT fechado manualmente ficou em dca_aplicado,
@@ -3343,13 +3415,25 @@ def main() -> None:
                         if symbol not in dca_aplicado:
                             dca_aplicado.add(symbol)
                             dca_contagem[symbol] = dca_contagem.get(symbol, 0) + 1
-                            roi_no_dca[symbol] = roi  # ROI ATUAL (pos-DCA) — essencial pro stop relativo
-                            pico_pos_3x[symbol] = roi  # inicia rastreamento de pico
+                            # FIX TSLAUSDT: busca ROI ATUALIZADO da Binance (pos-DCA)
+                            # Bug anterior: usava ROI do ciclo anterior, stop ficava errado
+                            try:
+                                time.sleep(0.3)
+                                pos_atualizada = client.futures_position_information(symbol=symbol)
+                                for pa in pos_atualizada:
+                                    if float(pa["positionAmt"]) != 0:
+                                        roi_no_dca[symbol] = calcular_roi(pa)
+                                        break
+                                else:
+                                    roi_no_dca[symbol] = roi
+                            except Exception:
+                                roi_no_dca[symbol] = roi
+                            pico_pos_3x[symbol] = roi_no_dca[symbol]  # inicia rastreamento de pico
                             if dca_ativo is None:
                                 dca_ativo = symbol
                             salvar_estado()
-                            log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f} | +${aumento_real:.2f} | ROI pos-DCA: {roi:+.1f}%)")
-                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nROI pos-DCA: {roi:+.1f}%\nStop e trailing ativos.")
+                            log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f} | +${aumento_real:.2f} | ROI pos-DCA: {roi_no_dca[symbol]:+.1f}%)")
+                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nROI pos-DCA: {roi_no_dca[symbol]:+.1f}%\nStop e trailing ativos.")
                 margem_registrada[symbol] = margem_atual
 
                 # Registra horário de abertura da posição
@@ -3641,64 +3725,13 @@ def main() -> None:
                             )
                             alerta_dca_log[alerta_key] = time.time()
 
-                # --- STOP DO SOLDADO: se virou soldado e ROI caiu, fecha no positivo ---
-                # Soldado tem margem 3x. Se devolver o lucro, perda eh 3x pior.
-                # Fecha tudo se ROI cair abaixo de +2% (ainda positivo, sem perda).
-                elif f"soldado_{symbol}" in alerta_dca_log and roi <= 2:
-                    pnl_sol = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: STOP SOLDADO! ROI caiu pra {roi:+.1f}% — fechando antes de virar negativo")
-                    telegram(
-                        f"<b>Stop Soldado: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}% | PnL: ${pnl_sol:+.2f}\n"
-                        f"Soldado recuou — saiu no positivo."
-                    )
-                    fechar_parcial(client, p, 1.0, f"Stop soldado ROI {roi:+.1f}%")
-                    peak_roi.pop(symbol, None)
-                    continue
+                # STOP SOLDADO REMOVIDO — soldado foi removido (conflitava com cascata)
 
-                # --- FORMIGA SOLDADO: 3x ofensivo em formiguinha vencedora ---
-                # ROI >= +15% com MA acelerando = formiga virou soldado
-                # Triplica margem pra amplificar lucro. So uma vez por symbol.
-                elif roi >= 15 and symbol not in dca_aplicado and symbol not in parcial_10pct:
-                    soldado_key = f"soldado_{symbol}"
-                    if soldado_key not in alerta_dca_log:
-                        try:
-                            df5_sol = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
-                            df5_sol["ma7"] = df5_sol["close"].rolling(7).mean()
-                            df5_sol["ma25"] = df5_sol["close"].rolling(25).mean()
-                            c_sol = df5_sol.iloc[-1]
-                            c_sol_prev = df5_sol.iloc[-2]
-                            if direcao == "LONG":
-                                ma_favor = c_sol["ma7"] > c_sol["ma25"]
-                                acelerando = (c_sol["ma7"] - c_sol["ma25"]) > (c_sol_prev["ma7"] - c_sol_prev["ma25"])
-                            else:
-                                ma_favor = c_sol["ma7"] < c_sol["ma25"]
-                                acelerando = (c_sol["ma25"] - c_sol["ma7"]) > (c_sol_prev["ma25"] - c_sol_prev["ma7"])
+                # SOLDADO REMOVIDO — conflitava com cascata (triplicava em +15%, cascata cortava em +20%)
+                # Filosofia formiguinha: deixar correr, nao interferir no crescimento
 
-                            if ma_favor and acelerando and get_racio_margem(client) < RACIO_MARGEM_MAX:
-                                margem_atual = float(p.get("positionInitialMargin", 0))
-                                reforco = margem_atual * 2  # triplica (adiciona 2x)
-                                preco_sol = float(client.futures_symbol_ticker(symbol=symbol)["price"])
-                                qty_sol = round((reforco * ALAVANCAGEM) / preco_sol, get_precisao_quantidade(client, symbol))
-                                if qty_sol > 0 and MODO == "real":
-                                    side_sol = "BUY" if direcao == "LONG" else "SELL"
-                                    client.futures_create_order(symbol=symbol, side=side_sol, type="MARKET", quantity=qty_sol)
-                                    alerta_dca_log[soldado_key] = time.time()
-                                    log.info(f"  {symbol}: FORMIGA SOLDADO! +${reforco:.2f} margem (3x) | ROI {roi:+.1f}% MA acelerando")
-                                    telegram(
-                                        f"<b>Formiga Soldado: {symbol}</b>\n"
-                                        f"{direcao} | ROI: {roi:+.1f}% | +${reforco:.2f} reforço\n"
-                                        f"MA acelerando — formiga virou soldado!"
-                                    )
-                        except Exception:
-                            pass
-
-                # --- SAIDA EM CASCATA: so trava lucro quando conta esta VERDE ---
-                # Licao: cascata individual cortava vencedoras cedo demais.
-                # Saldo subia mas PnL ficava sempre negativo porque vencedoras
-                # eram podadas antes de compensar as perdedoras.
-                # Agora: so fecha parcial quando PnL total >= 0 (conta verde).
-                elif roi >= 20 and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
+                # --- SAIDA EM CASCATA: limiares controlados pelo auditor ---
+                elif roi >= cfg("cascata_1_roi", 50) and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
                     # Calcula: pnl negativo total + pnl desta posicao
                     # So fecha se o lucro desta posicao >= 2x o negativo total
                     # Assim apos fechar 30%, PnL total fica positivo
@@ -3735,7 +3768,7 @@ def main() -> None:
                         pass
                     continue
 
-                elif roi >= 40 and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
+                elif roi >= cfg("cascata_2_roi", 100) and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
                     pnl_negativo_c2 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
                     pnl_esta_c2 = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                     if pnl_esta_c2 < abs(pnl_negativo_c2) * 2:
@@ -3762,7 +3795,7 @@ def main() -> None:
                         pass
                     continue
 
-                elif roi >= 80 and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
+                elif roi >= cfg("cascata_3_roi", 200) and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
                     pnl_negativo_c3 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
                     pnl_esta_c3 = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                     if pnl_esta_c3 < abs(pnl_negativo_c3) * 2:
@@ -4041,7 +4074,7 @@ def main() -> None:
                 # -50% com DCA dinamico = 12% banca e breakeven 0.5%
                 # -120% com DCA dinamico = 32% banca e breakeven 0.5% (mesmo resultado, mais caro)
                 # NOTA: este bloco roda JUNTO com monitoramento negativo (não é elif)
-                if False:  # 3x DESABILITADO — Homem Formiga: formiguinha morta = sacrifica e abre outra
+                if roi <= -50 and symbol not in dca_aplicado:  # 3x REABILITADO — auditoria: 61% acerto, 100% quando 1h alinhado
                     # Ativo de acao: so faz 3x com mercado US aberto
                     if symbol in ATIVOS_ACAO and not mercado_us_aberto():
                         log.info(f"  {symbol}: ROI {roi:.1f}% | 3x bloqueado — mercado US fechado (ativo de acao)")
@@ -4096,7 +4129,9 @@ def main() -> None:
                             except Exception:
                                 pass  # se falhar leitura, nao bloqueia
 
-                            if score >= 50 and not ja_tem_3x_ativo and ma_1h_ok:
+                            # REGRA AUDITORIA: 1h alinhado eh OBRIGATORIO (100% dos wins tinham)
+                            score_min = cfg("score_minimo_3x", 50)
+                            if score >= score_min and not ja_tem_3x_ativo and ma_1h_ok and not symbol_bloqueado(symbol):
                                 # EVACUACAO: fecha formiguinhas negativas pra liberar margem pro 3x
                                 # Cada $ de margem liberada = mais poder no DCA
                                 evacuadas = 0

@@ -4,3 +4,17 @@ estado_bot.json
 robo.log
 __pycache__/
 *.pyc
+
+# Por máquina — cada bot mantem o seu (auditor regenera)
+blacklist.json
+auditor.log
+auditor_estado.json
+auditoria_dados.json
+auditoria_resultado.json
+operador_cns.log
+performance.json
+pump_drift_log.json
+
+# Binarios
+ffmpeg.exe
+*.exe
