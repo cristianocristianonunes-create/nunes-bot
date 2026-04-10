@@ -311,9 +311,9 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
     # --- CASCATA: ajusta baseado na cobertura das formiguinhas ---
     cascata_1 = config.get("cascata_1_roi", 50)
 
-    # Cascata minima: 500% (decisao do Cristiano — formiguinha so realiza apos 5x)
+    # Cascata minima: 2000% (decisao do Cristiano — formiga so realiza apos 20x)
     # Sem teto: deixa correr quanto for preciso
-    CASCATA_PISO = 500
+    CASCATA_PISO = 2000
 
     # Se cobertura < 0.5x: boas nao cobrem nem metade das mas -> subir cascata
     if cobertura < 0.5:
