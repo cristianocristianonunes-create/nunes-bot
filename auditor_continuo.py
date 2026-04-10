@@ -312,19 +312,19 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
     cascata_1 = config.get("cascata_1_roi", 50)
 
     # Cascata minima: 500% (decisao do Cristiano — formiguinha so realiza apos 5x)
+    # Sem teto: deixa correr quanto for preciso
     CASCATA_PISO = 500
-    CASCATA_TETO = 800  # nunca passa disso (acima vira ganancia desnecessaria)
 
     # Se cobertura < 0.5x: boas nao cobrem nem metade das mas -> subir cascata
-    if cobertura < 0.5 and cascata_1 < CASCATA_TETO:
-        config["cascata_1_roi"] = min(cascata_1 + 25, CASCATA_TETO)
+    if cobertura < 0.5:
+        config["cascata_1_roi"] = cascata_1 + 50
         config["cascata_2_roi"] = config["cascata_1_roi"] * 2
         config["cascata_3_roi"] = config["cascata_1_roi"] * 4
         mudancas.append(f"Cascata subida: {cascata_1}% -> {config['cascata_1_roi']}% (cobertura {cobertura:.1f}x fraca)")
 
     # Se cobertura >= 3x: exercito muito forte, pode realizar um pouco mais cedo
     elif cobertura >= 3.0 and cascata_1 > CASCATA_PISO:
-        config["cascata_1_roi"] = max(cascata_1 - 15, CASCATA_PISO)
+        config["cascata_1_roi"] = max(cascata_1 - 25, CASCATA_PISO)
         config["cascata_2_roi"] = config["cascata_1_roi"] * 2
         config["cascata_3_roi"] = config["cascata_1_roi"] * 4
         mudancas.append(f"Cascata desceu: {cascata_1}% -> {config['cascata_1_roi']}% (cobertura {cobertura:.1f}x forte)")
