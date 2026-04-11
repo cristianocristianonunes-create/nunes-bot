@@ -36,7 +36,7 @@ AUDITOR_LOG = os.path.join(_BASE_DIR, "auditor.log")
 AUDITOR_STATE = os.path.join(_BASE_DIR, "auditor_estado.json")
 APRENDIZADOS_FILE = os.path.join(_BASE_DIR, "aprendizados.json")
 
-INTERVALO_MINUTOS = 15  # Ciclo rapido: detecta degradacao e reforcos em tempo util
+INTERVALO_MINUTOS = 5   # Ciclo rapido: detecta degradacao e reforcos em tempo util
 DIAS_HISTORICO = 14
 
 logging.basicConfig(
@@ -441,30 +441,41 @@ def executar_ciclo(client: Client, estado: dict) -> dict:
     else:
         log.info("  Nenhuma mudanca necessaria.")
 
-    # 5. Telegram
+    # 5. Telegram — so envia se houver mudanca, alerta, ou no inicio de cada hora
     config = carregar_config()
-    msg = (
-        f"<b>Auditor #{ciclo} — {datetime.now().strftime('%d/%m %H:%M')}</b>\n\n"
-        f"Saldo: ${saldo:.2f} | Racio: {racio:.1f}%\n"
-        f"Posicoes: {formiguinhas['total']} ({formiguinhas['n_positivas']}+/{formiguinhas['n_negativas']}-)\n"
-        f"Cobertura: {formiguinhas['cobertura']:.1f}x\n\n"
-        f"<b>14d:</b> PF {metricas['profit_factor']:.2f} | WR {metricas['win_rate']:.0f}%\n"
-        f"<b>6h:</b> PF {metricas_curtas['profit_factor']:.2f} | WR {metricas_curtas['win_rate']:.0f}%\n\n"
-        f"<b>Config ativo:</b>\n"
-        f"  Modo: {config.get('modo_operacional', '?')}\n"
-        f"  Cascata: {config.get('cascata_1_roi', '?')}% / {config.get('cascata_2_roi', '?')}% / {config.get('cascata_3_roi', '?')}%\n"
-        f"  Score 3x: >= {config.get('score_minimo_3x', '?')}"
-    )
+    agora_dt = datetime.now()
+    relatorio_horario = agora_dt.minute < INTERVALO_MINUTOS  # primeiro ciclo de cada hora
+    tem_degradacao = any("DEGRADACAO" in m or "REFORCO DESABILITADO" in m for m in mudancas)
+    deve_enviar = bool(mudancas) or bool(novos_bl) or relatorio_horario or tem_degradacao
 
-    if mudancas:
-        msg += "\n\n<b>Mudancas aplicadas:</b>"
-        for m in mudancas:
-            msg += f"\n  • {m}"
+    if deve_enviar:
+        cascata_1_pct = config.get('cascata_1_pct_saldo', 3)
+        cascata_2_pct = config.get('cascata_2_pct_saldo', 6)
+        cascata_3_pct = config.get('cascata_3_pct_saldo', 10)
+        msg = (
+            f"<b>Auditor #{ciclo} — {agora_dt.strftime('%d/%m %H:%M')}</b>\n\n"
+            f"Saldo: ${saldo:.2f} | Racio: {racio:.1f}%\n"
+            f"Posicoes: {formiguinhas['total']} ({formiguinhas['n_positivas']}+/{formiguinhas['n_negativas']}-)\n"
+            f"Cobertura: {formiguinhas['cobertura']:.1f}x\n\n"
+            f"<b>14d:</b> PF {metricas['profit_factor']:.2f} | WR {metricas['win_rate']:.0f}%\n"
+            f"<b>6h:</b> PF {metricas_curtas['profit_factor']:.2f} | WR {metricas_curtas['win_rate']:.0f}%\n\n"
+            f"<b>Config ativo:</b>\n"
+            f"  Modo: {config.get('modo_operacional', '?')}\n"
+            f"  Cascata: {cascata_1_pct}%/{cascata_2_pct}%/{cascata_3_pct}% do saldo\n"
+            f"  Score 3x: >= {config.get('score_minimo_3x', '?')}"
+        )
 
-    if novos_bl:
-        msg += f"\n\nBlacklist: +{len(novos_bl)} ({', '.join(list(novos_bl)[:5])})"
+        if mudancas:
+            msg += "\n\n<b>Mudancas aplicadas:</b>"
+            for m in mudancas:
+                msg += f"\n  • {m}"
 
-    telegram(msg)
+        if novos_bl:
+            msg += f"\n\nBlacklist: +{len(novos_bl)} ({', '.join(list(novos_bl)[:5])})"
+
+        telegram(msg)
+    else:
+        log.info("  (sem mudancas — telegram silencioso)")
 
     # 6. Atualiza estado
     estado["ciclos_executados"] = ciclo
