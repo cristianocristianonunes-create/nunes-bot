@@ -84,9 +84,14 @@ RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop princi
 MAX_POSICOES          = 50   # Cascata 2000% precisa de muitos bilhetes — 50 exploradoras
 
 # ---------------------------------------------------------------------------
+# Caminhos relativos ao diretorio do script — funciona em qualquer pasta
+# ---------------------------------------------------------------------------
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ---------------------------------------------------------------------------
 # Config dinamico — parametros ajustados pelo auditor_continuo.py em tempo real
 # ---------------------------------------------------------------------------
-CONFIG_DINAMICO_FILE = "C:/robo-trade/config_dinamico.json"
+CONFIG_DINAMICO_FILE = os.path.join(_BASE_DIR, "config_dinamico.json")
 _config_dinamico_cache: dict = {}
 _config_dinamico_ts: float = 0
 
@@ -172,7 +177,7 @@ PARES_CNS = list(TIERS_CNS.keys())
 # Blacklist dinâmica — atualizada pelo auditor_continuo.py
 # Ativos com histórico comprovadamente ruim. Não abre posição nova.
 # ---------------------------------------------------------------------------
-BLACKLIST_FILE = "C:/robo-trade/blacklist.json"
+BLACKLIST_FILE = os.path.join(_BASE_DIR, "blacklist.json")
 
 def carregar_blacklist() -> set:
     """Carrega blacklist do disco. Atualizada pelo auditor_continuo.py."""
@@ -1258,7 +1263,7 @@ parcial_nivel2:        set[str]        = set() # symbols que já fecharam 30% em
 pico_pos_3x:           dict[str, float] = {}  # pico de ROI apos o 3x (para trailing escalonado)
 topup_equilibrar:      dict[str, float] = {}  # symbol -> margem faltante para equilibrar a 3% da banca
 
-ESTADO_FILE = "C:/robo-trade/estado_bot.json"
+ESTADO_FILE = os.path.join(_BASE_DIR, "estado_bot.json")
 
 def meta_dinamica(ciclos_positivos: int) -> float:
     """
@@ -1292,7 +1297,7 @@ def salvar_estado(ciclo_num=None, saldo_ciclo_inicio=None, ciclos_positivos=None
         log.warning(f"Erro ao salvar estado: {e}")
 
 
-APRENDIZADOS_FILE = "C:/robo-trade/aprendizados.json"
+APRENDIZADOS_FILE = os.path.join(_BASE_DIR, "aprendizados.json")
 
 def registrar_aprendizado(client: Client, symbol: str, direcao: str, tipo: str, roi_final: float, detalhes: str = ""):
     """
@@ -2619,7 +2624,7 @@ def enviar_resumo_diario(client: Client, saldo_abertura_dia: float) -> None:
         log.warning(f"Erro no resumo diario: {e}")
 
 
-PERFORMANCE_FILE = "C:/robo-trade/performance.json"
+PERFORMANCE_FILE = os.path.join(_BASE_DIR, "performance.json")
 
 
 def registrar_snapshot_diario(client: Client, saldo_abertura_dia: float) -> None:

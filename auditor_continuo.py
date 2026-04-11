@@ -29,11 +29,12 @@ API_SECRET = os.getenv("BINANCE_API_SECRET")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-BLACKLIST_FILE = "C:/robo-trade/blacklist.json"
-CONFIG_FILE = "C:/robo-trade/config_dinamico.json"
-AUDITOR_LOG = "C:/robo-trade/auditor.log"
-AUDITOR_STATE = "C:/robo-trade/auditor_estado.json"
-APRENDIZADOS_FILE = "C:/robo-trade/aprendizados.json"
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BLACKLIST_FILE = os.path.join(_BASE_DIR, "blacklist.json")
+CONFIG_FILE = os.path.join(_BASE_DIR, "config_dinamico.json")
+AUDITOR_LOG = os.path.join(_BASE_DIR, "auditor.log")
+AUDITOR_STATE = os.path.join(_BASE_DIR, "auditor_estado.json")
+APRENDIZADOS_FILE = os.path.join(_BASE_DIR, "aprendizados.json")
 
 INTERVALO_MINUTOS = 15  # Ciclo rapido: detecta degradacao e reforcos em tempo util
 DIAS_HISTORICO = 14
