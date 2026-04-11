@@ -640,9 +640,10 @@ def executar_ciclo(client: Client, estado: dict) -> dict:
     # 7. Telegram — envia se houver mudanca, alerta, acao importante, ou alerta tecnico
     config = carregar_config()
     agora_dt = datetime.now()
-    relatorio_horario = agora_dt.minute < INTERVALO_MINUTOS  # primeiro ciclo de cada hora
+    # Relatorio "regular" a cada 30 min (alem do horario e dos alertas)
+    relatorio_30min = agora_dt.minute < INTERVALO_MINUTOS or (15 <= agora_dt.minute < 15 + INTERVALO_MINUTOS)
     tem_degradacao = any("DEGRADACAO" in m or "REFORCO DESABILITADO" in m for m in mudancas)
-    deve_enviar = bool(mudancas) or bool(novos_bl) or relatorio_horario or tem_degradacao or bool(acoes_importantes) or bool(alertas_tecnicos)
+    deve_enviar = bool(mudancas) or bool(novos_bl) or relatorio_30min or tem_degradacao or bool(acoes_importantes) or bool(alertas_tecnicos)
 
     if deve_enviar:
         cascata_1_pct = config.get('cascata_1_pct_saldo', 3)
