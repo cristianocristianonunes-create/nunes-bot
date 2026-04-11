@@ -3192,13 +3192,14 @@ def verificar_atualizacao(reiniciar: bool = False) -> None:
     """
     Verifica se há nova versão no GitHub.
     Se reiniciar=True e houver atualização: faz git pull e reinicia o processo.
+    Usa _BASE_DIR como cwd — funciona em qualquer pasta onde o script estiver.
     """
     try:
         import subprocess, sys
-        subprocess.run(["git", "fetch"], capture_output=True, text=True, timeout=15)
+        subprocess.run(["git", "fetch"], capture_output=True, text=True, timeout=15, cwd=_BASE_DIR)
         status = subprocess.run(
             ["git", "status", "-uno"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True, text=True, timeout=10, cwd=_BASE_DIR
         )
         if "Your branch is behind" in status.stdout:
             if reiniciar:
@@ -3206,7 +3207,7 @@ def verificar_atualizacao(reiniciar: bool = False) -> None:
                 log.warning("Nova versao detectada! Baixando e reiniciando...")
                 log.warning("=" * 50)
                 telegram("Atualizacao detectada no GitHub!\nBaixando nova versao e reiniciando o bot...")
-                pull = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30)
+                pull = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30, cwd=_BASE_DIR)
                 log.info(f"git pull: {pull.stdout.strip()}")
                 log.info("Reiniciando processo...")
                 os.execv(sys.executable, [sys.executable] + sys.argv)
@@ -3215,8 +3216,8 @@ def verificar_atualizacao(reiniciar: bool = False) -> None:
                 log.warning("AVISO: Nova versao disponivel no GitHub!")
                 log.warning("O bot vai baixar automaticamente na proxima verificacao.")
                 log.warning("=" * 50)
-    except Exception:
-        pass  # sem internet ou git não configurado — ignora silenciosamente
+    except Exception as e:
+        log.debug(f"verificar_atualizacao falhou: {e}")
 
 
 def main() -> None:

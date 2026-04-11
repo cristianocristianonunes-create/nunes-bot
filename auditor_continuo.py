@@ -499,7 +499,35 @@ def executar_ciclo(client: Client, estado: dict) -> dict:
     return estado
 
 
+def verificar_atualizacao() -> bool:
+    """
+    Verifica GitHub e auto-atualiza o auditor.
+    Se houver nova versao, faz git pull e reinicia o processo.
+    Retorna True se atualizou (mas nao retorna porque reinicia).
+    """
+    try:
+        import subprocess, sys
+        subprocess.run(["git", "fetch"], capture_output=True, text=True, timeout=15, cwd=_BASE_DIR)
+        status = subprocess.run(
+            ["git", "status", "-uno"],
+            capture_output=True, text=True, timeout=10, cwd=_BASE_DIR
+        )
+        if "Your branch is behind" in status.stdout:
+            log.warning("=" * 50)
+            log.warning("Auditor: nova versao detectada! Atualizando...")
+            log.warning("=" * 50)
+            telegram("<b>Auditor: nova versao detectada!</b>\nBaixando e reiniciando...")
+            pull = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30, cwd=_BASE_DIR)
+            log.info(f"git pull: {pull.stdout.strip()}")
+            log.info("Reiniciando auditor...")
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+    except Exception as e:
+        log.debug(f"verificar_atualizacao falhou: {e}")
+    return False
+
+
 def main():
+    verificar_atualizacao()  # check inicial
     log.info("=" * 50)
     log.info("AUDITOR CONTINUO INICIADO — MODO AUTONOMO")
     log.info(f"Intervalo: {INTERVALO_MINUTOS}min | Historico: {DIAS_HISTORICO}d")
@@ -518,6 +546,7 @@ def main():
 
     while True:
         try:
+            verificar_atualizacao()  # check antes de cada ciclo
             estado = executar_ciclo(client, estado)
             salvar_estado(estado)
         except Exception as e:
