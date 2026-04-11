@@ -308,26 +308,9 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
         config["modo_operacional"] = modo
         mudancas.append(f"Modo: {modo_anterior} -> {modo} (PF {pf:.2f}, WR {wr:.0f}%, racio {racio:.0f}%)")
 
-    # --- CASCATA: ajusta baseado na cobertura das formiguinhas ---
-    cascata_1 = config.get("cascata_1_roi", 50)
-
-    # Cascata minima: 2000% (decisao do Cristiano — formiga so realiza apos 20x)
-    # Sem teto: deixa correr quanto for preciso
-    CASCATA_PISO = 2000
-
-    # Se cobertura < 0.5x: boas nao cobrem nem metade das mas -> subir cascata
-    if cobertura < 0.5:
-        config["cascata_1_roi"] = cascata_1 + 50
-        config["cascata_2_roi"] = config["cascata_1_roi"] * 2
-        config["cascata_3_roi"] = config["cascata_1_roi"] * 4
-        mudancas.append(f"Cascata subida: {cascata_1}% -> {config['cascata_1_roi']}% (cobertura {cobertura:.1f}x fraca)")
-
-    # Se cobertura >= 3x: exercito muito forte, pode realizar um pouco mais cedo
-    elif cobertura >= 3.0 and cascata_1 > CASCATA_PISO:
-        config["cascata_1_roi"] = max(cascata_1 - 25, CASCATA_PISO)
-        config["cascata_2_roi"] = config["cascata_1_roi"] * 2
-        config["cascata_3_roi"] = config["cascata_1_roi"] * 4
-        mudancas.append(f"Cascata desceu: {cascata_1}% -> {config['cascata_1_roi']}% (cobertura {cobertura:.1f}x forte)")
+    # --- CASCATA por LUCRO ABSOLUTO: auditor nao mexe nos thresholds ---
+    # Decisao do Cristiano: cascata em 3%/6%/10% do saldo (fixo)
+    # Auditor so monitora se esta funcionando, nao ajusta valores
 
     # --- SCORE 3x: ajusta baseado no historico recente de DCAs ---
     score_atual = config.get("score_minimo_3x", 50)

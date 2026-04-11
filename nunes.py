@@ -3774,63 +3774,80 @@ def main() -> None:
                 # REFORCO REMOVIDO daqui — agora roda DEPOIS de cada cascata realizar lucro
                 # (logica corrigida: realiza primeiro, alimenta depois)
 
-                # --- SAIDA EM CASCATA: limiares controlados pelo auditor ---
-                if roi >= cfg("cascata_1_roi", 50) and symbol not in parcial_10pct and symbol not in parcial_500 and symbol not in dca_aplicado:
-                    # Calcula: pnl negativo total + pnl desta posicao
-                    # So fecha se o lucro desta posicao >= 2x o negativo total
-                    # Assim apos fechar 30%, PnL total fica positivo
-                    pnl_negativo = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
-                    pnl_esta = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    # Precisa do dobro: metade cobre o negativo, metade fica de lucro
-                    if pnl_esta < abs(pnl_negativo) * 2:
-                        log.info(f"  {symbol}: ROI +{roi:.0f}% PnL ${pnl_esta:+.2f} mas negativas ${pnl_negativo:.2f} — precisa do dobro pra cascata")
-                        continue
-                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: CASCATA 1 +{roi:.0f}% -> fechando 30%")
-                    telegram(
-                        f"<b>Cascata 1: {symbol}</b>\n"
-                        f"{direcao} | ROI: {roi:+.1f}% | ${pnl_tp*0.30:+.2f}\n"
-                        f"30% no bolso. Resto corre."
-                    )
-                    fechar_parcial(client, p, 0.30, f"Cascata 1 +{roi:.0f}%")
-                    parcial_10pct.add(symbol)
-                    # REFORCO POS-CASCATA: alimenta a formiga apos realizar lucro
-                    if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
-                        time.sleep(0.5)  # espera ordem de fechamento processar
-                        alimentar_formiga(client, symbol, direcao, 1, cfg("reforco_1_fator", 0.5))
-                    continue
+                # --- SAIDA EM CASCATA POR LUCRO ABSOLUTO ---
+                # Cascata trigger: PnL desta posicao >= X% do saldo total
+                # Protecao: NUNCA realiza se PnL aberto total ficar negativo apos a realizacao
+                # Funciona igual pra LONG e SHORT (resolve o limite de 2000% ROI dos shorts)
+                pnl_esta = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
 
-                if roi >= cfg("cascata_2_roi", 100) and symbol in parcial_10pct and symbol not in parcial_nivel2 and symbol not in dca_aplicado:
-                    pnl_negativo_c2 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
-                    pnl_esta_c2 = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    if pnl_esta_c2 < abs(pnl_negativo_c2) * 2:
-                        log.info(f"  {symbol}: ROI +{roi:.0f}% PnL ${pnl_esta_c2:+.2f} mas negativas ${pnl_negativo_c2:.2f} — precisa do dobro")
-                        continue
-                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: CASCATA 2 +{roi:.0f}% -> fechando 30% (PnL total VERDE)")
-                    fechar_parcial(client, p, 0.43, f"Cascata 2 +{roi:.0f}%")
-                    parcial_nivel2.add(symbol)
-                    # REFORCO POS-CASCATA NIVEL 2
-                    if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
-                        time.sleep(0.5)
-                        alimentar_formiga(client, symbol, direcao, 2, cfg("reforco_2_fator", 1.0))
-                    continue
+                if pnl_esta > 0 and symbol not in dca_aplicado:
+                    saldo_cascata = get_saldo_total(client)
+                    pnl_aberto_total = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0)))
+                                            for pp in abertas if float(pp["positionAmt"]) != 0)
 
-                if roi >= cfg("cascata_3_roi", 200) and symbol in parcial_nivel2 and symbol not in parcial_500 and symbol not in dca_aplicado:
-                    pnl_negativo_c3 = sum(float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) for pp in abertas if float(pp["positionAmt"]) != 0 and float(pp.get("unrealizedProfit", pp.get("unRealizedProfit", 0))) < 0)
-                    pnl_esta_c3 = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    if pnl_esta_c3 < abs(pnl_negativo_c3) * 2:
-                        log.info(f"  {symbol}: ROI +{roi:.0f}% PnL ${pnl_esta_c3:+.2f} mas negativas ${pnl_negativo_c3:.2f} — precisa do dobro")
-                        continue
-                    pnl_tp = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
-                    log.info(f"  {symbol}: CASCATA 3 +{roi:.0f}% -> fechando 30% (PnL total VERDE)")
-                    fechar_parcial(client, p, 0.75, f"Cascata 3 +{roi:.0f}%")
-                    parcial_500.add(symbol)
-                    # REFORCO POS-CASCATA NIVEL 3
-                    if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
-                        time.sleep(0.5)
-                        alimentar_formiga(client, symbol, direcao, 3, cfg("reforco_3_fator", 1.5))
-                    continue
+                    threshold_c1 = saldo_cascata * cfg("cascata_1_pct_saldo", 3.0) / 100
+                    threshold_c2 = saldo_cascata * cfg("cascata_2_pct_saldo", 6.0) / 100
+                    threshold_c3 = saldo_cascata * cfg("cascata_3_pct_saldo", 10.0) / 100
+
+                    # CASCATA 1: PnL >= 3% saldo, fecha 30%
+                    if (pnl_esta >= threshold_c1 and symbol not in parcial_10pct
+                            and symbol not in parcial_nivel2 and symbol not in parcial_500):
+                        pnl_apos = pnl_aberto_total - 0.30 * pnl_esta
+                        if pnl_apos < 0:
+                            log.info(f"  {symbol}: CASCATA 1 bloqueada — PnL aberto ficaria ${pnl_apos:+.2f} (precisa >= 0)")
+                        else:
+                            log.info(f"  {symbol}: CASCATA 1 PnL ${pnl_esta:+.2f} (>= ${threshold_c1:.2f}) -> fechando 30%")
+                            telegram(
+                                f"<b>Cascata 1: {symbol}</b>\n"
+                                f"{direcao} | ROI: {roi:+.0f}% | PnL: ${pnl_esta:+.2f}\n"
+                                f"30% no bolso (${pnl_esta*0.30:+.2f}). PnL aberto pos: ${pnl_apos:+.2f}"
+                            )
+                            fechar_parcial(client, p, 0.30, f"Cascata 1 PnL ${pnl_esta:+.2f}")
+                            parcial_10pct.add(symbol)
+                            if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
+                                time.sleep(0.5)
+                                alimentar_formiga(client, symbol, direcao, 1, cfg("reforco_1_fator", 0.5))
+                            continue
+
+                    # CASCATA 2: PnL >= 6% saldo, fecha 43%
+                    if (pnl_esta >= threshold_c2 and symbol in parcial_10pct
+                            and symbol not in parcial_nivel2):
+                        pnl_apos = pnl_aberto_total - 0.43 * pnl_esta
+                        if pnl_apos < 0:
+                            log.info(f"  {symbol}: CASCATA 2 bloqueada — PnL aberto ficaria ${pnl_apos:+.2f}")
+                        else:
+                            log.info(f"  {symbol}: CASCATA 2 PnL ${pnl_esta:+.2f} (>= ${threshold_c2:.2f}) -> fechando 43%")
+                            telegram(
+                                f"<b>Cascata 2: {symbol}</b>\n"
+                                f"{direcao} | PnL: ${pnl_esta:+.2f}\n"
+                                f"43% no bolso. PnL aberto pos: ${pnl_apos:+.2f}"
+                            )
+                            fechar_parcial(client, p, 0.43, f"Cascata 2 PnL ${pnl_esta:+.2f}")
+                            parcial_nivel2.add(symbol)
+                            if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
+                                time.sleep(0.5)
+                                alimentar_formiga(client, symbol, direcao, 2, cfg("reforco_2_fator", 1.0))
+                            continue
+
+                    # CASCATA 3: PnL >= 10% saldo, fecha 75%
+                    if (pnl_esta >= threshold_c3 and symbol in parcial_nivel2
+                            and symbol not in parcial_500):
+                        pnl_apos = pnl_aberto_total - 0.75 * pnl_esta
+                        if pnl_apos < 0:
+                            log.info(f"  {symbol}: CASCATA 3 bloqueada — PnL aberto ficaria ${pnl_apos:+.2f}")
+                        else:
+                            log.info(f"  {symbol}: CASCATA 3 PnL ${pnl_esta:+.2f} (>= ${threshold_c3:.2f}) -> fechando 75%")
+                            telegram(
+                                f"<b>Cascata 3: {symbol}</b>\n"
+                                f"{direcao} | PnL: ${pnl_esta:+.2f}\n"
+                                f"75% no bolso. PnL aberto pos: ${pnl_apos:+.2f}"
+                            )
+                            fechar_parcial(client, p, 0.75, f"Cascata 3 PnL ${pnl_esta:+.2f}")
+                            parcial_500.add(symbol)
+                            if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
+                                time.sleep(0.5)
+                                alimentar_formiga(client, symbol, direcao, 3, cfg("reforco_3_fator", 1.5))
+                            continue
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
                 if False:  # TRAILING DESABILITADO — deixa formigas correrem livres
