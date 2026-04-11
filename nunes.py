@@ -3309,6 +3309,29 @@ def main() -> None:
                 dca_aplicado -= fantasmas
                 salvar_estado()
 
+            # --- TIMEOUT DO 3x ATIVO (licao NAORISUSDT) ---
+            # Se um 3x esta ativo ha mais de 6h sem nunca ter cruzado positivo,
+            # libera a flag dca_aplicado pra nao bloquear outros 3x potencialmente vencedores.
+            # A posicao continua aberta e sob trailing/cascata normal.
+            TIMEOUT_3X_HORAS = 6
+            for sym_3x in list(dca_aplicado):
+                ts_3x = dca_log.get(sym_3x, 0)
+                if ts_3x > 0 and (time.time() - ts_3x) > TIMEOUT_3X_HORAS * 3600:
+                    # Verifica se cruzou positivo alguma vez
+                    pico_atual = pico_pos_3x.get(sym_3x, -999)
+                    if pico_atual <= 0:
+                        log.warning(f"  {sym_3x}: TIMEOUT 3x ({TIMEOUT_3X_HORAS}h sem virar positivo) — liberando flag dca_aplicado")
+                        telegram(
+                            f"<b>Timeout 3x: {sym_3x}</b>\n"
+                            f"3x ativo ha {TIMEOUT_3X_HORAS}h sem virar positivo.\n"
+                            f"Liberando slot pra outros 3x potencialmente vencedores.\n"
+                            f"Posicao continua aberta sob trailing normal."
+                        )
+                        dca_aplicado.discard(sym_3x)
+                        if dca_ativo == sym_3x:
+                            dca_ativo = None
+                        salvar_estado()
+
             # --- RACIO DINAMICO: emergencia quando tem posicao presa ---
             # Posicao com ROI < -200% = presa, precisa de 3x pra resolver.
             # Detecta posicao presa — ajusta risco (0.7% normal, 0.5% presa)

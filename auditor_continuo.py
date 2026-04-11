@@ -335,9 +335,9 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
         config["score_minimo_3x"] = min(score_atual + 10, 80)
         mudancas.append(f"Score 3x subiu: {score_atual} -> {config['score_minimo_3x']} (PF 6h: {pf_curto:.2f})")
 
-    # Se PF curto > 1.5: 3x estao funcionando bem -> pode relaxar
-    elif pf_curto > 1.5 and metricas_curtas["total_trades"] >= 5 and score_atual > 40:
-        config["score_minimo_3x"] = max(score_atual - 5, 40)
+    # Se PF curto > 1.5: 3x estao funcionando bem -> pode relaxar (mas piso 70 — licao NAORISUSDT)
+    elif pf_curto > 1.5 and metricas_curtas["total_trades"] >= 5 and score_atual > 70:
+        config["score_minimo_3x"] = max(score_atual - 5, 70)
         mudancas.append(f"Score 3x desceu: {score_atual} -> {config['score_minimo_3x']} (PF 6h: {pf_curto:.2f})")
 
     # --- HORARIOS BLOQUEADOS ---
