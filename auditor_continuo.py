@@ -100,6 +100,20 @@ def salvar_config(config: dict, motivo: str) -> None:
 # COLETA DE DADOS
 # ============================================================
 
+def _income_call_com_retry(client: Client, max_tentativas: int = 3, **kwargs):
+    """Chama futures_income_history com retry e backoff."""
+    for tentativa in range(max_tentativas):
+        try:
+            return client.futures_income_history(**kwargs)
+        except Exception as e:
+            if tentativa == max_tentativas - 1:
+                raise
+            wait = 2 ** tentativa  # 1s, 2s, 4s
+            log.warning(f"Erro income (tentativa {tentativa+1}/{max_tentativas}): {e} — retry em {wait}s")
+            time.sleep(wait)
+    return []
+
+
 def puxar_incomes(client: Client, dias: int) -> list:
     todos = []
     start = int((datetime.now() - timedelta(days=dias)).timestamp() * 1000)
@@ -108,11 +122,11 @@ def puxar_incomes(client: Client, dias: int) -> list:
     while cursor < end:
         chunk_end = min(cursor + 7 * 86400 * 1000, end)
         try:
-            incomes = client.futures_income_history(startTime=cursor, endTime=chunk_end, limit=1000)
+            incomes = _income_call_com_retry(client, startTime=cursor, endTime=chunk_end, limit=1000)
             todos.extend(incomes)
             cursor = chunk_end if len(incomes) < 1000 else int(incomes[-1]["time"]) + 1
         except Exception as e:
-            log.warning(f"Erro income: {e}")
+            log.warning(f"Erro income (apos retries): {e} — pulando chunk")
             cursor = chunk_end
     return todos
 
@@ -121,7 +135,7 @@ def puxar_incomes_recentes(client: Client, horas: int = 6) -> list:
     """Puxa incomes das ultimas N horas (janela curta pra detectar mudancas rapidas)."""
     start = int((datetime.now() - timedelta(hours=horas)).timestamp() * 1000)
     try:
-        return client.futures_income_history(incomeType="REALIZED_PNL", startTime=start, limit=1000)
+        return _income_call_com_retry(client, incomeType="REALIZED_PNL", startTime=start, limit=1000)
     except Exception:
         return []
 
@@ -481,7 +495,7 @@ def main():
     log.info("Analisa -> Decide -> Aplica -> Avisa")
     log.info("=" * 50)
 
-    client = Client(API_KEY, API_SECRET)
+    client = Client(API_KEY, API_SECRET, requests_params={"timeout": 30})
     estado = carregar_estado()
 
     telegram(
