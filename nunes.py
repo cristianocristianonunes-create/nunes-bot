@@ -1258,6 +1258,8 @@ score_historico:       dict[str, list] = {}  # symbol -> [(timestamp, score, pre
 posicoes_cns:        set[str]        = set() # symbols que entraram pelo modo CNS
 parcial_500:           set[str]        = set() # symbols que já tiveram saída parcial em +500%
 reforco_aplicado:      dict[str, int]   = {}    # symbol -> nivel do ultimo reforco (1, 2 ou 3)
+momentum_log:          dict[str, float] = {}    # symbol -> timestamp da ultima ordem MOMENTUM (cooldown 24h)
+cooldown_3x_falha:     dict[str, float] = {}    # symbol -> timestamp da ultima falha de 3x (cooldown 12h)
 parcial_10pct:         set[str]        = set() # symbols que já fecharam 30% em +20% ROI (cascata 1)
 parcial_nivel2:        set[str]        = set() # symbols que já fecharam 30% em +40% ROI (cascata 2)
 pico_pos_3x:           dict[str, float] = {}  # pico de ROI apos o 3x (para trailing escalonado)
@@ -1948,6 +1950,54 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
                 score += 15
                 detalhes["btc"] = "a favor"
 
+        # 11. CONFLUENCIA TOTAL: 1h + 5m + 1m TODOS alinhados E acelerando (CORRECAO C: bonus +20pts)
+        # Ideal pra puxar scores excelentes pra faixa 90-110
+        try:
+            df1h_conf = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=15)
+            df1h_conf["ma7"] = df1h_conf["close"].rolling(7).mean()
+            df1h_conf["ma25"] = df1h_conf["close"].rolling(25).mean()
+            c1h_now = df1h_conf.iloc[-1]
+            c1h_prev = df1h_conf.iloc[-2]
+
+            if direcao == "LONG":
+                h1_alinhado = c1h_now["ma7"] > c1h_now["ma25"]
+                h1_acelerando = (c1h_now["ma7"] - c1h_now["ma25"]) > (c1h_prev["ma7"] - c1h_prev["ma25"])
+                m5_alinhado_acel = c1["ma7"] > c1["ma25"] and (c1["ma7"] - c1["ma25"]) > (c2["ma7"] - c2["ma25"])
+                m1_alinhado_acel = m1["ma7"] > m1["ma25"] and (m1["ma7"] - m1["ma25"]) > (m2["ma7"] - m2["ma25"])
+            else:
+                h1_alinhado = c1h_now["ma7"] < c1h_now["ma25"]
+                h1_acelerando = (c1h_now["ma25"] - c1h_now["ma7"]) > (c1h_prev["ma25"] - c1h_prev["ma7"])
+                m5_alinhado_acel = c1["ma7"] < c1["ma25"] and (c1["ma25"] - c1["ma7"]) > (c2["ma25"] - c2["ma7"])
+                m1_alinhado_acel = m1["ma7"] < m1["ma25"] and (m1["ma25"] - m1["ma7"]) > (m2["ma25"] - m2["ma7"])
+
+            if h1_alinhado and h1_acelerando and m5_alinhado_acel and m1_alinhado_acel:
+                score += 20
+                detalhes["confluencia_total"] = "+20 (1h+5m+1m todos acelerando)"
+            elif h1_alinhado and h1_acelerando:
+                score += 10
+                detalhes["confluencia_1h"] = "+10 (1h acelerando)"
+        except Exception:
+            pass
+
+        # 12. CRUZAMENTO FRESCO: cruzou nos ultimos 2 candles 5min (CORRECAO C: +10pts)
+        # Cruzamentos antigos perdem qualidade. Fresh = melhor.
+        try:
+            recent_cross = False
+            for i in range(-3, -1):  # 2 ultimos candles
+                if direcao == "LONG":
+                    if df5["ma7"].iloc[i] > df5["ma25"].iloc[i] and df5["ma7"].iloc[i-1] <= df5["ma25"].iloc[i-1]:
+                        recent_cross = True
+                        break
+                else:
+                    if df5["ma7"].iloc[i] < df5["ma25"].iloc[i] and df5["ma7"].iloc[i-1] >= df5["ma25"].iloc[i-1]:
+                        recent_cross = True
+                        break
+            if recent_cross:
+                score += 10
+                detalhes["cruzamento_fresco"] = "+10"
+        except Exception:
+            pass
+
     except Exception as e:
         log.warning(f"  Erro score 3x {symbol}: {e}")
         detalhes["erro"] = str(e)
@@ -2107,6 +2157,46 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
         # Não marca como dca_ativo — a ordem não foi executada
         dca_aplicado.discard(symbol)
         pico_pos_3x.pop(symbol, None)
+
+
+_falhas_3x_cache: dict = {"ts": 0, "data": {}}
+
+def contar_falhas_3x_historico(symbol: str, dias: int = 30) -> int:
+    """
+    CORRECAO D: aprende com aprendizados.json — conta falhas de 3x do symbol nos ultimos N dias.
+    Cache de 5 min pra nao ler o arquivo a cada chamada.
+    Retorna numero de falhas (3x_piso_zero, 3x_stop_loss, 3x_fracasso, erro_3x_*).
+    """
+    global _falhas_3x_cache
+    if time.time() - _falhas_3x_cache["ts"] < 300:
+        return _falhas_3x_cache["data"].get(symbol, 0)
+    try:
+        with open(APRENDIZADOS_FILE, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+        cutoff = datetime.now(timezone.utc) - pd.Timedelta(days=dias)
+        contagem = {}
+        TIPOS_FALHA = {"3x_piso_zero", "3x_stop_loss", "3x_fracasso",
+                       "erro_3x_contra_filtro", "erro_3x_score_baixo_simultaneo",
+                       "erro_3x_mercado_contra", "erro_3x_devolveu_lucro",
+                       "erro_3x_score_marginal_bloqueou_outros",
+                       "racio_fechamento", "caso_estudo_3x_falhou", "caso_estudo_3x_feito_errado"}
+        for d in dados:
+            tipo = d.get("tipo", "")
+            if tipo not in TIPOS_FALHA:
+                continue
+            try:
+                ts = datetime.fromisoformat(d.get("timestamp", "").replace("Z", "+00:00"))
+                if ts < cutoff:
+                    continue
+            except Exception:
+                continue
+            sym = d.get("symbol", "")
+            if sym:
+                contagem[sym] = contagem.get(sym, 0) + 1
+        _falhas_3x_cache = {"ts": time.time(), "data": contagem}
+        return contagem.get(symbol, 0)
+    except Exception:
+        return 0
 
 
 def alimentar_formiga(client: Client, symbol: str, direcao: str, nivel: int, fator: float) -> bool:
@@ -3329,6 +3419,7 @@ def main() -> None:
                             f"Posicao continua aberta sob trailing normal."
                         )
                         dca_aplicado.discard(sym_3x)
+                        cooldown_3x_falha[sym_3x] = time.time()  # CORRECAO B: cooldown 12h
                         if dca_ativo == sym_3x:
                             dca_ativo = None
                         salvar_estado()
@@ -3725,6 +3816,7 @@ def main() -> None:
                             registrar_aprendizado(client, symbol, direcao, "3x_piso_zero", roi,
                                 f"3x #{n_3x} | Pico {pico_3x:+.1f}% voltou {roi:+.1f}%")
                             fechar_parcial(client, p, 0.90, f"Piso zero pos-3x (pico {pico_3x:+.1f}%)")
+                            cooldown_3x_falha[symbol] = time.time()  # CORRECAO B: cooldown 12h
                             fechou_pos_3x = True
 
                     # --- STOP LOSS DINAMICO POS-3x: limita piora apos o 3x ---
@@ -3752,6 +3844,7 @@ def main() -> None:
                             registrar_aprendizado(client, symbol, direcao, "3x_stop_loss", roi,
                                 f"3x #{n_3x} | Stop {stop_dinamico:.1f}% | Perda ~${perda_est:.2f} | Entrada DCA: {roi_entrada_dca:+.0f}%")
                             fechar_parcial(client, p, 0.90, f"Stop pos-3x #{n_3x} {stop_dinamico:.1f}% (ROI {roi:.1f}%)")
+                            cooldown_3x_falha[symbol] = time.time()  # CORRECAO B: cooldown 12h
                             fechou_pos_3x = True
 
                     # Trailing pós-3x REMOVIDO — lição REZUSDT:
@@ -4175,7 +4268,12 @@ def main() -> None:
 
                             # REGRA AUDITORIA: 1h alinhado eh OBRIGATORIO (100% dos wins tinham)
                             score_min = cfg("score_minimo_3x", 50)
-                            if score >= score_min and not ja_tem_3x_ativo and ma_1h_ok and not symbol_bloqueado(symbol):
+                            # CORRECAO B: cooldown 12h apos 3x falhar no mesmo symbol
+                            cooldown_ativo = (time.time() - cooldown_3x_falha.get(symbol, 0)) < 12 * 3600
+                            # CORRECAO D: aprende com historico - se symbol tem 2+ falhas em 30d, bloqueia
+                            falhas_historicas = contar_falhas_3x_historico(symbol, dias=30)
+                            historico_ruim = falhas_historicas >= 2
+                            if score >= score_min and not ja_tem_3x_ativo and ma_1h_ok and not symbol_bloqueado(symbol) and not cooldown_ativo and not historico_ruim:
                                 # EVACUACAO: fecha formiguinhas negativas pra liberar margem pro 3x
                                 # Cada $ de margem liberada = mais poder no DCA
                                 evacuadas = 0
@@ -4219,8 +4317,13 @@ def main() -> None:
                                 )
                                 registrar_aprendizado(client, symbol, direcao, "3x_auto", roi,
                                     f"Score {score}/110 | #{n_3x + 1}")
-                            elif ja_tem_3x_ativo and score >= 50:
+                            elif ja_tem_3x_ativo and score >= score_min:
                                 log.info(f"  {symbol}: Score {score} bom mas ja tem 3x ativo em {list(dca_aplicado)} — aguarda")
+                            elif cooldown_ativo and score >= score_min:
+                                tempo_restante = (12 * 3600 - (time.time() - cooldown_3x_falha.get(symbol, 0))) / 3600
+                                log.info(f"  {symbol}: Score {score} bom mas em cooldown ({tempo_restante:.1f}h restantes apos falha)")
+                            elif historico_ruim and score >= score_min:
+                                log.info(f"  {symbol}: Score {score} bom mas tem {falhas_historicas} falhas historicas — bloqueado pelo aprendizado")
                             elif score >= 40:
                                 log.info(f"  {symbol}: Score {score}/110 — fraco, aguardando")
                             else:
@@ -4539,12 +4642,22 @@ def main() -> None:
                     sinais_encontrados.extend(sinais_cns)
 
                     # --- MOMENTUM: top massacradas (SHORT) e top foguetes (LONG) ---
-                    # Cristiano olha a variacao 24h: quem ta sangrando = SHORT, quem ta subindo = LONG
+                    # CORRECAO A (licao NAORISUSDT): max 1 ordem MOMENTUM por symbol a cada 24h.
+                    # Antes: bot abria 9 ordens SHORT no mesmo ativo em 24h, acumulando posicao errada.
+                    MOMENTUM_COOLDOWN = 24 * 3600
                     try:
                         tickers_24h = client.futures_ticker()
                         for t in tickers_24h:
                             sym_m = t["symbol"]
                             if not sym_m.endswith("USDT") or sym_m in simbolos_abertos:
+                                continue
+                            # Cooldown MOMENTUM por symbol
+                            ultimo_momentum = momentum_log.get(sym_m, 0)
+                            if time.time() - ultimo_momentum < MOMENTUM_COOLDOWN:
+                                continue
+                            # Cooldown apos 3x falhar (12h)
+                            ultima_falha = cooldown_3x_falha.get(sym_m, 0)
+                            if time.time() - ultima_falha < 12 * 3600:
                                 continue
                             var24 = float(t.get("priceChangePercent", 0))
                             vol24 = float(t.get("quoteVolume", 0))
@@ -4552,23 +4665,23 @@ def main() -> None:
                                 continue
                             # Massacrada: caindo forte = SHORT
                             if var24 <= -8:
-                                # Confirma que 5min tambem ta caindo
                                 try:
                                     k5m = client.futures_klines(symbol=sym_m, interval="5m", limit=10)
                                     c_now = float(k5m[-1][4])
                                     c_prev = float(k5m[-2][4])
-                                    if c_now < c_prev:  # candle atual vermelho
+                                    if c_now < c_prev:
                                         sinais_encontrados.append((sym_m, "SHORT", "momentum", float(t["lastPrice"]), "MOMENTUM"))
+                                        momentum_log[sym_m] = time.time()
                                 except Exception:
                                     pass
-                            # Foguete: subindo forte = LONG
                             elif var24 >= 8:
                                 try:
                                     k5m = client.futures_klines(symbol=sym_m, interval="5m", limit=10)
                                     c_now = float(k5m[-1][4])
                                     c_prev = float(k5m[-2][4])
-                                    if c_now > c_prev:  # candle atual verde
+                                    if c_now > c_prev:
                                         sinais_encontrados.append((sym_m, "LONG", "momentum", float(t["lastPrice"]), "MOMENTUM"))
+                                        momentum_log[sym_m] = time.time()
                                 except Exception:
                                     pass
                     except Exception:
