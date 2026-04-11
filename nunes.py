@@ -3261,11 +3261,17 @@ def main() -> None:
     saldo_ciclo_inicio           = saldo_ciclo_salvo if saldo_ciclo_salvo else saldo_total_atual
     ultimo_check_ciclo           = 0
     _usd_brl_ini                 = get_usd_brl(client)
-    _meta_pct_ini                = meta_dinamica(ciclos_positivos_consecutivos)
-    _meta_ini_usdt               = saldo_ciclo_inicio * (_meta_pct_ini / 100)
-    _meta_ini_brl                = _meta_ini_usdt * _usd_brl_ini if _usd_brl_ini > 0 else _meta_ini_usdt
-    log.info(f"Ciclo {ciclo_num} retomado | Saldo: ${saldo_ciclo_inicio:.2f} | Meta: {_meta_pct_ini:.1f}% (${_meta_ini_usdt:.2f} / R${_meta_ini_brl:.2f}) | Ciclos positivos: {ciclos_positivos_consecutivos}")
-    telegram(f"<b>Ciclo {ciclo_num} retomado</b>\nSaldo: ${saldo_ciclo_inicio:.2f} USDT\nMeta: {_meta_pct_ini:.1f}% = ${_meta_ini_usdt:.2f} / R${_meta_ini_brl:.2f}\nCiclos positivos consecutivos: {ciclos_positivos_consecutivos}")
+    _cascata_1_threshold         = saldo_total_atual * 0.03
+    log.info(f"Bot iniciado | Saldo: ${saldo_total_atual:.2f} | Cascata 1 dispara em PnL >= ${_cascata_1_threshold:.2f} (3% do saldo)")
+    telegram(
+        f"<b>Bot iniciado</b>\n"
+        f"Saldo: ${saldo_total_atual:.2f}\n"
+        f"Cascata 1: PnL >= ${_cascata_1_threshold:.2f} (3% do saldo)\n"
+        f"Cascata 2: PnL >= ${saldo_total_atual * 0.06:.2f} (6%)\n"
+        f"Cascata 3: PnL >= ${saldo_total_atual * 0.10:.2f} (10%)\n"
+        f"Protecao: cascata so realiza se PnL aberto continuar >= 0\n"
+        f"Reforco escalonado pos-cascata: 0.5x / 1x / 1.5x"
+    )
 
     while bot_ativo:
         try:
@@ -3564,41 +3570,23 @@ def main() -> None:
                 if roi > pico_anterior:
                     peak_roi[symbol] = roi
                     salvar_estado()
-                    # Mensagens motivacionais em marcos (desde 3% para feedback mais frequente)
-                    marcos = [3, 5, 10, 15, 20, 30, 50, 75, 100, 150, 200, 300, 500]
+                    # Mensagens motivacionais em marcos de ROI (informativo)
+                    marcos = [50, 100, 200, 500, 1000, 1500]
                     for marco in marcos:
                         if pico_anterior < marco <= roi:
+                            pnl_p = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
                             telegram(
                                 f"<b>Marco atingido: {symbol} +{marco}%!</b>\n"
-                                f"{direcao} | ROI: {roi:+.1f}%\n"
-                                f"Lucro crescendo! Trailing segue protegendo."
+                                f"{direcao} | ROI: {roi:+.1f}% | PnL: ${pnl_p:+.2f}\n"
+                                f"Formiga crescendo. Cascata realiza quando PnL bater 3% do saldo."
                             )
                             break
 
                 pico = peak_roi.get(symbol, roi)
 
-                # --- LIMITES ABSOLUTOS ---
-                # +500%: fecha 50% e deixa resto correr com trailing apertado 10%
-                if roi >= 500 and symbol not in parcial_500:
-                    log.info(f"  {symbol}: ROI {roi:+.1f}% >= +500% -> fechando 50%, resto com trailing 10%")
-                    telegram(f"<b>Lucro extraordinario: {symbol}</b>\n{direcao} | ROI: {roi:+.1f}%\nGarantindo 50% do lucro! Resto continua correndo.")
-                    fechar_parcial(client, p, 0.50, f"TP parcial +500% ({roi:+.1f}%)")
-                    parcial_500.add(symbol)
-                    continue
-                # Após parcial de 500%, trailing apertado de 10% do pico
-                if symbol in parcial_500:
-                    queda_pct = (pico - roi) / pico if pico > 0 else 0
-                    if queda_pct >= 0.10:
-                        log.info(f"  {symbol}: trailing pos-500%! Pico {pico:.0f}% -> atual {roi:.0f}% (queda 10%) -> fechando resto")
-                        telegram(f"<b>Lucro protegido: {symbol}</b>\n{direcao} | Pico: {pico:.0f}% | Atual: {roi:+.1f}%\nFechando restante com lucro garantido.")
-                        fechar_parcial(client, p, 1.0, f"Trailing pos-500% (pico {pico:.0f}%)")
-                        parcial_500.discard(symbol)
-                        peak_roi.pop(symbol, None)
-                        ma_reverteu.pop(symbol, None)
-                        continue
-                    else:
-                        log.info(f"  {symbol}: ROI {roi:+.1f}% | pico {pico:.0f}% | pos-500% trailing 10%")
-                        continue
+                # BLOCO "+500% fecha 50%" REMOVIDO — substituido pela cascata por lucro absoluto
+                # parcial_500 agora e usado pela nova cascata 3 (PnL >= 10% saldo)
+
                 # SL -200% REMOVIDO — Rácio de Margem protege a conta
                 # Posições negativas aguardam oportunidade de 3x
 
