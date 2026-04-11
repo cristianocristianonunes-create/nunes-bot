@@ -2134,6 +2134,15 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
         )
         log.info(f"3x EM ACAO! {symbol} {direcao} | {modo_3x} | +${adicional:.2f}")
         telegram(msg)
+        # Registra acao com motivo
+        registrar_acao(symbol, "dca_3x", f"3x DCA disparado em ROI {roi:+.0f}% (score >= minimo)", {
+            "direcao": direcao,
+            "roi_entrada": roi,
+            "margem_anterior": margem_atual,
+            "margem_adicional": adicional,
+            "margem_total_pos": margem_atual + adicional,
+            "breakeven_pct": recuperacao_pct,
+        })
         dca_aplicado.add(symbol)
         dca_log[symbol] = time.time()
         # ROI DEPOIS do DCA — busca posicao atualizada da Binance
@@ -2197,6 +2206,36 @@ def contar_falhas_3x_historico(symbol: str, dias: int = 30) -> int:
         return contagem.get(symbol, 0)
     except Exception:
         return 0
+
+
+ACOES_FILE = os.path.join(_BASE_DIR, "acoes_recentes.json")
+
+def registrar_acao(symbol: str, tipo: str, motivo: str, dados: dict = None) -> None:
+    """
+    Registra uma acao do bot com timestamp + motivo + dados estruturados.
+    Tipos: 'compra', 'venda', 'topup', 'dca_3x', 'cascata', 'reforco'
+    O auditor le esse arquivo pra mostrar o que o bot fez e por que.
+    Mantem so as ultimas 500 acoes.
+    """
+    try:
+        try:
+            with open(ACOES_FILE, "r", encoding="utf-8") as f:
+                acoes = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            acoes = []
+        acoes.append({
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "symbol": symbol,
+            "tipo": tipo,
+            "motivo": motivo,
+            "dados": dados or {}
+        })
+        if len(acoes) > 500:
+            acoes = acoes[-500:]
+        with open(ACOES_FILE, "w", encoding="utf-8") as f:
+            json.dump(acoes, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        log.debug(f"Erro registrar_acao: {e}")
 
 
 def alimentar_formiga(client: Client, symbol: str, direcao: str, nivel: int, fator: float) -> bool:
@@ -2289,6 +2328,14 @@ def alimentar_formiga(client: Client, symbol: str, direcao: str, nivel: int, fat
         reforco_aplicado[symbol] = nivel
         topup_recente[symbol] = time.time()
         log.info(f"  {symbol}: REFORCO #{nivel} +${reforco_usdt:.2f} (apos cascata)")
+        registrar_acao(symbol, "reforco", f"Reforco nivel {nivel} apos cascata (4 confirmacoes OK)", {
+            "direcao": direcao,
+            "nivel": nivel,
+            "fator": fator,
+            "margem_anterior": margem_pos,
+            "margem_adicional": reforco_usdt,
+            "margem_total": margem_pos + reforco_usdt,
+        })
         telegram(
             f"<b>Reforco #{nivel}: {symbol}</b>\n"
             f"{direcao} | Margem: ${margem_pos:.2f} -> ${margem_pos + reforco_usdt:.2f}\n"
@@ -2331,6 +2378,14 @@ def fechar_parcial(client: Client, posicao: dict, pct: float, motivo: str) -> No
         )
         log.info(msg.replace("<b>", "").replace("</b>", ""))
         telegram(msg)
+        # Registra acao com motivo detalhado
+        registrar_acao(symbol, "venda", motivo, {
+            "direcao": direcao,
+            "pct": pct,
+            "roi": roi,
+            "pnl_realizado": pnl * pct,
+            "qty": qty_fechar,
+        })
         # Se fechou 100% e era herdada, remove da lista
         if pct >= 1.0:
             posicoes_herdadas.discard(symbol)
@@ -3267,6 +3322,15 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
         )
         log.info(msg.replace("<b>", "").replace("</b>", ""))
         telegram(msg)
+        # Registra acao com motivo
+        registrar_acao(symbol, "compra", f"Sinal {qualidade} {direcao}", {
+            "direcao": direcao,
+            "qualidade": qualidade,
+            "score_entrada": score_entrada,
+            "preco": preco_real,
+            "margem": margem,
+            "alavancagem": alavancagem_real,
+        })
         # Marca posição CNS para trailing mais paciente
         if qualidade == "CNS":
             posicoes_cns.add(symbol)
@@ -4369,6 +4433,12 @@ def main() -> None:
                                         topup_recente[symbol] = time.time()  # marca para não confundir com DCA
                                         log.info(f"  {symbol}: topup automatico +${margem_add:.2f} | margem era ${margem_atual:.2f}")
                                         telegram(f"<b>Topup automático: {symbol}</b>\n{direcao} | ROI {roi:+.1f}% | +${margem_add:.2f} adicionado")
+                                        registrar_acao(symbol, "topup", f"Topup automatico (margem ${margem_atual:.2f} -> {margem_atual + margem_add:.2f}, ROI {roi:+.0f}%, MA favor)", {
+                                            "direcao": direcao,
+                                            "roi": roi,
+                                            "margem_anterior": margem_atual,
+                                            "margem_adicional": margem_add,
+                                        })
                             except Exception as e:
                                 log.warning(f"  Erro topup automatico {symbol}: {e}")
 

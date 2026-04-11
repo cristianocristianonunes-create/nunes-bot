@@ -35,6 +35,7 @@ CONFIG_FILE = os.path.join(_BASE_DIR, "config_dinamico.json")
 AUDITOR_LOG = os.path.join(_BASE_DIR, "auditor.log")
 AUDITOR_STATE = os.path.join(_BASE_DIR, "auditor_estado.json")
 APRENDIZADOS_FILE = os.path.join(_BASE_DIR, "aprendizados.json")
+ACOES_FILE = os.path.join(_BASE_DIR, "acoes_recentes.json")
 
 INTERVALO_MINUTOS = 5   # Ciclo rapido: detecta degradacao e reforcos em tempo util
 DIAS_HISTORICO = 14
@@ -222,6 +223,62 @@ def analisar_performance(incomes: list) -> dict:
         "losses_por_symbol": dict(losses_por_symbol),
         "horarios_ruins": horarios_ruins,
     }
+
+
+def carregar_acoes_recentes(minutos: int = 60) -> list:
+    """Le acoes_recentes.json e filtra as ultimas N minutos."""
+    try:
+        with open(ACOES_FILE, "r", encoding="utf-8") as f:
+            acoes = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutos)
+    recentes = []
+    for a in acoes:
+        try:
+            ts = datetime.fromisoformat(a.get("ts", "").replace("Z", "+00:00"))
+            if ts >= cutoff:
+                recentes.append(a)
+        except Exception:
+            continue
+    return recentes
+
+
+def formatar_acoes_para_telegram(acoes: list, max_acoes: int = 15) -> str:
+    """Formata acoes recentes em texto pro telegram."""
+    if not acoes:
+        return ""
+    # Agrupa por tipo
+    por_tipo = {}
+    for a in acoes:
+        tipo = a.get("tipo", "?")
+        por_tipo.setdefault(tipo, []).append(a)
+
+    icones = {
+        "compra": "+",
+        "venda": "-",
+        "cascata": "*",
+        "reforco": "^",
+        "topup": ">",
+        "dca_3x": "!",
+    }
+
+    linhas = []
+    # Mostra mais relevante primeiro
+    ordem = ["dca_3x", "cascata", "reforco", "topup", "venda", "compra"]
+    for tipo in ordem:
+        if tipo not in por_tipo:
+            continue
+        items = por_tipo[tipo]
+        ico = icones.get(tipo, "•")
+        nome = tipo.upper()
+        linhas.append(f"\n<b>{ico} {nome} ({len(items)})</b>")
+        for a in items[-max_acoes:]:  # max N de cada
+            ts = a.get("ts", "")[11:16]  # HH:MM
+            sym = a.get("symbol", "?")
+            motivo = a.get("motivo", "")[:80]
+            linhas.append(f"  {ts} {sym}: {motivo}")
+    return "\n".join(linhas)
 
 
 def analisar_formiguinhas(abertas: list) -> dict:
@@ -441,12 +498,16 @@ def executar_ciclo(client: Client, estado: dict) -> dict:
     else:
         log.info("  Nenhuma mudanca necessaria.")
 
-    # 5. Telegram — so envia se houver mudanca, alerta, ou no inicio de cada hora
+    # 5. Carrega acoes recentes pra mostrar no telegram
+    acoes_recentes = carregar_acoes_recentes(minutos=INTERVALO_MINUTOS * 2)
+    acoes_importantes = [a for a in acoes_recentes if a.get("tipo") in ("dca_3x", "cascata", "reforco")]
+
+    # 6. Telegram — envia se houver mudanca, alerta, acao importante, ou no inicio de cada hora
     config = carregar_config()
     agora_dt = datetime.now()
     relatorio_horario = agora_dt.minute < INTERVALO_MINUTOS  # primeiro ciclo de cada hora
     tem_degradacao = any("DEGRADACAO" in m or "REFORCO DESABILITADO" in m for m in mudancas)
-    deve_enviar = bool(mudancas) or bool(novos_bl) or relatorio_horario or tem_degradacao
+    deve_enviar = bool(mudancas) or bool(novos_bl) or relatorio_horario or tem_degradacao or bool(acoes_importantes)
 
     if deve_enviar:
         cascata_1_pct = config.get('cascata_1_pct_saldo', 3)
@@ -472,6 +533,12 @@ def executar_ciclo(client: Client, estado: dict) -> dict:
 
         if novos_bl:
             msg += f"\n\nBlacklist: +{len(novos_bl)} ({', '.join(list(novos_bl)[:5])})"
+
+        # Acoes recentes do bot (ultimos N minutos)
+        if acoes_recentes:
+            acoes_txt = formatar_acoes_para_telegram(acoes_recentes, max_acoes=8)
+            if acoes_txt:
+                msg += f"\n\n<b>=== Acoes do bot (ultimos {INTERVALO_MINUTOS*2}min) ===</b>{acoes_txt}"
 
         telegram(msg)
     else:
