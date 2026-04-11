@@ -2238,6 +2238,110 @@ def registrar_acao(symbol: str, tipo: str, motivo: str, dados: dict = None) -> N
         log.debug(f"Erro registrar_acao: {e}")
 
 
+def analisar_sinais_reversao(client: Client, symbol: str, direcao: str) -> dict:
+    """
+    Analise tecnica completa de uma posicao positiva pra detectar SINAIS DE REVERSAO.
+    Retorna dict com 5 sinais tecnicos + score (quantos sinais bateram).
+
+    Sinais (cada um pesa 1):
+    1. RSI 1h em zona extrema (>68 LONG, <32 SHORT) — exaustao macro
+    2. MA 5min reverteu contra a posicao — micro virou
+    3. Volume morto (<0.3x media 20) — sem combustivel
+    4. Preco encostando no extremo (topo pra LONG, fundo pra SHORT) — sem espaco
+    5. Variacao recente (50min) revertendo — momentum sumindo
+
+    Se 3+ sinais baterem = ALTA probabilidade de reversao iminente.
+    """
+    sinais = {"score": 0, "detalhes": [], "ok": False}
+    try:
+        # 5min
+        df5 = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=30)
+        df5["ma7"] = df5["close"].rolling(7).mean()
+        df5["ma25"] = df5["close"].rolling(25).mean()
+        ma7_atual = df5["ma7"].iloc[-1]
+        ma25_atual = df5["ma25"].iloc[-1]
+        ma7_prev = df5["ma7"].iloc[-3]
+        ma25_prev = df5["ma25"].iloc[-3]
+
+        # 1h
+        df1h = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
+        rsi_1h = calcular_rsi(df1h)
+
+        # Volume
+        vol_atual = df5["volume"].iloc[-1]
+        vol_media = df5["volume"].iloc[-20:].mean()
+        vol_ratio = vol_atual / vol_media if vol_media > 0 else 0
+
+        # Range das 20 candles
+        high_20 = df5["high"].iloc[-20:].max()
+        low_20 = df5["low"].iloc[-20:].min()
+        preco = df5["close"].iloc[-1]
+
+        # Variacao 50min (10 candles 5m)
+        var_50min = (df5["close"].iloc[-1] - df5["close"].iloc[-10]) / df5["close"].iloc[-10] * 100
+
+        # === SINAL 1: RSI 1h em extremo ===
+        if direcao == "LONG":
+            if rsi_1h >= 68:
+                sinais["score"] += 1
+                sinais["detalhes"].append(f"RSI 1h sobrecomprado ({rsi_1h:.0f})")
+        else:
+            if rsi_1h <= 32:
+                sinais["score"] += 1
+                sinais["detalhes"].append(f"RSI 1h sobrevendido ({rsi_1h:.0f})")
+
+        # === SINAL 2: MA 5min reverteu contra ===
+        if direcao == "LONG":
+            # MA7 cruzou pra baixo da MA25 OU MA7 < MA25 e separando contra
+            ma_contra = ma7_atual < ma25_atual
+            ma_separando_contra = (ma25_atual - ma7_atual) > (ma25_prev - ma7_prev)
+            if ma_contra or (ma7_atual < ma7_prev and ma_separando_contra):
+                sinais["score"] += 1
+                sinais["detalhes"].append("MA 5m reverteu contra")
+        else:
+            ma_contra = ma7_atual > ma25_atual
+            ma_separando_contra = (ma7_atual - ma25_atual) > (ma7_prev - ma25_prev)
+            if ma_contra or (ma7_atual > ma7_prev and ma_separando_contra):
+                sinais["score"] += 1
+                sinais["detalhes"].append("MA 5m reverteu contra")
+
+        # === SINAL 3: Volume morto ===
+        if vol_ratio < 0.3:
+            sinais["score"] += 1
+            sinais["detalhes"].append(f"Volume morto ({vol_ratio:.2f}x media)")
+
+        # === SINAL 4: Preco encostando no extremo ===
+        if direcao == "LONG":
+            dist_topo = (high_20 - preco) / preco * 100
+            if dist_topo < 3.0:
+                sinais["score"] += 1
+                sinais["detalhes"].append(f"No topo ({dist_topo:.1f}% do high)")
+        else:
+            dist_fundo = (preco - low_20) / preco * 100
+            if dist_fundo < 3.0:
+                sinais["score"] += 1
+                sinais["detalhes"].append(f"No fundo ({dist_fundo:.1f}% do low)")
+
+        # === SINAL 5: Variacao recente revertendo ===
+        if direcao == "LONG":
+            if var_50min < -0.5:  # caindo no curto prazo
+                sinais["score"] += 1
+                sinais["detalhes"].append(f"Var 50min {var_50min:+.1f}% (caindo)")
+        else:
+            if var_50min > 0.5:  # subindo no curto prazo (ruim pro SHORT)
+                sinais["score"] += 1
+                sinais["detalhes"].append(f"Var 50min {var_50min:+.1f}% (subindo)")
+
+        sinais["rsi_1h"] = float(rsi_1h)
+        sinais["vol_ratio"] = float(vol_ratio)
+        sinais["var_50min"] = float(var_50min)
+        sinais["ok"] = True
+
+    except Exception as e:
+        sinais["erro"] = str(e)
+    return sinais
+
+
 def alimentar_formiga(client: Client, symbol: str, direcao: str, nivel: int, fator: float) -> bool:
     """
     Alimenta uma formiga vencedora APOS realizacao de lucro pela cascata.
@@ -3963,20 +4067,41 @@ def main() -> None:
                     threshold_c2 = saldo_cascata * cfg("cascata_2_pct_saldo", 6.0) / 100
                     threshold_c3 = saldo_cascata * cfg("cascata_3_pct_saldo", 10.0) / 100
 
-                    # CASCATA 1: PnL >= 3% saldo, fecha 30%
-                    if (pnl_esta >= threshold_c1 and symbol not in parcial_10pct
+                    # CASCATA TECNICA: dispara antes do threshold se ha sinais de reversao
+                    # Mas SO se PnL ja for significativo (>= 1% do saldo) — nao corta migalhas
+                    threshold_minimo_tecnico = saldo_cascata * 0.01  # 1% saldo
+                    cascata_tecnica = False
+                    motivo_tecnico = ""
+                    if (pnl_esta >= threshold_minimo_tecnico
+                            and symbol not in parcial_10pct
+                            and symbol not in parcial_nivel2
+                            and symbol not in parcial_500
+                            and cfg("cascata_tecnica_habilitada", True)):
+                        # Cooldown: so analisa a cada 60s
+                        chave_tec = f"tecnica_{symbol}"
+                        if time.time() - alerta_dca_log.get(chave_tec, 0) >= 60:
+                            alerta_dca_log[chave_tec] = time.time()
+                            sinais = analisar_sinais_reversao(client, symbol, direcao)
+                            if sinais.get("ok") and sinais.get("score", 0) >= 3:
+                                cascata_tecnica = True
+                                motivo_tecnico = f"{sinais['score']}/5 sinais: " + ", ".join(sinais['detalhes'][:3])
+
+                    # CASCATA 1: PnL >= 3% saldo OU sinais tecnicos de reversao
+                    if ((pnl_esta >= threshold_c1 or cascata_tecnica) and symbol not in parcial_10pct
                             and symbol not in parcial_nivel2 and symbol not in parcial_500):
                         pnl_apos = pnl_aberto_total - 0.30 * pnl_esta
                         if pnl_apos < 0:
                             log.info(f"  {symbol}: CASCATA 1 bloqueada — PnL aberto ficaria ${pnl_apos:+.2f} (precisa >= 0)")
                         else:
-                            log.info(f"  {symbol}: CASCATA 1 PnL ${pnl_esta:+.2f} (>= ${threshold_c1:.2f}) -> fechando 30%")
+                            tipo_cascata = "TECNICA" if cascata_tecnica and pnl_esta < threshold_c1 else "META"
+                            extra = f"\nMotivo: {motivo_tecnico}" if cascata_tecnica else ""
+                            log.info(f"  {symbol}: CASCATA 1 ({tipo_cascata}) PnL ${pnl_esta:+.2f} -> fechando 30%")
                             telegram(
-                                f"<b>Cascata 1: {symbol}</b>\n"
+                                f"<b>Cascata 1 [{tipo_cascata}]: {symbol}</b>\n"
                                 f"{direcao} | ROI: {roi:+.0f}% | PnL: ${pnl_esta:+.2f}\n"
-                                f"30% no bolso (${pnl_esta*0.30:+.2f}). PnL aberto pos: ${pnl_apos:+.2f}"
+                                f"30% no bolso (${pnl_esta*0.30:+.2f}). PnL aberto pos: ${pnl_apos:+.2f}{extra}"
                             )
-                            fechar_parcial(client, p, 0.30, f"Cascata 1 PnL ${pnl_esta:+.2f}")
+                            fechar_parcial(client, p, 0.30, f"Cascata 1 {tipo_cascata} PnL ${pnl_esta:+.2f}")
                             parcial_10pct.add(symbol)
                             if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
                                 time.sleep(0.5)

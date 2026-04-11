@@ -225,6 +225,114 @@ def analisar_performance(incomes: list) -> dict:
     }
 
 
+def calcular_rsi_simples(closes, periodo=14):
+    """RSI simples sem dependencia do nunes.py"""
+    import pandas as pd
+    delta = closes.diff()
+    ganho = delta.clip(lower=0).rolling(periodo).mean()
+    perda = (-delta.clip(upper=0)).rolling(periodo).mean()
+    rs = ganho / perda
+    rsi = 100 - (100 / (1 + rs))
+    return rsi.iloc[-1] if not pd.isna(rsi.iloc[-1]) else 50.0
+
+
+def analise_tecnica_posicao(client: Client, symbol: str, direcao: str) -> dict:
+    """
+    Faz leitura tecnica da posicao: RSI, MA, volume, fibonacci, momentum.
+    Retorna dict com sinais e recomendacao.
+    """
+    import pandas as pd
+    resultado = {"sinais_reversao": 0, "detalhes": [], "recomendacao": "AGUARDAR"}
+    try:
+        # 5min
+        klines5 = client.futures_klines(symbol=symbol, interval="5m", limit=30)
+        df5 = pd.DataFrame(klines5, columns=['t','o','h','l','c','v','ct','qav','tr','tbav','tqav','i'])
+        for col in ['o','h','l','c','v']:
+            df5[col] = df5[col].astype(float)
+
+        df5["ma7"] = df5["c"].rolling(7).mean()
+        df5["ma25"] = df5["c"].rolling(25).mean()
+        ma7_atual = df5["ma7"].iloc[-1]
+        ma25_atual = df5["ma25"].iloc[-1]
+
+        # 1h
+        klines1h = client.futures_klines(symbol=symbol, interval="1h", limit=20)
+        df1h = pd.DataFrame(klines1h, columns=['t','o','h','l','c','v','ct','qav','tr','tbav','tqav','i'])
+        for col in ['o','h','l','c','v']:
+            df1h[col] = df1h[col].astype(float)
+        rsi_1h = calcular_rsi_simples(df1h["c"])
+
+        # Volume
+        vol_atual = df5["v"].iloc[-1]
+        vol_media = df5["v"].iloc[-20:].mean()
+        vol_ratio = vol_atual / vol_media if vol_media > 0 else 0
+
+        # Range
+        high_20 = df5["h"].iloc[-20:].max()
+        low_20 = df5["l"].iloc[-20:].min()
+        preco = df5["c"].iloc[-1]
+
+        # Var 50min
+        var_50min = (df5["c"].iloc[-1] - df5["c"].iloc[-10]) / df5["c"].iloc[-10] * 100
+
+        # 5 sinais de reversao
+        score = 0
+        detalhes = []
+
+        if direcao == "LONG":
+            if rsi_1h >= 68:
+                score += 1
+                detalhes.append(f"RSI 1h {rsi_1h:.0f}")
+            if ma7_atual < ma25_atual:
+                score += 1
+                detalhes.append("MA5m contra")
+            if vol_ratio < 0.3:
+                score += 1
+                detalhes.append(f"vol {vol_ratio:.1f}x")
+            dist_topo = (high_20 - preco) / preco * 100
+            if dist_topo < 3.0:
+                score += 1
+                detalhes.append(f"topo {dist_topo:.1f}%")
+            if var_50min < -0.5:
+                score += 1
+                detalhes.append(f"var50m {var_50min:+.1f}%")
+        else:
+            if rsi_1h <= 32:
+                score += 1
+                detalhes.append(f"RSI 1h {rsi_1h:.0f}")
+            if ma7_atual > ma25_atual:
+                score += 1
+                detalhes.append("MA5m contra")
+            if vol_ratio < 0.3:
+                score += 1
+                detalhes.append(f"vol {vol_ratio:.1f}x")
+            dist_fundo = (preco - low_20) / preco * 100
+            if dist_fundo < 3.0:
+                score += 1
+                detalhes.append(f"fundo {dist_fundo:.1f}%")
+            if var_50min > 0.5:
+                score += 1
+                detalhes.append(f"var50m {var_50min:+.1f}%")
+
+        resultado["sinais_reversao"] = score
+        resultado["detalhes"] = detalhes
+        resultado["rsi_1h"] = rsi_1h
+        resultado["vol_ratio"] = vol_ratio
+        resultado["var_50min"] = var_50min
+
+        if score >= 4:
+            resultado["recomendacao"] = "REALIZAR_JA"
+        elif score >= 3:
+            resultado["recomendacao"] = "REALIZAR"
+        elif score >= 2:
+            resultado["recomendacao"] = "ATENCAO"
+        else:
+            resultado["recomendacao"] = "DEIXAR_CORRER"
+    except Exception as e:
+        resultado["erro"] = str(e)
+    return resultado
+
+
 def carregar_acoes_recentes(minutos: int = 60) -> list:
     """Le acoes_recentes.json e filtra as ultimas N minutos."""
     try:
@@ -498,16 +606,43 @@ def executar_ciclo(client: Client, estado: dict) -> dict:
     else:
         log.info("  Nenhuma mudanca necessaria.")
 
-    # 5. Carrega acoes recentes pra mostrar no telegram
+    # 5. Analise tecnica das top 5 vencedoras (leitura por posicao)
+    abertas_pos = sorted([p for p in abertas if float(p.get("unrealizedProfit", 0)) > 0],
+                          key=lambda p: -float(p.get("unrealizedProfit", 0)))[:5]
+    analise_tecnica = []
+    for p in abertas_pos:
+        sym = p["symbol"]
+        amt = float(p["positionAmt"])
+        dire = "LONG" if amt > 0 else "SHORT"
+        pnl_p = float(p.get("unrealizedProfit", 0))
+        margem_p = float(p.get("positionInitialMargin", 0))
+        roi_p = (pnl_p / margem_p * 100) if margem_p > 0 else 0
+        try:
+            tec = analise_tecnica_posicao(client, sym, dire)
+            analise_tecnica.append({
+                "symbol": sym,
+                "direcao": dire,
+                "pnl": pnl_p,
+                "roi": roi_p,
+                "score_reversao": tec.get("sinais_reversao", 0),
+                "detalhes": tec.get("detalhes", []),
+                "recomendacao": tec.get("recomendacao", "?"),
+            })
+        except Exception as e:
+            log.debug(f"Erro analise tecnica {sym}: {e}")
+
+    alertas_tecnicos = [a for a in analise_tecnica if a["score_reversao"] >= 3]
+
+    # 6. Carrega acoes recentes pra mostrar no telegram
     acoes_recentes = carregar_acoes_recentes(minutos=INTERVALO_MINUTOS * 2)
     acoes_importantes = [a for a in acoes_recentes if a.get("tipo") in ("dca_3x", "cascata", "reforco")]
 
-    # 6. Telegram — envia se houver mudanca, alerta, acao importante, ou no inicio de cada hora
+    # 7. Telegram — envia se houver mudanca, alerta, acao importante, ou alerta tecnico
     config = carregar_config()
     agora_dt = datetime.now()
     relatorio_horario = agora_dt.minute < INTERVALO_MINUTOS  # primeiro ciclo de cada hora
     tem_degradacao = any("DEGRADACAO" in m or "REFORCO DESABILITADO" in m for m in mudancas)
-    deve_enviar = bool(mudancas) or bool(novos_bl) or relatorio_horario or tem_degradacao or bool(acoes_importantes)
+    deve_enviar = bool(mudancas) or bool(novos_bl) or relatorio_horario or tem_degradacao or bool(acoes_importantes) or bool(alertas_tecnicos)
 
     if deve_enviar:
         cascata_1_pct = config.get('cascata_1_pct_saldo', 3)
@@ -533,6 +668,23 @@ def executar_ciclo(client: Client, estado: dict) -> dict:
 
         if novos_bl:
             msg += f"\n\nBlacklist: +{len(novos_bl)} ({', '.join(list(novos_bl)[:5])})"
+
+        # Leitura tecnica das top vencedoras
+        if analise_tecnica:
+            msg += f"\n\n<b>=== Leitura tecnica top {len(analise_tecnica)} vencedoras ===</b>"
+            icones_rec = {
+                "REALIZAR_JA": "[!!]",
+                "REALIZAR": "[!]",
+                "ATENCAO": "[?]",
+                "DEIXAR_CORRER": "[ok]",
+            }
+            for a in analise_tecnica:
+                ico = icones_rec.get(a["recomendacao"], "")
+                det_str = ", ".join(a["detalhes"][:3]) if a["detalhes"] else "tudo ok"
+                msg += (
+                    f"\n  {ico} {a['symbol']:14s} {a['direcao']} ROI {a['roi']:+.0f}% PnL ${a['pnl']:+.2f}"
+                    f"\n     {a['score_reversao']}/5 sinais: {det_str}"
+                )
 
         # Acoes recentes do bot (ultimos N minutos)
         if acoes_recentes:
