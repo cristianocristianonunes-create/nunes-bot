@@ -81,7 +81,7 @@ RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa — ainda mais
 RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 40-50%, margem segura.
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
-MAX_POSICOES          = 50   # Cascata 2000% precisa de muitos bilhetes — 50 exploradoras
+MAX_POSICOES          = 75   # Base — max_posicoes_inteligente() ajusta dinamicamente por saldo/racio/PF
 
 # ---------------------------------------------------------------------------
 # Caminhos relativos ao diretorio do script — funciona em qualquer pasta
@@ -122,23 +122,79 @@ def risco_atual() -> float:
         pass
     return RISCO_POR_TRADE
 
-def max_posicoes_por_saldo(saldo: float) -> int:
-    """Escala com o saldo: mais dinheiro = mais formigas exploradoras."""
-    if saldo >= 1000:
-        return 150
-    elif saldo >= 500:
-        return 100
-    elif saldo >= 200:
-        return 75
-    else:
-        return MAX_POSICOES  # 50 — exploradoras suficientes pra encontrar foguetes
+def max_posicoes_inteligente(saldo: float, racio_atual: float = 0, pf_14d: float = None) -> int:
+    """
+    Calcula max posicoes de forma INTELIGENTE baseado em:
+    - Saldo da conta
+    - Racio atual (congela em racio alto)
+    - PF 14d (sistema lucrativo libera mais formigas)
+    - RESERVA pra 3x (capital protegido pra DCA emergencial)
 
-def limites_por_saldo(saldo: float) -> tuple[int, float]:
+    Cada bot calcula o seu numero ideal sozinho.
+    Funciona pra qualquer saldo: Cristiano ($35), Gabriel ($21), futuro grande ($1000+).
     """
-    Homem Formiga: max posicoes dinamico pelo saldo.
-    Mais saldo = mais formigas. Menos saldo = menos formigas.
+    risco = risco_atual()
+    if saldo <= 0 or risco <= 0:
+        return MAX_POSICOES
+
+    # 1. RESERVA pra 3x — escala inversa com saldo (saldos pequenos = mais protegidos)
+    if saldo >= 1000:
+        reserva_pct = 0.15  # contas grandes: 15% reserva
+    elif saldo >= 200:
+        reserva_pct = 0.20
+    elif saldo >= 50:
+        reserva_pct = 0.22
+    else:
+        reserva_pct = 0.25  # saldos pequenos: 25% reserva (mais critico)
+
+    capital_disponivel = saldo * (1 - reserva_pct)
+
+    # 2. % do capital ativo escala com PF (sistema provado libera mais)
+    if pf_14d is not None and pf_14d >= 1.2:
+        capital_pct = 0.90  # PF excelente: usa 90% do disponivel
+    elif pf_14d is not None and pf_14d >= 1.0:
+        capital_pct = 0.85  # PF positivo: 85%
+    elif pf_14d is not None and pf_14d >= 0.85:
+        capital_pct = 0.75  # marginal: 75%
+    else:
+        capital_pct = 0.65  # PF ruim: 65% (mas ainda mais agressivo que antes)
+
+    margem_max_total = capital_disponivel * capital_pct
+    margem_por_formiga = saldo * risco
+
+    # 3. Calculo base
+    max_calculado = int(margem_max_total / margem_por_formiga) if margem_por_formiga > 0 else MAX_POSICOES
+
+    # 4. Se racio ja esta em zona de atencao (>=18%), CONGELA aumentos
+    if racio_atual >= 18:
+        return min(max_calculado, MAX_POSICOES)
+
+    # 5. Tetos absolutos por faixa de saldo (defesa final)
+    if saldo >= 1000:
+        teto = 200
+    elif saldo >= 500:
+        teto = 150
+    elif saldo >= 200:
+        teto = 120
+    elif saldo >= 50:
+        teto = 90
+    else:
+        teto = 75  # ate $50 — max 75 (protege contas pequenas)
+
+    return min(max_calculado, teto)
+
+
+def max_posicoes_por_saldo(saldo: float) -> int:
+    """Wrapper de retrocompatibilidade — chama a logica inteligente."""
+    return max_posicoes_inteligente(saldo)
+
+
+def limites_por_saldo(saldo: float, racio: float = 0, pf_14d: float = None) -> tuple[int, float]:
     """
-    return max_posicoes_por_saldo(saldo), risco_atual()
+    Homem Formiga: max posicoes dinamico pelo saldo + racio + PF.
+    Cada bot calcula o seu numero ideal.
+    """
+    return max_posicoes_inteligente(saldo, racio, pf_14d), risco_atual()
 
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
@@ -4715,8 +4771,16 @@ def main() -> None:
                 ultimo_scan_entradas = agora
 
                 saldo_atual_dia = get_saldo_total(client)
-                max_pos_dinamico, risco_dinamico = limites_por_saldo(saldo_atual_dia)
                 racio_atual = get_racio_margem(client)
+                # Le PF 14d do auditor (estado salvo) pra escalar formigas inteligente
+                pf_14d_auditor = None
+                try:
+                    with open(os.path.join(_BASE_DIR, "auditor_estado.json"), "r", encoding="utf-8") as _af:
+                        _ae = json.load(_af)
+                        pf_14d_auditor = _ae.get("ultimo_pf")
+                except Exception:
+                    pass
+                max_pos_dinamico, risco_dinamico = limites_por_saldo(saldo_atual_dia, racio_atual, pf_14d_auditor)
 
                 # BLOQUEIO ABSOLUTO: racio alto = ZERO entradas novas (nem substituicao)
                 # Prioridade eh recuperar posicoes existentes com 3x no momento certo
