@@ -76,12 +76,12 @@ MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
 
 MODO               = os.getenv("MODO", "simulacao")
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
-RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.007"))  # 0.7% — Homem Formiga: muitas posicoes pequenas
-RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa — ainda mais conservador
+RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.03"))  # 3% — concentrado: cada formiga com massa pra gerar lucro real
+RISCO_POR_TRADE_EMERGENCIA = 0.02  # 2% se tiver posicao presa
 RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 40-50%, margem segura.
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
-MAX_POSICOES          = 50   # Base — max_posicoes_inteligente() ajusta dinamicamente por saldo/racio/PF
+MAX_POSICOES          = 20   # Concentrado: menos formigas com mais margem = lucro real por trade
 
 # ---------------------------------------------------------------------------
 # Caminhos relativos ao diretorio do script — funciona em qualquer pasta
@@ -179,7 +179,7 @@ def max_posicoes_inteligente(saldo: float, racio_atual: float = 0, pf_14d: float
     elif saldo >= 50:
         teto = 90
     else:
-        teto = 50  # ate $50 — max 50 (protege contas pequenas)
+        teto = 20  # ate $50 — max 20 concentrado (massa pra gerar lucro real)
 
     return min(max_calculado, teto)
 
