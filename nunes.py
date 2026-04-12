@@ -3190,10 +3190,13 @@ def analisar_noticias_mercado() -> dict:
                 "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 200,
                 "messages": [{"role": "user", "content": f"""Analise estas noticias cripto/financeiras e responda APENAS no formato:
-SENTIMENTO: positivo/negativo/neutro
+SENTIMENTO: positivo/negativo/neutro/misto
 IMPACTO: numero de -2 a +2 (-2=crash iminente, -1=pressao baixa, 0=neutro, +1=otimismo, +2=rally)
+VOLATILIDADE: alta/media/baixa (alta = evento geopolitico, crash, hack, regulacao surpresa)
 RESUMO: uma frase sobre o que afeta o mercado agora
-ACAO: LONG_FAVORECIDO ou SHORT_FAVORECIDO ou NEUTRO
+ACAO: LONG_FAVORECIDO ou SHORT_FAVORECIDO ou NEUTRO ou REDUZIR_EXPOSICAO
+
+Se as noticias tem forcas opostas (ex: tensao geopolitica + sinais bullish), o sentimento eh MISTO e a acao eh REDUZIR_EXPOSICAO.
 
 Noticias:
 {noticias_texto}"""}],
@@ -3206,6 +3209,7 @@ Noticias:
         # Parseia resposta
         sentimento = "neutro"
         impacto = 0
+        volatilidade = "media"
         resumo = ""
         acao = "NEUTRO"
 
@@ -3218,6 +3222,8 @@ Noticias:
                     impacto = int(linha.split(":", 1)[1].strip())
                 except ValueError:
                     pass
+            elif linha.startswith("VOLATILIDADE:"):
+                volatilidade = linha.split(":", 1)[1].strip().lower()
             elif linha.startswith("RESUMO:"):
                 resumo = linha.split(":", 1)[1].strip()
             elif linha.startswith("ACAO:"):
@@ -3226,18 +3232,30 @@ Noticias:
         sentimento_mercado = {
             "sentimento": sentimento,
             "impacto": impacto,
+            "volatilidade": volatilidade,
             "resumo": resumo,
             "acao": acao,
             "timestamp": time.time(),
         }
 
-        log.info(f"  [NOTICIAS] {sentimento.upper()} (impacto {impacto:+d}) | {resumo}")
+        log.info(f"  [NOTICIAS] {sentimento.upper()} (impacto {impacto:+d} | vol {volatilidade}) | {resumo}")
+
+        # MODO VOLATILIDADE: sentimento misto ou volatilidade alta
+        modo_vol = sentimento == "misto" or volatilidade == "alta" or acao == "REDUZIR_EXPOSICAO"
+        if modo_vol:
+            telegram(
+                f"<b>MODO VOLATILIDADE ATIVADO</b>\n"
+                f"Sentimento: {sentimento.upper()} | Vol: {volatilidade}\n"
+                f"{resumo}\n"
+                f"Reducao: max 1 entrada/scan, trailing mais apertado."
+            )
+            log.warning(f"  [NOTICIAS] MODO VOLATILIDADE: {sentimento} | {volatilidade} | {acao}")
 
         # Se impacto forte, avisa no Telegram
-        if abs(impacto) >= 2:
+        elif abs(impacto) >= 2:
             telegram(
                 f"<b>Alerta de mercado ({sentimento.upper()})</b>\n"
-                f"Impacto: {impacto:+d}/2\n"
+                f"Impacto: {impacto:+d}/2 | Vol: {volatilidade}\n"
                 f"{resumo}\n"
                 f"Acao: {acao}"
             )
@@ -4083,20 +4101,20 @@ def main() -> None:
                         margem_pos = float(p.get("positionInitialMargin", 0))
                         pnl_pos = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
 
-                        # Trailing escalonado pelo pico (licao: 1pp era muito apertado,
-                        # matava lucro cedo. Mediana de saida dos 47 wins era +9.5%.
-                        # Muitos devolviam 5-20pp antes de vender.)
-                        # Quanto maior o pico, mais folga:
+                        # Trailing escalonado pelo pico
+                        # MODO VOLATILIDADE: aperta pela metade (protege lucro rapido)
+                        _vol_mode = sentimento_mercado.get("sentimento") == "misto" or \
+                                    sentimento_mercado.get("volatilidade") == "alta"
                         if pico_3x >= 50:
-                            trailing_pp = 10  # pico alto, da bastante espaco
+                            trailing_pp = 5 if _vol_mode else 10
                         elif pico_3x >= 20:
-                            trailing_pp = 7
+                            trailing_pp = 4 if _vol_mode else 7
                         elif pico_3x >= 10:
-                            trailing_pp = 5
+                            trailing_pp = 3 if _vol_mode else 5
                         elif pico_3x >= 5:
-                            trailing_pp = 3
+                            trailing_pp = 2 if _vol_mode else 3
                         else:
-                            trailing_pp = 2  # pico baixo, aperta um pouco
+                            trailing_pp = 1 if _vol_mode else 2
 
                         if pico_3x >= 2.0 and roi <= pico_3x - trailing_pp:
                             log.info(f"  {symbol}: [POS-3x #{n_3x}] LUCRO TRAVADO! Pico {pico_3x:+.1f}% caiu pra {roi:+.1f}% -> vendendo 90%")
@@ -4979,7 +4997,11 @@ def main() -> None:
                     ordem_qualidade = {"MOMENTUM": 0, "CNS": 1, "COPY": 2, "GUARDIAO": 3, "PREMIUM": 4, "NORMAL": 5}
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
-                    MAX_ENTRADAS_POR_SCAN = 3  # Reduzido de 10: muitas entradas = muitas taxas + diluicao
+                    # MODO VOLATILIDADE: se noticias mistas ou vol alta, reduz entradas
+                    _modo_vol = sentimento_mercado.get("sentimento") == "misto" or \
+                                sentimento_mercado.get("volatilidade") == "alta" or \
+                                sentimento_mercado.get("acao") == "REDUZIR_EXPOSICAO"
+                    MAX_ENTRADAS_POR_SCAN = 1 if _modo_vol else 3
                     MAX_MESMA_DIRECAO = 50  # max 18 LONG ou 18 SHORT — colonia segue o mercado
 
                     abertos_scan = 0
