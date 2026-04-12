@@ -4644,32 +4644,15 @@ def main() -> None:
                             falhas_historicas = contar_falhas_3x_historico(symbol, dias=30)
                             historico_ruim = falhas_historicas >= 2
                             if score >= score_min and not ja_tem_3x_ativo and ma_1h_ok and not symbol_bloqueado(symbol) and not cooldown_ativo and not historico_ruim:
-                                # EVACUACAO: fecha formiguinhas negativas pra liberar margem pro 3x
-                                # Cada $ de margem liberada = mais poder no DCA
-                                evacuadas = 0
-                                for p_evac in abertas:
-                                    sym_evac = p_evac["symbol"]
-                                    amt_evac = float(p_evac["positionAmt"])
-                                    if amt_evac == 0 or sym_evac == symbol or sym_evac in dca_aplicado:
-                                        continue
-                                    roi_evac = calcular_roi(p_evac)
-                                    margem_evac = float(p_evac.get("positionInitialMargin", 0))
-                                    # So evacua formiguinhas NEGATIVAS — positivas ficam
-                                    if roi_evac < 0 and margem_evac < banca * 0.02:
-                                        try:
-                                            side_evac = "SELL" if amt_evac > 0 else "BUY"
-                                            client.futures_create_order(
-                                                symbol=sym_evac, side=side_evac,
-                                                type="MARKET", quantity=abs(amt_evac), reduceOnly=True
-                                            )
-                                            pnl_evac = float(p_evac.get("unrealizedProfit", p_evac.get("unRealizedProfit", 0)))
-                                            log.info(f"  EVACUACAO: {sym_evac} fechada (ROI {roi_evac:+.1f}% PnL ${pnl_evac:+.2f}) — margem liberada pro 3x")
-                                            evacuadas += 1
-                                        except Exception:
-                                            pass
-                                if evacuadas:
-                                    banca = get_banca(client)  # atualiza saldo pos-evacuacao
-                                    telegram(f"<b>Evacuacao: {evacuadas} formiguinhas fechadas</b>\nMargem liberada para 3x de {symbol}.")
+                                # EVACUACAO REMOVIDA — licao 12/04 15:16: bot massacrou 15 formigas
+                                # pra alimentar 1 3x. Perdeu $1.10 em evacuacoes.
+                                # Na natureza, formigas nao comem outras formigas pra crescer.
+                                # O 3x usa o saldo DISPONIVEL. Se nao tem, NAO faz.
+                                saldo_livre = get_banca(client)
+                                margem_3x_necessaria = banca * 0.05  # 5% da banca (DCA dinamico)
+                                if saldo_livre < margem_3x_necessaria:
+                                    log.info(f"  {symbol}: Score {score} bom mas saldo livre ${saldo_livre:.2f} < ${margem_3x_necessaria:.2f} — sem evacuacao, aguarda")
+                                    continue
 
                                 log.info(f"  {symbol}: SCORE {score}/140 -> 3x #{n_3x + 1} DISPARADO")
                                 aplicar_dca(client, p, banca)
