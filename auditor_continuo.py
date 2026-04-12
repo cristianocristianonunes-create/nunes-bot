@@ -493,16 +493,22 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
     # Auditor so monitora se esta funcionando, nao ajusta valores
 
     # --- SCORE 3x: ajusta baseado no historico recente de DCAs ---
-    score_atual = config.get("score_minimo_3x", 50)
+    # --- SCORE 3x: range atualizado pra novo sistema de score ---
+    # Score agora vai ate ~210 (com filtros de evidencia real).
+    # Piso: 80 (antes 70). Teto: 120 (antes 90).
+    # Um bom 3x pontua 100-160. Um ruim pontua 30-60.
+    SCORE_PISO = 80   # licao NAORISUSDT + novos filtros
+    SCORE_TETO = 120  # nao exigir demais (bloqueia oportunidades)
+    score_atual = config.get("score_minimo_3x", 75)
 
     # Se PF curto (6h) < 0.5: 3x recentes estao falhando -> endurecer
-    if pf_curto < 0.5 and metricas_curtas["total_trades"] >= 5 and score_atual < 70:
-        config["score_minimo_3x"] = min(score_atual + 10, 80)
+    if pf_curto < 0.5 and metricas_curtas["total_trades"] >= 5 and score_atual < SCORE_TETO:
+        config["score_minimo_3x"] = min(score_atual + 10, SCORE_TETO)
         mudancas.append(f"Score 3x subiu: {score_atual} -> {config['score_minimo_3x']} (PF 6h: {pf_curto:.2f})")
 
-    # Se PF curto > 1.5: 3x estao funcionando bem -> pode relaxar (mas piso 70 — licao NAORISUSDT)
-    elif pf_curto > 1.5 and metricas_curtas["total_trades"] >= 5 and score_atual > 70:
-        config["score_minimo_3x"] = max(score_atual - 5, 70)
+    # Se PF curto > 1.5: 3x estao funcionando bem -> pode relaxar
+    elif pf_curto > 1.5 and metricas_curtas["total_trades"] >= 5 and score_atual > SCORE_PISO:
+        config["score_minimo_3x"] = max(score_atual - 5, SCORE_PISO)
         mudancas.append(f"Score 3x desceu: {score_atual} -> {config['score_minimo_3x']} (PF 6h: {pf_curto:.2f})")
 
     # --- HORARIOS BLOQUEADOS ---
@@ -523,13 +529,12 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
         pf_anterior = sum(pf_hist[-6:-3]) / 3
         if pf_anterior > 0 and pf_recente < pf_anterior * 0.6:
             mudancas.append(f"ALERTA DEGRADACAO: PF caiu {pf_anterior:.2f} -> {pf_recente:.2f} (-{(1-pf_recente/pf_anterior)*100:.0f}%)")
-            # Endurece tudo
-            if config.get("score_minimo_3x", 50) < 70:
-                config["score_minimo_3x"] = 70
-                mudancas.append(f"Score 3x forcado a 70 por degradacao")
+            if config.get("score_minimo_3x", 75) < 100:
+                config["score_minimo_3x"] = 100
+                mudancas.append(f"Score 3x forcado a 100 por degradacao")
 
-    # --- DETECCAO DE EXCESSO DE 3x: se muitos piso_zero, endurece score ---
-    # Licao madrugada 12/04: 10 DCAs em 6h, 6 deram piso zero. Mercado lateral nao sustenta 3x.
+    # --- DETECCAO DE EXCESSO DE 3x ---
+    # Licao madrugada 12/04: 10 DCAs em 6h, 6 deram piso zero.
     try:
         acoes_6h = carregar_acoes_recentes(minutos=360)
         dcas_6h = [a for a in acoes_6h if a.get("tipo") == "dca_3x"]
@@ -538,8 +543,8 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
         n_pisos_zero = len(vendas_6h)
         if n_dcas >= 5 and n_pisos_zero >= 3:
             taxa_falha = n_pisos_zero / n_dcas
-            if taxa_falha >= 0.5 and config.get("score_minimo_3x", 70) < 85:
-                config["score_minimo_3x"] = min(config.get("score_minimo_3x", 70) + 10, 90)
+            if taxa_falha >= 0.5 and config.get("score_minimo_3x", 80) < SCORE_TETO:
+                config["score_minimo_3x"] = min(config.get("score_minimo_3x", 80) + 10, SCORE_TETO)
                 mudancas.append(f"EXCESSO DE 3x: {n_dcas} DCAs em 6h, {n_pisos_zero} piso_zero ({taxa_falha*100:.0f}% falha). Score subiu pra {config['score_minimo_3x']}")
     except Exception:
         pass

@@ -6,7 +6,7 @@
   "cascata_1_roi": 2000,
   "cascata_2_roi": 4000,
   "cascata_3_roi": 8000,
-  "score_minimo_3x": 75,
+  "score_minimo_3x": 85,
   "max_posicoes_override": null,
   "risco_por_trade_override": null,
   "racio_margem_max_override": null,
@@ -30,6 +30,6 @@
   "reforco_2_fator": 1.0,
   "reforco_3_fator": 1.5,
   "cascata_tecnica_habilitada": true,
-  "ultima_atualizacao": "2026-04-11T19:44:10.106708",
-  "motivo_ultima_mudanca": "Horarios bloqueados: [11, 15, 19, 9, 7, 23, 3, 4, 5, 6, 21] (PnL negativo > $5)"
+  "ultima_atualizacao": "2026-04-12T04:45:23.523118",
+  "motivo_ultima_mudanca": "Score 3x desceu: 75 -> 70 (PF 6h: 1.89)"
 }
