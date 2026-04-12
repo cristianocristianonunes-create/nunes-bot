@@ -4022,10 +4022,22 @@ def main() -> None:
                         margem_pos = float(p.get("positionInitialMargin", 0))
                         pnl_pos = float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
 
-                        # Trailing ultra apertado: caiu 1pp do pico → vende
-                        # Se pico +24% e roi +23% → vende com +23%
-                        # Se pico +2% e roi +1% → vende com +1%
-                        if pico_3x >= 1.0 and roi <= pico_3x - 1.0:
+                        # Trailing escalonado pelo pico (licao: 1pp era muito apertado,
+                        # matava lucro cedo. Mediana de saida dos 47 wins era +9.5%.
+                        # Muitos devolviam 5-20pp antes de vender.)
+                        # Quanto maior o pico, mais folga:
+                        if pico_3x >= 50:
+                            trailing_pp = 10  # pico alto, da bastante espaco
+                        elif pico_3x >= 20:
+                            trailing_pp = 7
+                        elif pico_3x >= 10:
+                            trailing_pp = 5
+                        elif pico_3x >= 5:
+                            trailing_pp = 3
+                        else:
+                            trailing_pp = 2  # pico baixo, aperta um pouco
+
+                        if pico_3x >= 2.0 and roi <= pico_3x - trailing_pp:
                             log.info(f"  {symbol}: [POS-3x #{n_3x}] LUCRO TRAVADO! Pico {pico_3x:+.1f}% caiu pra {roi:+.1f}% -> vendendo 90%")
                             telegram(
                                 f"<b>3x LUCRO REALIZADO! {symbol}</b>\n"
