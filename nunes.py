@@ -1316,6 +1316,8 @@ parcial_500:           set[str]        = set() # symbols que já tiveram saída 
 reforco_aplicado:      dict[str, int]   = {}    # symbol -> nivel do ultimo reforco (1, 2 ou 3)
 momentum_log:          dict[str, float] = {}    # symbol -> timestamp da ultima ordem MOMENTUM (cooldown 24h)
 cooldown_3x_falha:     dict[str, float] = {}    # symbol -> timestamp da ultima falha de 3x (cooldown 12h)
+cooldown_reentrada:    dict[str, float] = {}    # symbol -> timestamp da ultima venda (cooldown 6h de reentrada)
+                                                 # Licao MAGMAUSDT: bot vendeu trailing 303%, recomprou 3h depois, perdeu $4.72
 parcial_10pct:         set[str]        = set() # symbols que já fecharam 30% em +20% ROI (cascata 1)
 parcial_nivel2:        set[str]        = set() # symbols que já fecharam 30% em +40% ROI (cascata 2)
 pico_pos_3x:           dict[str, float] = {}  # pico de ROI apos o 3x (para trailing escalonado)
@@ -2546,6 +2548,10 @@ def fechar_parcial(client: Client, posicao: dict, pct: float, motivo: str) -> No
             "pnl_realizado": pnl * pct,
             "qty": qty_fechar,
         })
+        # COOLDOWN DE REENTRADA: bloqueia recompra do mesmo symbol por 6h
+        # Licao MAGMAUSDT: bot vendeu por trailing (303%), recomprou 3h depois, perdeu $4.72
+        COOLDOWN_REENTRADA_HORAS = 6
+        cooldown_reentrada[symbol] = time.time()
         # Se fechou 100% e era herdada, remove da lista
         if pct >= 1.0:
             posicoes_herdadas.discard(symbol)
@@ -3378,6 +3384,14 @@ def abrir_posicao(client: Client, symbol: str, direcao: str, preco: float, banca
     # BLACKLIST: ativo com histórico comprovadamente ruim
     if symbol_bloqueado(symbol):
         log.info(f"  {symbol}: BLOQUEADO pela blacklist (historico ruim)")
+        return
+
+    # COOLDOWN DE REENTRADA: nao recompra ativo vendido recentemente
+    # Licao MAGMAUSDT: vendeu por trailing 303%, recomprou 3h depois, perdeu $4.72
+    tempo_desde_venda = time.time() - cooldown_reentrada.get(symbol, 0)
+    if tempo_desde_venda < 6 * 3600:
+        horas_rest = (6 * 3600 - tempo_desde_venda) / 3600
+        log.info(f"  {symbol}: BLOQUEADO cooldown reentrada ({horas_rest:.1f}h restantes)")
         return
 
     # TRAVA DE DIRECAO: max 18 na mesma direcao (Homem Formiga)
@@ -4950,7 +4964,7 @@ def main() -> None:
                     ordem_qualidade = {"MOMENTUM": 0, "CNS": 1, "COPY": 2, "GUARDIAO": 3, "PREMIUM": 4, "NORMAL": 5}
                     sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
 
-                    MAX_ENTRADAS_POR_SCAN = 10
+                    MAX_ENTRADAS_POR_SCAN = 3  # Reduzido de 10: muitas entradas = muitas taxas + diluicao
                     MAX_MESMA_DIRECAO = 50  # max 18 LONG ou 18 SHORT — colonia segue o mercado
 
                     abertos_scan = 0

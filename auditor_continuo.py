@@ -528,6 +528,22 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
                 config["score_minimo_3x"] = 70
                 mudancas.append(f"Score 3x forcado a 70 por degradacao")
 
+    # --- DETECCAO DE EXCESSO DE 3x: se muitos piso_zero, endurece score ---
+    # Licao madrugada 12/04: 10 DCAs em 6h, 6 deram piso zero. Mercado lateral nao sustenta 3x.
+    try:
+        acoes_6h = carregar_acoes_recentes(minutos=360)
+        dcas_6h = [a for a in acoes_6h if a.get("tipo") == "dca_3x"]
+        vendas_6h = [a for a in acoes_6h if a.get("tipo") == "venda" and "piso zero" in a.get("motivo", "").lower()]
+        n_dcas = len(dcas_6h)
+        n_pisos_zero = len(vendas_6h)
+        if n_dcas >= 5 and n_pisos_zero >= 3:
+            taxa_falha = n_pisos_zero / n_dcas
+            if taxa_falha >= 0.5 and config.get("score_minimo_3x", 70) < 85:
+                config["score_minimo_3x"] = min(config.get("score_minimo_3x", 70) + 10, 90)
+                mudancas.append(f"EXCESSO DE 3x: {n_dcas} DCAs em 6h, {n_pisos_zero} piso_zero ({taxa_falha*100:.0f}% falha). Score subiu pra {config['score_minimo_3x']}")
+    except Exception:
+        pass
+
     # --- MONITORAMENTO DOS REFORCOS DE FORMIGAS ---
     # Auditor monitora se reforcos estao gerando lucro real ou virando prejuizo
     try:
