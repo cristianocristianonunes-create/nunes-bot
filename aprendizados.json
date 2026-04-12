@@ -29960,16 +29960,6 @@
     "licao": "Volume de trades e um custo invisivel. Cada trade custa $0.003 de taxa. 100 trades/dia = $0.30/dia = $9/mes. Com saldo de $30, isso e 30% do capital virando taxa. Menos trades = mais lucro liquido."
   },
   {
-    "timestamp": "2026-04-12T15:22:17.804730+00:00",
-    "symbol": "GERAL",
-    "direcao": "?",
-    "tipo": "licao_meta_diaria_e_emocao",
-    "roi_final": 0,
-    "preco": 0,
-    "detalhes": "User pediu meta de R$200 no dia (precisava +22% sobre saldo de $32). Com BTC -2.8%, impossivel sem risco extremo. Meta diaria em $ e emocional, nao tecnica. O sistema nao controla o mercado. Metas de PROCESSO (zero erros operacionais, cobertura alta) sao controlaveis. Metas de VALOR num dia especifico nao sao.",
-    "licao": "Nunca forcar resultado financeiro num dia especifico. O bot maximiza probabilidade no longo prazo. Dias individuais dependem do mercado."
-  },
-  {
     "timestamp": "2026-04-12T15:22:17.804731+00:00",
     "symbol": "GERAL",
     "direcao": "?",
