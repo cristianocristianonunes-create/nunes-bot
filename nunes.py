@@ -5026,6 +5026,14 @@ def main() -> None:
                             log.info(f"  {symbol}: SHORT bloqueado — ja tem {n_short} SHORTs (max {MAX_MESMA_DIRECAO})")
                             continue
 
+                        # DIRECAO DA COLONIA: exercito marcha junto
+                        # Auditor define direcao no config_dinamico.json a cada 5min
+                        direcao_colonia = cfg("direcao_colonia", "AMBOS")
+                        if direcao_colonia != "AMBOS":
+                            if sinal != direcao_colonia:
+                                log.info(f"  {symbol}: {sinal} bloqueado — colonia vai {direcao_colonia}")
+                                continue
+
                         # Filtro de noticias: impacto forte bloqueia direcao contraria
                         if sentimento_mercado["impacto"] <= -2 and sinal == "LONG":
                             log.info(f"  {symbol}: LONG bloqueado — noticias muito negativas ({sentimento_mercado['resumo'][:60]})")
@@ -5034,7 +5042,7 @@ def main() -> None:
                             log.info(f"  {symbol}: SHORT bloqueado — noticias muito positivas ({sentimento_mercado['resumo'][:60]})")
                             continue
 
-                        log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | Preco: {preco}")
+                        log.info(f"Sinal {sinal} [{qualidade}] em {symbol} | Preco: {preco} | Colonia: {direcao_colonia}")
                         abrir_posicao(client, symbol, sinal, preco, banca, qualidade, risco_dinamico)
                         ultimo_entrada = time.time()
                         abertos_scan += 1

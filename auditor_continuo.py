@@ -572,8 +572,50 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
     except (FileNotFoundError, json.JSONDecodeError):
         pass
 
-    # --- DIRECAO PREFERIDA baseada no BTC ---
-    # Se 80%+ dos wins recentes sao LONG ou SHORT, sugere direcao
+    # --- DIRECAO DA COLONIA: exercito marcha junto ---
+    # Formiguinhas crescem juntas quando vao na mesma direcao.
+    # Auditor define a direcao baseado em:
+    # 1. BTC 24h trend
+    # 2. % do mercado subindo vs caindo
+    # 3. Performance recente por direcao
+    try:
+        btc_ticker = client.futures_ticker(symbol="BTCUSDT")
+        btc_var = float(btc_ticker.get("priceChangePercent", 0))
+
+        # Conta mercado geral
+        all_tickers = client.futures_ticker()
+        usdt_t = [t for t in all_tickers if t["symbol"].endswith("USDT") and float(t.get("quoteVolume", 0)) > 1000000]
+        caindo = sum(1 for t in usdt_t if float(t.get("priceChangePercent", 0)) < 0)
+        subindo = len(usdt_t) - caindo
+        pct_caindo = caindo / len(usdt_t) * 100 if usdt_t else 50
+
+        # Decide direcao da colonia
+        direcao_anterior = config.get("direcao_colonia")
+
+        if btc_var <= -2.0 and pct_caindo >= 60:
+            direcao_colonia = "SHORT"
+            motivo_dir = f"BTC {btc_var:+.1f}% + {pct_caindo:.0f}% do mercado caindo"
+        elif btc_var >= 2.0 and pct_caindo <= 40:
+            direcao_colonia = "LONG"
+            motivo_dir = f"BTC {btc_var:+.1f}% + {100-pct_caindo:.0f}% do mercado subindo"
+        elif pct_caindo >= 65:
+            direcao_colonia = "SHORT"
+            motivo_dir = f"{pct_caindo:.0f}% do mercado caindo (independente do BTC)"
+        elif pct_caindo <= 35:
+            direcao_colonia = "LONG"
+            motivo_dir = f"{100-pct_caindo:.0f}% do mercado subindo"
+        else:
+            direcao_colonia = "AMBOS"
+            motivo_dir = f"Mercado dividido ({pct_caindo:.0f}% caindo, BTC {btc_var:+.1f}%)"
+
+        config["direcao_colonia"] = direcao_colonia
+        config["direcao_colonia_motivo"] = motivo_dir
+
+        if direcao_colonia != direcao_anterior:
+            mudancas.append(f"Colonia: {direcao_anterior or '?'} -> {direcao_colonia} ({motivo_dir})")
+
+    except Exception as e:
+        log.debug(f"Erro direcao colonia: {e}")
     # (nao bloqueia, so informa — o sinal_guardiao ja filtra por BTC)
 
     # Salva config
