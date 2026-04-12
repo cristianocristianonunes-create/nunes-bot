@@ -2461,116 +2461,136 @@ def analisar_sinais_reversao(client: Client, symbol: str, direcao: str) -> dict:
     return sinais
 
 
-def alimentar_formiga(client: Client, symbol: str, direcao: str, nivel: int, fator: float) -> bool:
+def multiplicar_colonia(client: Client, symbol_origem: str, direcao: str, pnl_realizado: float) -> int:
     """
-    Alimenta uma formiga vencedora APOS realizacao de lucro pela cascata.
-    Verifica 4 confirmacoes antes de adicionar margem:
-    1. MA 5min a favor E acelerando
-    2. Volume mantendo
-    3. 1h alinhado (regra de ouro: 100% dos wins de DCA tinham)
-    4. Nao em zona de exaustao Fibonacci
-    Retorna True se alimentou.
+    MULTIPLICACAO DA COLONIA: lucro da cascata vira NOVAS formigas exploradoras.
+    Em vez de alimentar a MESMA formiga (ponto unico de falha),
+    o lucro gera 1-3 novas formiguinhas na direcao da colonia.
+
+    Na natureza: formiga encontra comida → volta pra colonia → MAIS formigas saem.
+    O lucro nao volta pro mesmo individuo — ele MULTIPLICA o exercito.
+
+    Retorna quantas novas formigas foram criadas.
     """
     try:
+        if pnl_realizado <= 0:
+            return 0
         if get_racio_margem(client) >= RACIO_MARGEM_MAX:
-            log.info(f"  {symbol}: reforco #{nivel} bloqueado — racio alto")
-            return False
+            log.info(f"  Multiplicacao bloqueada — racio alto")
+            return 0
 
-        # Pega posicao atualizada (apos a cascata ter fechado parte)
-        pos_info = client.futures_position_information(symbol=symbol)
-        posicao_atual = next((pp for pp in pos_info if abs(float(pp["positionAmt"])) > 0), None)
-        if not posicao_atual:
-            return False
+        banca = get_banca(client)
+        saldo_total = get_saldo_total(client)
+        margem_por_formiga = saldo_total * risco_atual()
 
-        margem_pos = float(posicao_atual.get("positionInitialMargin", 0))
-        if margem_pos < 0.10:
-            log.info(f"  {symbol}: reforco #{nivel} bloqueado — margem ${margem_pos:.4f} muito pequena")
-            return False
+        # Quantas novas formigas cabem com o lucro realizado?
+        # Cada formiga custa ~margem_por_formiga de margem
+        n_possiveis = int(pnl_realizado / margem_por_formiga) if margem_por_formiga > 0 else 0
+        n_possiveis = max(1, min(n_possiveis, 3))  # minimo 1, maximo 3
 
-        df5_ref = get_candles(client, symbol, Client.KLINE_INTERVAL_5MINUTE, limit=50)
-        df5_ref["ma7"] = df5_ref["close"].rolling(7).mean()
-        df5_ref["ma25"] = df5_ref["close"].rolling(25).mean()
-        df5_ref["vol_media"] = df5_ref["volume"].rolling(20).mean()
-        cr1 = df5_ref.iloc[-1]
-        cr2 = df5_ref.iloc[-2]
+        # Checa se tem espaco (MAX_POSICOES)
+        abertas_atual = posicoes_abertas(client)
+        max_pos = max_posicoes_inteligente(saldo_total, get_racio_margem(client))
+        espaco = max_pos - len(abertas_atual)
+        if espaco <= 0:
+            log.info(f"  Multiplicacao: sem espaco ({len(abertas_atual)}/{max_pos})")
+            return 0
+        n_criar = min(n_possiveis, espaco)
 
-        # 1. MA a favor E acelerando
-        if direcao == "LONG":
-            ma_favor = cr1["ma7"] > cr1["ma25"]
-            acelerando = (cr1["ma7"] - cr1["ma25"]) > (cr2["ma7"] - cr2["ma25"]) > 0
-        else:
-            ma_favor = cr1["ma7"] < cr1["ma25"]
-            acelerando = (cr1["ma25"] - cr1["ma7"]) > (cr2["ma25"] - cr2["ma7"]) > 0
+        # Busca ativos pra abrir (na direcao da colonia, que nao estejam abertos)
+        direcao_colonia = cfg("direcao_colonia", "AMBOS")
+        direcao_final = direcao_colonia if direcao_colonia != "AMBOS" else direcao
 
-        # 2. Volume mantendo
-        vol_ok = (pd.notna(cr1["vol_media"]) and cr1["vol_media"] > 0
-                  and cr1["volume"] >= cr1["vol_media"] * 0.8)
+        simbolos_abertos = {p["symbol"] for p in abertas_atual}
+        # Pega os top movers na direcao certa
+        try:
+            tickers = client.futures_ticker()
+            candidatos = []
+            for t in tickers:
+                sym = t["symbol"]
+                if not sym.endswith("USDT") or sym in simbolos_abertos:
+                    continue
+                if symbol_bloqueado(sym):
+                    continue
+                # Cooldown de reentrada
+                if time.time() - cooldown_reentrada.get(sym, 0) < 6 * 3600:
+                    continue
+                var24 = float(t.get("priceChangePercent", 0))
+                vol24 = float(t.get("quoteVolume", 0))
+                if vol24 < 5_000_000:
+                    continue
+                # Filtra pela direcao
+                if direcao_final == "SHORT" and var24 < -3:
+                    candidatos.append((sym, var24, vol24))
+                elif direcao_final == "LONG" and var24 > 3:
+                    candidatos.append((sym, var24, vol24))
+            # Ordena por forca do movimento
+            if direcao_final == "SHORT":
+                candidatos.sort(key=lambda x: x[1])  # mais negativo primeiro
+            else:
+                candidatos.sort(key=lambda x: -x[1])  # mais positivo primeiro
+        except Exception:
+            candidatos = []
 
-        # 3. 1h alinhado
-        df1h_ref = get_candles(client, symbol, Client.KLINE_INTERVAL_1HOUR, limit=30)
-        df1h_ref["ma7"] = df1h_ref["close"].rolling(7).mean()
-        df1h_ref["ma25"] = df1h_ref["close"].rolling(25).mean()
-        c1h_ref = df1h_ref.iloc[-1]
-        if direcao == "LONG":
-            h1_ok = c1h_ref["ma7"] > c1h_ref["ma25"]
-        else:
-            h1_ok = c1h_ref["ma7"] < c1h_ref["ma25"]
+        if not candidatos:
+            log.info(f"  Multiplicacao: sem candidatos {direcao_final}")
+            return 0
 
-        # 4. Nao em zona de exaustao Fibonacci
-        high20 = df5_ref["high"].iloc[-20:].max()
-        low20 = df5_ref["low"].iloc[-20:].min()
-        preco_atual = cr1["close"]
-        if direcao == "LONG":
-            nao_exausto = preco_atual < (low20 + (high20 - low20) * 0.786)
-        else:
-            nao_exausto = preco_atual > (high20 - (high20 - low20) * 0.786)
+        # Abre as novas formigas
+        criadas = 0
+        for sym_novo, var, vol in candidatos[:n_criar]:
+            try:
+                # Verifica sinal rapido (formiguinha)
+                sinal = sinal_formiguinha(client, sym_novo, tendencia_btc(client))
+                if sinal and sinal == direcao_final:
+                    preco_novo = float(client.futures_symbol_ticker(symbol=sym_novo)["price"])
+                    abrir_posicao(client, sym_novo, direcao_final, preco_novo, banca, "COLONIA")
+                    criadas += 1
+                    log.info(f"  NOVA FORMIGA: {sym_novo} {direcao_final} (filha de {symbol_origem})")
+                elif not sinal:
+                    # Sem sinal formiguinha, tenta abrir direto se variacao for forte
+                    if abs(var) >= 8:
+                        preco_novo = float(client.futures_symbol_ticker(symbol=sym_novo)["price"])
+                        abrir_posicao(client, sym_novo, direcao_final, preco_novo, banca, "COLONIA")
+                        criadas += 1
+                        log.info(f"  NOVA FORMIGA: {sym_novo} {direcao_final} (filha de {symbol_origem}, momentum {var:+.0f}%)")
+            except Exception as e:
+                log.debug(f"  Erro multiplicar {sym_novo}: {e}")
 
-        if not (ma_favor and acelerando and vol_ok and h1_ok and nao_exausto):
-            motivos = []
-            if not (ma_favor and acelerando): motivos.append("MA")
-            if not vol_ok: motivos.append("vol")
-            if not h1_ok: motivos.append("1h")
-            if not nao_exausto: motivos.append("exausto")
-            log.info(f"  {symbol}: reforco #{nivel} bloqueado: {','.join(motivos)}")
-            return False
-
-        # ALIMENTA
-        reforco_usdt = margem_pos * fator
-        step_ref = get_step_size(client, symbol)
-        qty_ref = arredondar_quantidade((reforco_usdt * ALAVANCAGEM) / preco_atual, step_ref)
-        side_ref = "BUY" if direcao == "LONG" else "SELL"
-
-        if qty_ref <= 0:
-            return False
-
-        if MODO == "real":
-            client.futures_create_order(
-                symbol=symbol, side=side_ref,
-                type="MARKET", quantity=qty_ref
+        if criadas > 0:
+            telegram(
+                f"<b>Colonia multiplicou! +{criadas} formigas</b>\n"
+                f"Origem: {symbol_origem} {direcao} (cascata realizou ${pnl_realizado:.2f})\n"
+                f"Direcao: {direcao_final} | Exercito crescendo."
             )
-        reforco_aplicado[symbol] = nivel
-        topup_recente[symbol] = time.time()
-        log.info(f"  {symbol}: REFORCO #{nivel} +${reforco_usdt:.2f} (apos cascata)")
-        registrar_acao(symbol, "reforco", f"Reforco nivel {nivel} apos cascata (4 confirmacoes OK)", {
-            "direcao": direcao,
-            "nivel": nivel,
-            "fator": fator,
-            "margem_anterior": margem_pos,
-            "margem_adicional": reforco_usdt,
-            "margem_total": margem_pos + reforco_usdt,
-        })
-        telegram(
-            f"<b>Reforco #{nivel}: {symbol}</b>\n"
-            f"{direcao} | Margem: ${margem_pos:.2f} -> ${margem_pos + reforco_usdt:.2f}\n"
-            f"Cascata realizou lucro, formiga alimentada.\n"
-            f"4 confirmacoes OK."
-        )
-        registrar_aprendizado(client, symbol, direcao, "reforco_aplicado", 0,
-            f"Nivel #{nivel} pos-cascata | +${reforco_usdt:.2f}")
-        return True
+            registrar_acao(symbol_origem, "multiplicacao",
+                f"Cascata gerou {criadas} novas formigas {direcao_final} (lucro ${pnl_realizado:.2f})", {
+                "n_criadas": criadas,
+                "direcao": direcao_final,
+                "pnl_origem": pnl_realizado,
+            })
+
+        return criadas
     except Exception as e:
-        log.warning(f"  Erro alimentar {symbol}: {e}")
-        return False
+        log.warning(f"  Erro multiplicar colonia: {e}")
+        return 0
+
+
+# Manter retrocompatibilidade — chamadas antigas de alimentar_formiga viram multiplicacao
+def alimentar_formiga(client: Client, symbol: str, direcao: str, nivel: int, fator: float) -> bool:
+    """Retrocompativel: agora multiplica em vez de alimentar."""
+    # Estima o pnl que seria realizado pela cascata (30% do PnL da posicao)
+    try:
+        pos_info = client.futures_position_information(symbol=symbol)
+        for p in pos_info:
+            if abs(float(p["positionAmt"])) > 0:
+                pnl_est = float(p.get("unrealizedProfit", 0)) * 0.30
+                if pnl_est > 0:
+                    n = multiplicar_colonia(client, symbol, direcao, pnl_est)
+                    return n > 0
+    except Exception:
+        pass
+    return False
 
 
 def fechar_parcial(client: Client, posicao: dict, pct: float, motivo: str) -> None:
