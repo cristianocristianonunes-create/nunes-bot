@@ -81,7 +81,7 @@ RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa — ainda mais
 RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 40-50%, margem segura.
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
-MAX_POSICOES          = 75   # Base — max_posicoes_inteligente() ajusta dinamicamente por saldo/racio/PF
+MAX_POSICOES          = 50   # Base — max_posicoes_inteligente() ajusta dinamicamente por saldo/racio/PF
 
 # ---------------------------------------------------------------------------
 # Caminhos relativos ao diretorio do script — funciona em qualquer pasta
@@ -179,7 +179,7 @@ def max_posicoes_inteligente(saldo: float, racio_atual: float = 0, pf_14d: float
     elif saldo >= 50:
         teto = 90
     else:
-        teto = 75  # ate $50 — max 75 (protege contas pequenas)
+        teto = 50  # ate $50 — max 50 (protege contas pequenas)
 
     return min(max_calculado, teto)
 
