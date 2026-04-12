@@ -2037,7 +2037,68 @@ def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, d
         except Exception:
             pass
 
-        # 12. CRUZAMENTO FRESCO: cruzou nos ultimos 2 candles 5min (CORRECAO C: +10pts)
+        # === FILTROS BASEADOS EM EVIDENCIA REAL (47 wins vs 18 losses) ===
+
+        # 12. ALINHAMENTO MULTI-TIMEFRAME (evidencia: 77% wins vs 28% losses tinham 2+)
+        # O indicador com MAIOR poder discriminativo dos dados reais
+        n_timeframes_favor = sum([
+            alinhado_1m,
+            bool(direcao == "LONG" and c1["ma7"] > c1["ma25"]) or bool(direcao == "SHORT" and c1["ma7"] < c1["ma25"]),
+            # 1h ja foi verificado no item 11 (confluencia)
+        ])
+        # Conta 1h tambem (via o check do item 10 BTC - se btc nao penalizou, 1h provavelmente ok)
+        try:
+            _h1_ma7 = df1h_conf["ma7"].iloc[-1] if "df1h_conf" in dir() else 0
+            _h1_ma25 = df1h_conf["ma25"].iloc[-1] if "df1h_conf" in dir() else 0
+            if _h1_ma7 and _h1_ma25:
+                if direcao == "LONG" and _h1_ma7 > _h1_ma25:
+                    n_timeframes_favor += 1
+                elif direcao == "SHORT" and _h1_ma7 < _h1_ma25:
+                    n_timeframes_favor += 1
+        except Exception:
+            pass
+
+        if n_timeframes_favor >= 2:
+            score += 15
+            detalhes["multi_tf_alinhado"] = f"+15 ({n_timeframes_favor}/3 TFs)"
+        elif n_timeframes_favor <= 0:
+            score -= 20  # NENHUM timeframe a favor = muito perigoso
+            detalhes["multi_tf_alinhado"] = f"-20 (0/3 TFs CONTRA)"
+
+        # 13. FIBONACCI ZONA (evidencia: abaixo_382 = 72% dos LOSSES)
+        # "Buy the dip" nao funciona pra 3x. Meio do range e melhor.
+        if fib_ok:
+            # fib_ok ja deu pontos no item 6. Agora penaliza/bonifica pela zona
+            if direcao == "LONG" and preco < fib_382:
+                score -= 15  # LONG abaixo de 38.2% = zona perigosa (72% losses)
+                detalhes["fib_zona_real"] = "-15 (abaixo_382 = zona de perda)"
+            elif fib_382 <= preco <= fib_618:
+                score += 10  # meio do range = zona saudavel (23% wins vs 11% losses)
+                detalhes["fib_zona_real"] = "+10 (382_618 = zona saudavel)"
+        else:
+            # Fibonacci contra ja penalizou. Checa se e zona de perda
+            if direcao == "LONG" and preco < fib_382:
+                score -= 10  # dupla penalidade: fib contra E zona perigosa
+                detalhes["fib_zona_real"] = "-10 (dip perigoso)"
+
+        # 14. SEPARACAO MA 1h > 2% (evidencia: +37pp quando combinado com 2+ alinhados)
+        # Mede momentum macro REAL. MAs coladas = mercado indeciso = 3x falha mais.
+        try:
+            if _h1_ma7 and _h1_ma25 and _h1_ma25 > 0:
+                sep_1h_pct = abs(_h1_ma7 - _h1_ma25) / _h1_ma25 * 100
+                if sep_1h_pct >= 5.0:
+                    score += 15  # macro MUITO forte
+                    detalhes["sep_1h"] = f"+15 (sep {sep_1h_pct:.1f}% macro forte)"
+                elif sep_1h_pct >= 2.0:
+                    score += 10
+                    detalhes["sep_1h"] = f"+10 (sep {sep_1h_pct:.1f}%)"
+                elif sep_1h_pct < 0.5:
+                    score -= 10  # MAs coladas = indeciso
+                    detalhes["sep_1h"] = f"-10 (sep {sep_1h_pct:.1f}% MAs coladas)"
+        except Exception:
+            pass
+
+        # 15. CRUZAMENTO FRESCO (CORRECAO C: +10pts)
         # Cruzamentos antigos perdem qualidade. Fresh = melhor.
         try:
             recent_cross = False
