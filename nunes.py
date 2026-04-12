@@ -3721,7 +3721,7 @@ def main() -> None:
             if _modo_op == "PAUSA":
                 RACIO_MARGEM_MAX = 10.0  # bloqueia tudo
             elif _modo_op == "PROTECAO":
-                RACIO_MARGEM_MAX = min(RACIO_MARGEM_MAX, 15.0)
+                RACIO_MARGEM_MAX = min(RACIO_MARGEM_MAX, 20.0)  # era 15 — travava demais (736 bloqueios/dia)
             elif _modo_op == "CAUTELA":
                 RACIO_MARGEM_MAX = min(RACIO_MARGEM_MAX, 20.0)
             # Recarrega blacklist (auditor pode ter atualizado)
@@ -5040,7 +5040,7 @@ def main() -> None:
                     _modo_vol = sentimento_mercado.get("sentimento") == "misto" or \
                                 sentimento_mercado.get("volatilidade") == "alta" or \
                                 sentimento_mercado.get("acao") == "REDUZIR_EXPOSICAO"
-                    MAX_ENTRADAS_POR_SCAN = 1 if _modo_vol else 3
+                    MAX_ENTRADAS_POR_SCAN = 2 if _modo_vol else 3  # era 1 — travava 124 bloqueios/dia
                     MAX_MESMA_DIRECAO = 50  # max 18 LONG ou 18 SHORT — colonia segue o mercado
 
                     abertos_scan = 0

@@ -497,8 +497,8 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
     # Score agora vai ate ~210 (com filtros de evidencia real).
     # Piso: 80 (antes 70). Teto: 120 (antes 90).
     # Um bom 3x pontua 100-160. Um ruim pontua 30-60.
-    SCORE_PISO = 80   # licao NAORISUSDT + novos filtros
-    SCORE_TETO = 120  # nao exigir demais (bloqueia oportunidades)
+    SCORE_PISO = 75   # afrouxado: 80 travava demais (1021 bloqueios/dia)
+    SCORE_TETO = 110  # teto tambem desce (nao exigir demais)
     score_atual = config.get("score_minimo_3x", 75)
 
     # Se PF curto (6h) < 0.5: 3x recentes estao falhando -> endurecer
