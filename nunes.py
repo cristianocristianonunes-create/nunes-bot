@@ -4643,7 +4643,37 @@ def main() -> None:
                             # CORRECAO D: aprende com historico - se symbol tem 2+ falhas em 30d, bloqueia
                             falhas_historicas = contar_falhas_3x_historico(symbol, dias=30)
                             historico_ruim = falhas_historicas >= 2
-                            if score >= score_min and not ja_tem_3x_ativo and ma_1h_ok and not symbol_bloqueado(symbol) and not cooldown_ativo and not historico_ruim:
+
+                            # 3x SIMULTANEOS: ate 3, com escada de qualidade
+                            # 1o: score >= 85 | 2o: >= 95 | 3o: >= 110
+                            # Trava: margem total 3x <= 15% saldo E racio < 18%
+                            MAX_3X_SIMULTANEOS = 3
+                            n_3x_ativos = len(dca_aplicado)
+                            if n_3x_ativos == 0:
+                                score_min_3x = score_min  # normal (85)
+                            elif n_3x_ativos == 1:
+                                score_min_3x = max(score_min, 95)  # 2o precisa ser melhor
+                            elif n_3x_ativos == 2:
+                                score_min_3x = max(score_min, 110)  # 3o so o melhor
+                            else:
+                                score_min_3x = 999  # bloqueado (max 3)
+
+                            # Trava de margem: 3x ativos nao podem passar 15% do saldo
+                            saldo_3x_check = get_saldo_total(client)
+                            margem_3x_total = sum(
+                                float(pp.get("positionInitialMargin", 0))
+                                for pp in abertas if pp["symbol"] in dca_aplicado
+                            )
+                            margem_3x_ok = margem_3x_total < saldo_3x_check * 0.15
+                            racio_3x_ok = get_racio_margem(client) < 18
+
+                            pode_3x = (score >= score_min_3x and ma_1h_ok
+                                       and not symbol_bloqueado(symbol)
+                                       and not cooldown_ativo and not historico_ruim
+                                       and margem_3x_ok and racio_3x_ok
+                                       and n_3x_ativos < MAX_3X_SIMULTANEOS)
+
+                            if pode_3x:
                                 # EVACUACAO REMOVIDA — licao 12/04 15:16: bot massacrou 15 formigas
                                 # pra alimentar 1 3x. Perdeu $1.10 em evacuacoes.
                                 # Na natureza, formigas nao comem outras formigas pra crescer.
@@ -4670,13 +4700,19 @@ def main() -> None:
                                 )
                                 registrar_aprendizado(client, symbol, direcao, "3x_auto", roi,
                                     f"Score {score}/110 | #{n_3x + 1}")
-                            elif ja_tem_3x_ativo and score >= score_min:
-                                log.info(f"  {symbol}: Score {score} bom mas ja tem 3x ativo em {list(dca_aplicado)} — aguarda")
+                            elif n_3x_ativos >= MAX_3X_SIMULTANEOS and score >= score_min:
+                                log.info(f"  {symbol}: Score {score} bom mas ja tem {n_3x_ativos} 3x ativos (max {MAX_3X_SIMULTANEOS})")
+                            elif score < score_min_3x and score >= score_min and n_3x_ativos > 0:
+                                log.info(f"  {symbol}: Score {score} < {score_min_3x} (precisa mais pra ser o {n_3x_ativos+1}o 3x)")
+                            elif not margem_3x_ok and score >= score_min:
+                                log.info(f"  {symbol}: Score {score} bom mas margem 3x total ${margem_3x_total:.2f} >= 15% saldo")
+                            elif not racio_3x_ok and score >= score_min:
+                                log.info(f"  {symbol}: Score {score} bom mas racio >= 18%")
                             elif cooldown_ativo and score >= score_min:
                                 tempo_restante = (12 * 3600 - (time.time() - cooldown_3x_falha.get(symbol, 0))) / 3600
-                                log.info(f"  {symbol}: Score {score} bom mas em cooldown ({tempo_restante:.1f}h restantes apos falha)")
+                                log.info(f"  {symbol}: Score {score} bom mas em cooldown ({tempo_restante:.1f}h restantes)")
                             elif historico_ruim and score >= score_min:
-                                log.info(f"  {symbol}: Score {score} bom mas tem {falhas_historicas} falhas historicas — bloqueado pelo aprendizado")
+                                log.info(f"  {symbol}: Score {score} bom mas tem {falhas_historicas} falhas historicas")
                             elif score >= 40:
                                 log.info(f"  {symbol}: Score {score}/110 — fraco, aguardando")
                             else:
