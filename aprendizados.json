@@ -29448,5 +29448,17 @@
     },
     "licao": "FALTAVA cooldown de reentrada. O bot vendeu pelo trailing (correto) e recomprou 3h depois (errado). Regra nova: apos vender por trailing/cascata, bloqueia reentrada no mesmo symbol por 6h.",
     "danos": "Perda de $4.72 (13% do saldo) numa unica posicao. Responsavel por 56% da perda overnight."
+  },
+  {
+    "timestamp": "2026-04-12T12:14:47.585523+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0581,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 13.284,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
   }
 ]

@@ -199,7 +199,7 @@ def limites_por_saldo(saldo: float, racio: float = 0, pf_14d: float = None) -> t
 TOP_PARES             = 326  # quantos pares por volume monitorar (50% do mercado)
 THREADS_VARREDURA     = 10   # pares analisados em paralelo
 INTERVALO_POSICOES    = 3    # segundos — acompanhamento quase real time
-INTERVALO_ENTRADAS    = 30   # segundos — busca novas entradas mais frequente
+INTERVALO_ENTRADAS    = 120  # segundos — reducao: 570 trades/48h era demais (taxas = 6.6% do saldo)
 RESUMO_HORA           = 22   # hora do resumo diário (horário local)
 META_CICLO_PCT        = float(os.getenv("META_CICLO_PCT", "5.0"))   # meta de lucro por ciclo (%)
 META_CICLO_FASE2_USD  = float(os.getenv("META_CICLO_FASE2_USD", "50.0"))  # meta fixa em USDT após $1.000
