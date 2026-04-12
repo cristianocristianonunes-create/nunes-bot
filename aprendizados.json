@@ -29460,5 +29460,523 @@
     "movimento_desde_inicio": 13.284,
     "padrao_adverso_ativo": false,
     "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T12:16:29.880258+00:00",
+    "symbol": "IRYSUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 3.0101246105919004,
+    "preco": 0.02566,
+    "detalhes": "3x #1 | Pico +7.5% saida +3.0% | Entrada DCA: +3%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.025647142857142858,
+        "ma25": 0.025751200000000002,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.025794285714285714,
+        "ma25": 0.025999599999999998,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.02545285714285714,
+        "ma25": 0.0254032,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.02541,
+        "topo": 0.02626,
+        "fib_382": 0.0257347,
+        "fib_500": 0.025834999999999997,
+        "fib_618": 0.025935299999999998,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T12:37:25.120777+00:00",
+    "symbol": "XANUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -60.614046646461986,
+    "preco": 0.007461,
+    "detalhes": "Score 75/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.0076159999999999995,
+        "ma25": 0.007710039999999999,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.007702142857142857,
+        "ma25": 0.00772444,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.007746714285714286,
+        "ma25": 0.00767868,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.007399,
+        "topo": 0.00784,
+        "fib_382": 0.007567462,
+        "fib_500": 0.0076194999999999995,
+        "fib_618": 0.007671538,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T12:45:47.832005+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0581,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 13.284,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.55% suporte, MA25 +1.10% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-12T12:50:44.360325+00:00",
+    "symbol": "XANUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 12.118174624109733,
+    "preco": 0.007584,
+    "detalhes": "3x #1 | Pico +14.4% saida +12.1% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.007528857142857143,
+        "ma25": 0.00757976,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.007604,
+        "ma25": 0.00769676,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.0077628571428571425,
+        "ma25": 0.0076832,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.007399,
+        "topo": 0.00784,
+        "fib_382": 0.007567462,
+        "fib_500": 0.0076194999999999995,
+        "fib_618": 0.007671538,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T12:58:41.456132+00:00",
+    "symbol": "QUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -51.24356775300172,
+    "preco": 0.009328,
+    "detalhes": "Score 75/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.009427857142857142,
+        "ma25": 0.009522000000000001,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.009518714285714285,
+        "ma25": 0.009579800000000001,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.009362142857142857,
+        "ma25": 0.009057039999999999,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.00922,
+        "topo": 0.009748,
+        "fib_382": 0.009421696,
+        "fib_500": 0.009484,
+        "fib_618": 0.009546304,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T13:08:20.628108+00:00",
+    "symbol": "QUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 17.358570371153643,
+    "preco": 0.009474,
+    "detalhes": "3x #1 | Pico +18.6% saida +17.4% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.009429428571428573,
+        "ma25": 0.00946932,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.00949142857142857,
+        "ma25": 0.00956544,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.009393857142857143,
+        "ma25": 0.009117080000000001,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.00922,
+        "topo": 0.009748,
+        "fib_382": 0.009421696,
+        "fib_500": 0.009484,
+        "fib_618": 0.009546304,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T13:16:16.940701+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0579,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 13.582,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.37% suporte, MA25 +0.43% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-12T13:46:29.608755+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0582,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 13.134,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.26% suporte, MA25 -0.31% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-12T13:51:41.454675+00:00",
+    "symbol": "ENJUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -56.20287868403015,
+    "preco": 0.04404,
+    "detalhes": "Score 77/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.04410285714285715,
+        "ma25": 0.043884799999999995,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.044031428571428576,
+        "ma25": 0.043585599999999995,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.03770857142857143,
+        "ma25": 0.032956400000000004,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03886,
+        "topo": 0.05168,
+        "fib_382": 0.043757239999999996,
+        "fib_500": 0.04527,
+        "fib_618": 0.04678276,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T13:54:32.799779+00:00",
+    "symbol": "ENJUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -27.917598554581474,
+    "preco": 0.04369,
+    "detalhes": "3x #1 | Pico +12.3% voltou -27.9%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.043957142857142854,
+        "ma25": 0.0438568,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.043981428571428574,
+        "ma25": 0.043571599999999995,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.037657142857142854,
+        "ma25": 0.032942,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03886,
+        "topo": 0.05168,
+        "fib_382": 0.043757239999999996,
+        "fib_500": 0.04527,
+        "fib_618": 0.04678276,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T14:10:49.551609+00:00",
+    "symbol": "PHBUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -57.14285501423524,
+    "preco": 0.091,
+    "detalhes": "Score 75/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.09165714285714285,
+        "ma25": 0.092644,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.09242857142857143,
+        "ma25": 0.09179999999999999,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.09128571428571429,
+        "ma25": 0.08923600000000001,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.0907,
+        "topo": 0.0942,
+        "fib_382": 0.09203700000000001,
+        "fib_500": 0.09245,
+        "fib_618": 0.092863,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T14:16:31.976727+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0583,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 12.985,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T14:21:43.566040+00:00",
+    "symbol": "PHBUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -0.441967213114754,
+    "preco": 0.0915,
+    "detalhes": "3x #1 | Pico +3.2% voltou -0.4%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.09092857142857144,
+        "ma25": 0.091764,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.0921142857142857,
+        "ma25": 0.091776,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.09134285714285714,
+        "ma25": 0.089252,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.0901,
+        "topo": 0.0942,
+        "fib_382": 0.0916662,
+        "fib_500": 0.09215000000000001,
+        "fib_618": 0.0926338,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T14:34:14.811373+00:00",
+    "symbol": "TAGUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -58.95910565217625,
+    "preco": 0.0008028,
+    "detalhes": "Score 75/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.0008170428571428572,
+        "ma25": 0.000828216,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.0008271714285714285,
+        "ma25": 0.0008320959999999999,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.0008354428571428572,
+        "ma25": 0.0007894280000000001,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.0008006,
+        "topo": 0.0008492,
+        "fib_382": 0.0008191652,
+        "fib_500": 0.0008249,
+        "fib_618": 0.0008306348000000001,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T14:48:01.322810+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0579,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 13.582,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T14:48:12.392606+00:00",
+    "symbol": "TAGUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 14.323092583097116,
+    "preco": 0.0008138,
+    "detalhes": "3x #1 | Pico +19.6% saida +14.3% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.0008133142857142857,
+        "ma25": 0.00081456,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.0008151428571428572,
+        "ma25": 0.0008281320000000001,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.0008371857142857144,
+        "ma25": 0.0007899160000000001,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.0007877,
+        "topo": 0.0008492,
+        "fib_382": 0.000811193,
+        "fib_500": 0.0008184500000000001,
+        "fib_618": 0.0008257070000000001,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T15:19:28.008421+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0583,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 12.985,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T15:22:17.804713+00:00",
+    "symbol": "GERAL",
+    "direcao": "?",
+    "tipo": "licao_equilibrar_era_veneno",
+    "roi_final": 0,
+    "preco": 0,
+    "detalhes": "Equilibrar margem era o VERDADEIRO assassino. Rodava a cada 30s adicionando margem a perdedoras quando MA favorecia momentaneamente. FIGHTUSDT: posicao de $0.25 virou $5+ silenciosamente, perdeu $7 quando fechou (7 lotes no mesmo segundo). Blacklist nao resolve porque o problema era OPERACIONAL, nao da cripto. Qualquer ativo sofreria o mesmo. REMOVIDO PERMANENTEMENTE. Topup automatico tambem desabilitado. Unico topup valido: alimentar_formiga pos-cascata.",
+    "licao": "Nunca adicionar margem a posicao perdedora automaticamente. O 3x com score 75+ e o unico mecanismo que pode adicionar margem a perdedoras, e so quando ha confirmacao tecnica forte."
+  },
+  {
+    "timestamp": "2026-04-12T15:22:17.804726+00:00",
+    "symbol": "GERAL",
+    "direcao": "?",
+    "tipo": "licao_reset_completo_12_04",
+    "roi_final": 0,
+    "preco": 0,
+    "detalhes": "User fechou TODAS as 50 posicoes manualmente em 12/04 para recomecar limpo. Motivo: saldo caiu de $35 pra $32 em 24h apesar de ter 45 positivas e cobertura 36x. PnL realizado era negativo porque: (1) FIGHTUSDT perdeu $7 pelo equilibrar, (2) 570 trades em 48h = $1.78 de taxas, (3) recompra de ativos vendidos. Todas essas causas foram corrigidas antes do reset. Bot vai reabrir seguindo a tendencia do mercado (BEAR em 12/04, BTC -2.8%).",
+    "licao": "Reset completo e valido quando: (1) as causas de perda foram identificadas e corrigidas, (2) o mercado tem direcao clara, (3) as posicoes existentes carregam 'dna' da estrategia antiga (equilibrar inflado). Nao e valido como decisao emocional."
+  },
+  {
+    "timestamp": "2026-04-12T15:22:17.804728+00:00",
+    "symbol": "GERAL",
+    "direcao": "?",
+    "tipo": "licao_volume_trades_mata",
+    "roi_final": 0,
+    "preco": 0,
+    "detalhes": "570 trades em 48h = $1.78 de taxas (6.6% do saldo em 2 dias). Projecao mensal: $26 de taxas sobre saldo de $32 = 81% do saldo virava taxa. Causa: INTERVALO_ENTRADAS era 30s com MAX_ENTRADAS_POR_SCAN=10. Corrigido para 120s e max 3. Reducao estimada: 8x menos trades.",
+    "licao": "Volume de trades e um custo invisivel. Cada trade custa $0.003 de taxa. 100 trades/dia = $0.30/dia = $9/mes. Com saldo de $30, isso e 30% do capital virando taxa. Menos trades = mais lucro liquido."
+  },
+  {
+    "timestamp": "2026-04-12T15:22:17.804730+00:00",
+    "symbol": "GERAL",
+    "direcao": "?",
+    "tipo": "licao_meta_diaria_e_emocao",
+    "roi_final": 0,
+    "preco": 0,
+    "detalhes": "User pediu meta de R$200 no dia (precisava +22% sobre saldo de $32). Com BTC -2.8%, impossivel sem risco extremo. Meta diaria em $ e emocional, nao tecnica. O sistema nao controla o mercado. Metas de PROCESSO (zero erros operacionais, cobertura alta) sao controlaveis. Metas de VALOR num dia especifico nao sao.",
+    "licao": "Nunca forcar resultado financeiro num dia especifico. O bot maximiza probabilidade no longo prazo. Dias individuais dependem do mercado."
+  },
+  {
+    "timestamp": "2026-04-12T15:22:17.804731+00:00",
+    "symbol": "GERAL",
+    "direcao": "?",
+    "tipo": "licao_seguir_tendencia_mercado",
+    "roi_final": 0,
+    "preco": 0,
+    "detalhes": "Em 12/04 mercado BEAR (193 caindo vs 97 subindo, BTC -2.8%). User decidiu resetar e seguir a tendencia. Bot tem sinais MOMENTUM (var24h >8%), GUARDIAO (squeeze), FORMIGUINHA (MA+RSI) que naturalmente se alinham com o mercado. Filtro BTC bloqueia LONGs quando BTC cai >2%. O bot ja e projetado pra seguir tendencia — nao precisa intervencao manual.",
+    "licao": "O bot segue tendencia por design. Em mercado BEAR os sinais SHORT dominam. Em BULL os LONG dominam. Nao precisa resetar pra mudar direcao — o bot muda sozinho."
   }
 ]
