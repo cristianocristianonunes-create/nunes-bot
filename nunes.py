@@ -4591,12 +4591,13 @@ def main() -> None:
                             log.warning(f"  Erro 3x score {symbol}: {e}")
                 # --- MONITORANDO (positivo mas abaixo do limiar de reversão) ---
                 if roi > 0 and symbol not in dca_aplicado:
-                    # Saída apenas pelo trailing stop (sem reversão de MA)
-                    if True:
-                        # --- TOPUP AUTOMÁTICO (margem $1-$2, ROI positivo, MA a favor, rácio ok) ---
+                    # TOPUP AUTOMATICO DESABILITADO — licao FIGHTUSDT
+                    # Topup inflava margem silenciosamente. Perda multiplicada.
+                    # Unico topup valido: reforco pos-cascata (alimentar_formiga).
+                    if False:  # DESABILITADO
                         margem_atual = float(p.get("positionInitialMargin", 0))
                         ultimo_topup = alerta_dca_log.get(f"topup_{symbol}", 0)
-                        topup_cooldown = time.time() - ultimo_topup >= 3600  # 1x por hora no máximo
+                        topup_cooldown = time.time() - ultimo_topup >= 3600
                         if (1.0 <= margem_atual <= 2.0
                                 and topup_cooldown
                                 and get_racio_margem(client) < RACIO_MARGEM_MAX):
@@ -4671,76 +4672,17 @@ def main() -> None:
                 except Exception:
                     pass
 
-            # --- EQUILIBRAR MARGEM: topup inteligente em posicoes abaixo de 3% ---
-            # Fase 2: bot detecta posicoes com margem abaixo do alvo e faz topup
-            # quando MA está a favor (momento certo). Roda a cada 5 min.
-            if agora - alerta_dca_log.get("equilibrar_scan", 0) >= 30:  # 30s — rapido pra pegar MA virando
-                alerta_dca_log["equilibrar_scan"] = agora
-                try:
-                    saldo_eq = get_saldo_total(client)
-                    alvo_margem = saldo_eq * risco_atual()
-                    racio_eq = get_racio_margem(client)
-
-                    if racio_eq < RACIO_MARGEM_MAX:  # topup usa limite mais conservador (6%)
-                        for p in abertas:
-                            sym_eq = p["symbol"]
-                            amt_eq = float(p["positionAmt"])
-                            if amt_eq == 0:
-                                continue
-                            margem_eq = float(p.get("positionInitialMargin", 0))
-                            falta_eq = alvo_margem - margem_eq
-
-                            if falta_eq < 0.50:  # ja esta equilibrada ou quase
-                                continue
-                            if sym_eq in dca_aplicado:  # 3x ativo, nao interferir
-                                continue
-
-                            dire_eq = "LONG" if amt_eq > 0 else "SHORT"
-
-                            # Verifica MA — so faz topup se momento for favoravel
-                            try:
-                                df_eq = get_candles(client, sym_eq, Client.KLINE_INTERVAL_5MINUTE, limit=30)
-                                df_eq["ma7"] = df_eq["close"].rolling(7).mean()
-                                df_eq["ma25"] = df_eq["close"].rolling(25).mean()
-                                c_eq = df_eq.iloc[-1]
-                                if dire_eq == "LONG":
-                                    ma_favor = c_eq["ma7"] > c_eq["ma25"]
-                                else:
-                                    ma_favor = c_eq["ma7"] < c_eq["ma25"]
-
-                                # Posicao ja positiva (+10%+): topup mesmo com MA contra
-                                # Licao LABUSDT: +37% com $0.29 = centavos. Topup multiplica lucro.
-                                roi_eq = calcular_roi(p)
-                                if not ma_favor and roi_eq < 10:
-                                    continue  # MA contra E nao ta lucrando — espera
-
-                                # Momento bom — executa topup
-                                preco_eq = float(client.futures_symbol_ticker(symbol=sym_eq)["price"])
-                                precisao_eq = get_precisao_quantidade(client, sym_eq)
-                                qty_eq = round((falta_eq * ALAVANCAGEM) / preco_eq, precisao_eq)
-                                side_eq = "BUY" if dire_eq == "LONG" else "SELL"
-
-                                if qty_eq > 0 and MODO == "real":
-                                    # Checa racio antes de cada topup
-                                    if get_racio_margem(client) >= RACIO_MARGEM_MAX:
-                                        log.info(f"  Equilibrar: racio {RACIO_MARGEM_MAX:.0f}% atingido, parando topups")
-                                        break
-                                    client.futures_create_order(
-                                        symbol=sym_eq, side=side_eq,
-                                        type="MARKET", quantity=qty_eq, reduceOnly=False
-                                    )
-                                    topup_recente[sym_eq] = time.time()
-                                    log.info(f"  {sym_eq}: EQUILIBRADO +${falta_eq:.2f} margem (alvo {RISCO_POR_TRADE*100:.0f}% banca) | MA a favor")
-                                    telegram(
-                                        f"<b>Margem equilibrada: {sym_eq}</b>\n"
-                                        f"{dire_eq} | +${falta_eq:.2f} adicionado\n"
-                                        f"Margem: ${margem_eq:.2f} -> ${margem_eq + falta_eq:.2f} (alvo {RISCO_POR_TRADE*100:.0f}%)\n"
-                                        f"MA7 a favor — momento certo para reforcar."
-                                    )
-                            except Exception as e:
-                                log.debug(f"  Erro equilibrar {sym_eq}: {e}")
-                except Exception as e:
-                    log.debug(f"Erro equilibrar scan: {e}")
+            # --- EQUILIBRAR MARGEM DESABILITADO ---
+            # Licao FIGHTUSDT: o equilibrar adicionava margem a posicoes perdedoras
+            # repetidamente (a cada 30s). Posicao de $0.25 virava $5+.
+            # Quando fechava, perda era multiplicada pela margem acumulada.
+            # FIGHTUSDT perdeu $7 por causa disso (7 lotes no mesmo segundo).
+            #
+            # O reforco pos-cascata (alimentar_formiga) ja cobre o caso de
+            # vencedoras que precisam de mais margem. Perdedoras NAO devem
+            # receber margem adicional — o 3x cuida disso quando houver sinal.
+            #
+            # REMOVIDO PERMANENTEMENTE. Nao reabilitar sem evidencia forte.
 
             # --- PROTECAO DE SALDO: trailing mais apertado quando saldo cai ---
             # Meta: saldo E PnL subindo juntos. Se saldo caiu no dia,
