@@ -2854,12 +2854,23 @@ def sinal_guardiao(client: Client, symbol: str, btc_tendencia: str = "lateral") 
         c5_entrada = df5_entrada.iloc[-1]
 
         # RSI contra: LONG sobrecomprado ou SHORT sobrevendido
-        if direcao_candidata == "LONG" and rsi_entrada > 70:
+        # EXCECAO: se ativo ja moveu forte (>15% em 24h), RSI alto e NORMAL (momentum)
+        # Licao RAVEUSDT +175%: bloqueada por RSI 71. Perdeu o foguete inteiro.
+        try:
+            _ticker_rsi = client.futures_ticker(symbol=symbol)
+            _var24_rsi = abs(float(_ticker_rsi.get("priceChangePercent", 0)))
+        except Exception:
+            _var24_rsi = 0
+        _em_foguete = _var24_rsi >= 15  # variacao 24h > 15% = foguete confirmado
+
+        if direcao_candidata == "LONG" and rsi_entrada > 70 and not _em_foguete:
             log.info(f"  {symbol}: LONG bloqueado na entrada — RSI {rsi_entrada:.0f} sobrecomprado")
             return None
-        if direcao_candidata == "SHORT" and rsi_entrada < 30:
+        if direcao_candidata == "SHORT" and rsi_entrada < 30 and not _em_foguete:
             log.info(f"  {symbol}: SHORT bloqueado na entrada — RSI {rsi_entrada:.0f} sobrevendido")
             return None
+        if _em_foguete and (rsi_entrada > 70 or rsi_entrada < 30):
+            log.info(f"  {symbol}: RSI {rsi_entrada:.0f} ignorado — foguete ({_var24_rsi:.0f}% em 24h)")
 
         # MA 5min contra: nao entra nadando contra o micro
         if direcao_candidata == "LONG" and c5_entrada["ma7"] < c5_entrada["ma25"]:
@@ -2903,7 +2914,13 @@ def sinal_formiguinha(client: Client, symbol: str, btc_tendencia: str = "lateral
         rsi_val = calcular_rsi(df5)
 
         # RSI fora da faixa = nao entra
-        if rsi_val > 70 or rsi_val < 30:
+        # EXCECAO: foguetes (var24h > 15%) tem RSI alto naturalmente
+        try:
+            _tk_f = client.futures_ticker(symbol=symbol)
+            _vf = abs(float(_tk_f.get("priceChangePercent", 0)))
+        except Exception:
+            _vf = 0
+        if (rsi_val > 70 or rsi_val < 30) and _vf < 15:
             return None
 
         # Volume minimo
