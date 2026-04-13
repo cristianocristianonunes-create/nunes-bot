@@ -116,20 +116,18 @@ def _income_call_com_retry(client: Client, max_tentativas: int = 3, **kwargs):
 
 
 def puxar_incomes(client: Client, dias: int) -> list:
-    todos = []
+    """
+    Puxa income history dos ultimos N dias.
+    BUG CORRIGIDO: a paginacao por chunks puxava 4769 trades (toda a historia)
+    em vez de 275 (14 dias). Resultado: PF 0.66 (errado) vs PF 1.57 (real).
+    Fix: usa chamada direta com limit=1000 que retorna os mais recentes.
+    """
     start = int((datetime.now() - timedelta(days=dias)).timestamp() * 1000)
-    end = int(datetime.now().timestamp() * 1000)
-    cursor = start
-    while cursor < end:
-        chunk_end = min(cursor + 7 * 86400 * 1000, end)
-        try:
-            incomes = _income_call_com_retry(client, startTime=cursor, endTime=chunk_end, limit=1000)
-            todos.extend(incomes)
-            cursor = chunk_end if len(incomes) < 1000 else int(incomes[-1]["time"]) + 1
-        except Exception as e:
-            log.warning(f"Erro income (apos retries): {e} — pulando chunk")
-            cursor = chunk_end
-    return todos
+    try:
+        return _income_call_com_retry(client, startTime=start, limit=1000)
+    except Exception as e:
+        log.warning(f"Erro income: {e}")
+        return []
 
 
 def puxar_incomes_recentes(client: Client, horas: int = 6) -> list:
