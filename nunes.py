@@ -2495,10 +2495,53 @@ def multiplicar_colonia(client: Client, symbol_origem: str, direcao: str, pnl_re
         abertas_atual = posicoes_abertas(client)
         max_pos = max_posicoes_inteligente(saldo_total, get_racio_margem(client))
         espaco = max_pos - len(abertas_atual)
+
+        # SELECAO NATURAL: se cheio, substitui a PIOR formiga
+        # Na natureza: colonia cheia + nova nasce = mais fraca morre
         if espaco <= 0:
-            log.info(f"  Multiplicacao: sem espaco ({len(abertas_atual)}/{max_pos})")
-            return 0
-        n_criar = min(n_possiveis, espaco)
+            # Acha a pior formiga (ROI mais negativo, nao em DCA)
+            piores = sorted(
+                [p for p in abertas_atual if float(p["positionAmt"]) != 0
+                 and p["symbol"] not in dca_aplicado
+                 and p["symbol"] != symbol_origem],
+                key=lambda p: calcular_roi(p)
+            )
+            if piores:
+                pior = piores[0]
+                roi_pior = calcular_roi(pior)
+                # So substitui se a pior tiver ROI < -30% (genuinamente ruim)
+                if roi_pior < -30:
+                    sym_pior = pior["symbol"]
+                    amt_pior = float(pior["positionAmt"])
+                    side_pior = "SELL" if amt_pior > 0 else "BUY"
+                    pnl_pior = float(pior.get("unrealizedProfit", 0))
+                    try:
+                        if MODO == "real":
+                            client.futures_create_order(
+                                symbol=sym_pior, side=side_pior,
+                                type="MARKET", quantity=abs(amt_pior), reduceOnly=True
+                            )
+                        log.info(f"  SELECAO NATURAL: {sym_pior} (ROI {roi_pior:+.0f}% PnL ${pnl_pior:+.2f}) substituida por filha de {symbol_origem}")
+                        telegram(
+                            f"<b>Selecao natural: {sym_pior} substituida</b>\n"
+                            f"ROI {roi_pior:+.0f}% | PnL ${pnl_pior:+.2f}\n"
+                            f"Filha de {symbol_origem} entra no lugar."
+                        )
+                        registrar_acao(sym_pior, "venda", f"Selecao natural: substituida por filha de {symbol_origem} (ROI {roi_pior:+.0f}%)", {
+                            "pnl": pnl_pior, "roi": roi_pior,
+                        })
+                        espaco = 1  # agora tem 1 slot
+                    except Exception as e:
+                        log.warning(f"  Erro selecao natural {sym_pior}: {e}")
+                        return 0
+                else:
+                    log.info(f"  Multiplicacao: cheio mas pior formiga ROI {roi_pior:+.0f}% > -30% — nao substitui")
+                    return 0
+            else:
+                log.info(f"  Multiplicacao: sem espaco e sem candidata pra substituir")
+                return 0
+
+        n_criar = min(n_possiveis, max(espaco, 1))
 
         # Busca ativos pra abrir (na direcao da colonia, que nao estejam abertos)
         direcao_colonia = cfg("direcao_colonia", "AMBOS")
