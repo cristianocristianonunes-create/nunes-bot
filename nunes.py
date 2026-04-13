@@ -199,7 +199,7 @@ def limites_por_saldo(saldo: float, racio: float = 0, pf_14d: float = None) -> t
 TOP_PARES             = 80   # reduzido de 326: 3 bots no mesmo IP = rate limit
 THREADS_VARREDURA     = 3    # reduzido de 10: menos chamadas simultaneas
 INTERVALO_POSICOES    = 3    # segundos — acompanhamento quase real time
-INTERVALO_ENTRADAS    = 120  # segundos — reducao: 570 trades/48h era demais (taxas = 6.6% do saldo)
+INTERVALO_ENTRADAS    = 300  # 5 minutos — 3 bots no mesmo IP precisam de espaco
 RESUMO_HORA           = 22   # hora do resumo diário (horário local)
 META_CICLO_PCT        = float(os.getenv("META_CICLO_PCT", "5.0"))   # meta de lucro por ciclo (%)
 META_CICLO_FASE2_USD  = float(os.getenv("META_CICLO_FASE2_USD", "50.0"))  # meta fixa em USDT após $1.000
