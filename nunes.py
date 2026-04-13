@@ -2483,10 +2483,13 @@ def multiplicar_colonia(client: Client, symbol_origem: str, direcao: str, pnl_re
         saldo_total = get_saldo_total(client)
         margem_por_formiga = saldo_total * risco_atual()
 
-        # Quantas novas formigas cabem com o lucro realizado?
-        # Cada formiga custa ~margem_por_formiga de margem
-        n_possiveis = int(pnl_realizado / margem_por_formiga) if margem_por_formiga > 0 else 0
-        n_possiveis = max(1, min(n_possiveis, 3))  # minimo 1, maximo 3
+        # Quantas novas formigas cabem?
+        # O PnL realizado vai pro caixa (saldo disponivel).
+        # A nova formiga usa o saldo disponivel, nao o PnL diretamente.
+        # Se tem saldo livre >= margem_por_formiga, pode criar pelo menos 1.
+        saldo_livre = get_banca(client)
+        n_por_saldo = int(saldo_livre / margem_por_formiga) if margem_por_formiga > 0 else 0
+        n_possiveis = max(1, min(n_por_saldo, 3))  # minimo 1, maximo 3
 
         # Checa se tem espaco (MAX_POSICOES)
         abertas_atual = posicoes_abertas(client)
@@ -4282,11 +4285,12 @@ def main() -> None:
                                 f"{direcao} | ROI: {roi:+.0f}% | PnL: ${pnl_esta:+.2f}\n"
                                 f"30% no bolso (${pnl_esta*0.30:+.2f}). PnL aberto pos: ${pnl_apos:+.2f}{extra}"
                             )
+                            pnl_realizado_cascata = pnl_esta * 0.30  # o que vai pro caixa
                             fechar_parcial(client, p, 0.30, f"Cascata 1 {tipo_cascata} PnL ${pnl_esta:+.2f}")
                             parcial_10pct.add(symbol)
                             if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
                                 time.sleep(0.5)
-                                alimentar_formiga(client, symbol, direcao, 1, cfg("reforco_1_fator", 0.5))
+                                multiplicar_colonia(client, symbol, direcao, pnl_realizado_cascata)
                             continue
 
                     # CASCATA 2: PnL >= 6% saldo, fecha 43%
@@ -4302,11 +4306,12 @@ def main() -> None:
                                 f"{direcao} | PnL: ${pnl_esta:+.2f}\n"
                                 f"43% no bolso. PnL aberto pos: ${pnl_apos:+.2f}"
                             )
+                            pnl_realizado_c2 = pnl_esta * 0.43
                             fechar_parcial(client, p, 0.43, f"Cascata 2 PnL ${pnl_esta:+.2f}")
                             parcial_nivel2.add(symbol)
                             if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
                                 time.sleep(0.5)
-                                alimentar_formiga(client, symbol, direcao, 2, cfg("reforco_2_fator", 1.0))
+                                multiplicar_colonia(client, symbol, direcao, pnl_realizado_c2)
                             continue
 
                     # CASCATA 3: PnL >= 10% saldo, fecha 75%
@@ -4322,11 +4327,12 @@ def main() -> None:
                                 f"{direcao} | PnL: ${pnl_esta:+.2f}\n"
                                 f"75% no bolso. PnL aberto pos: ${pnl_apos:+.2f}"
                             )
+                            pnl_realizado_c3 = pnl_esta * 0.75
                             fechar_parcial(client, p, 0.75, f"Cascata 3 PnL ${pnl_esta:+.2f}")
                             parcial_500.add(symbol)
                             if cfg("reforco_habilitado", True) and not symbol_bloqueado(symbol):
                                 time.sleep(0.5)
-                                alimentar_formiga(client, symbol, direcao, 3, cfg("reforco_3_fator", 1.5))
+                                multiplicar_colonia(client, symbol, direcao, pnl_realizado_c3)
                             continue
 
                 # --- POSIÇÕES NORMAIS — TRAILING STOP ---
