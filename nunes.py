@@ -3780,13 +3780,12 @@ def main() -> None:
             _racio_override = cfg("racio_margem_max_override")
             if _racio_override is not None:
                 RACIO_MARGEM_MAX = float(_racio_override)
+            # MODO OPERACIONAL: so PAUSA tem efeito real. PROTECAO e CAUTELA
+            # nao restringem mais — o bug do PF fazia ficar em PROTECAO eternamente.
+            # O racio ja protege naturalmente (bloqueio em RACIO_MARGEM_NORMAL).
             _modo_op = cfg("modo_operacional", "NORMAL")
             if _modo_op == "PAUSA":
-                RACIO_MARGEM_MAX = 10.0  # bloqueia tudo
-            elif _modo_op == "PROTECAO":
-                RACIO_MARGEM_MAX = min(RACIO_MARGEM_MAX, 20.0)  # era 15 — travava demais (736 bloqueios/dia)
-            elif _modo_op == "CAUTELA":
-                RACIO_MARGEM_MAX = min(RACIO_MARGEM_MAX, 20.0)
+                RACIO_MARGEM_MAX = 10.0  # so pausa e bloqueio real
             # Recarrega blacklist (auditor pode ter atualizado)
             BLACKLIST = carregar_blacklist()
 
