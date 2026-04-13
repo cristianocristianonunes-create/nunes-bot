@@ -76,12 +76,12 @@ MASTER_API_SECRET  = os.getenv("MASTER_API_SECRET", "")
 
 MODO               = os.getenv("MODO", "simulacao")
 ALAVANCAGEM        = int(os.getenv("ALAVANCAGEM", "20"))
-RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.03"))  # 3% — concentrado: cada formiga com massa pra gerar lucro real
-RISCO_POR_TRADE_EMERGENCIA = 0.02  # 2% se tiver posicao presa
+RISCO_POR_TRADE    = float(os.getenv("RISCO_POR_TRADE", "0.007"))  # 0.7% — Lisa provou que funciona (+43% em 8h)
+RISCO_POR_TRADE_EMERGENCIA = 0.005  # 0.5% se tiver posicao presa
 RACIO_MARGEM_NORMAL    = 25.0   # 25% — cabe ~35 formiguinhas. Liquidacao em 40-50%, margem segura.
 RACIO_MARGEM_EMERGENCIA = 20.0  # com posicao presa, mais conservador
 RACIO_MARGEM_MAX   = RACIO_MARGEM_NORMAL  # dinamico — ajustado no loop principal
-MAX_POSICOES          = 20   # Concentrado: menos formigas com mais margem = lucro real por trade
+MAX_POSICOES          = 20   # Lisa provou: 20 formigas x $0.24 = +43% em 8h
 
 # ---------------------------------------------------------------------------
 # Caminhos relativos ao diretorio do script — funciona em qualquer pasta
