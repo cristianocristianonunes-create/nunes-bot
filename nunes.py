@@ -2639,6 +2639,65 @@ def alimentar_formiga(client: Client, symbol: str, direcao: str, nivel: int, fat
     return False
 
 
+def analisar_e_salvar_fechamento(client: Client, symbol: str, direcao: str, roi: float, pnl: float, motivo: str) -> None:
+    """
+    Analisa POR QUE acertou ou errou e salva o snapshot completo.
+    Roda TODA VEZ que uma posicao fecha (parcial ou total).
+    O auditor e o contar_falhas_3x_historico consultam esses dados.
+    """
+    try:
+        resultado = "acerto" if pnl > 0 else "erro"
+        # Snapshot tecnico no momento do fechamento
+        tk = client.futures_ticker(symbol=symbol)
+        var24 = float(tk.get("priceChangePercent", 0))
+        vol24 = float(tk.get("quoteVolume", 0)) / 1e6
+
+        # Verifica se direcao estava alinhada com var24h
+        if direcao == "LONG":
+            alinhado = var24 > 0
+        else:
+            alinhado = var24 < 0
+
+        dados = {
+            "symbol": symbol,
+            "direcao": direcao,
+            "resultado": resultado,
+            "roi": roi,
+            "pnl": pnl,
+            "motivo": motivo,
+            "var24h": var24,
+            "vol24h_M": vol24,
+            "alinhado_mercado": alinhado,
+        }
+
+        # Salva no aprendizados
+        caso = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "symbol": symbol,
+            "direcao": direcao,
+            "tipo": f"fechamento_{resultado}",
+            "roi_final": roi,
+            "preco": float(tk.get("lastPrice", 0)),
+            "detalhes": f"{resultado.upper()}: {direcao} {symbol} ROI {roi:+.0f}% PnL ${pnl:+.2f} | var24h {var24:+.1f}% vol ${vol24:.0f}M | alinhado: {alinhado} | {motivo}",
+        }
+        try:
+            with open(APRENDIZADOS_FILE, "r", encoding="utf-8") as f:
+                apr = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            apr = []
+        apr.append(caso)
+        # Mantem max 2000
+        if len(apr) > 2000:
+            apr = apr[-2000:]
+        with open(APRENDIZADOS_FILE, "w", encoding="utf-8") as f:
+            json.dump(apr, f, indent=2, ensure_ascii=False)
+
+        if abs(pnl) > 0.10:
+            log.info(f"  [APRENDIZADO] {resultado.upper()}: {symbol} {direcao} ROI {roi:+.0f}% ${pnl:+.2f} | var24h {var24:+.1f}% | alinhado: {alinhado}")
+    except Exception:
+        pass  # nao pode travar o fechamento por causa do aprendizado
+
+
 def fechar_parcial(client: Client, posicao: dict, pct: float, motivo: str) -> None:
     """Fecha X% da posição a mercado."""
     symbol     = posicao["symbol"]
@@ -2675,6 +2734,8 @@ def fechar_parcial(client: Client, posicao: dict, pct: float, motivo: str) -> No
             "pnl_realizado": pnl * pct,
             "qty": qty_fechar,
         })
+        # APRENDIZADO AUTOMATICO: salva por que acertou ou errou
+        analisar_e_salvar_fechamento(client, symbol, direcao, roi, pnl * pct, motivo)
         # COOLDOWN DE REENTRADA: bloqueia recompra do mesmo symbol por 6h
         # Licao MAGMAUSDT: bot vendeu por trailing (303%), recomprou 3h depois, perdeu $4.72
         COOLDOWN_REENTRADA_HORAS = 6
