@@ -165,8 +165,8 @@ def max_posicoes_inteligente(saldo: float, racio_atual: float = 0, pf_14d: float
     # 3. Calculo base
     max_calculado = int(margem_max_total / margem_por_formiga) if margem_por_formiga > 0 else MAX_POSICOES
 
-    # 4. Se racio ja esta em zona de atencao (>=18%), CONGELA aumentos
-    if racio_atual >= 18:
+    # 4. Se racio ja esta em zona de atencao (>=25%), CONGELA aumentos
+    if racio_atual >= 25:
         return min(max_calculado, MAX_POSICOES)
 
     # 5. Tetos absolutos por faixa de saldo (defesa final)
