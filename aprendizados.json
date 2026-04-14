@@ -30230,5 +30230,2759 @@
     "preco": 0,
     "detalhes": "37 3x manuais analisados. 3x PEQUENOS (<$5 margem): WR 92% (12/13). 3x GRANDES (>=$5): WR 0% (0/8), perda total $140. O user tem intuicao EXCELENTE (timing, ativo). O problema e o TAMANHO. 3x grande vira bomba. Nunca adicionar mais de $5 de margem num 3x manual.",
     "licao": "3x pequeno ($1-4) funciona. 3x grande ($5+) SEMPRE falhou. Limitar margem do 3x automatico proporcionalmente. Trailing pos-3x afrouxado de 1pp pra 2-10pp escalonado pelo pico."
+  },
+  {
+    "timestamp": "2026-04-12T17:22:15.815327+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0598,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 10.746,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T17:30:52.724330+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0603,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 10.0,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.51% suporte, MA25 +1.03% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-12T17:33:26.282513+00:00",
+    "symbol": "WETUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 59.6781780790717,
+    "preco": 0.1001,
+    "detalhes": "3x #1 | Pico +75.8% saida +59.7% | Entrada DCA: +60%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.10034,
+        "ma25": 0.09863960000000001,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.0982342857142857,
+        "ma25": 0.09701880000000002,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.09407428571428571,
+        "ma25": 0.090764,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.09447,
+        "topo": 0.10104,
+        "fib_382": 0.09697974,
+        "fib_500": 0.09775500000000001,
+        "fib_618": 0.09853026000000001,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T17:44:57.187492+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0606,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 9.552,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.55% suporte, MA25 +0.94% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-12T17:47:48.431130+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 10.448,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.56% suporte, MA25 +0.92% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-12T17:50:54.352134+00:00",
+    "symbol": "WETUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 112.50373289907125,
+    "preco": 0.10322,
+    "detalhes": "3x #1 | Pico +123.0% saida +112.5% | Entrada DCA: +113%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.10275285714285713,
+        "ma25": 0.1012884,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.10130571428571429,
+        "ma25": 0.0983488,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.09452,
+        "ma25": 0.09088879999999999,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.09447,
+        "topo": 0.10347,
+        "fib_382": 0.097908,
+        "fib_500": 0.09897,
+        "fib_618": 0.10003200000000001,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T18:16:43.301461+00:00",
+    "symbol": "VELODROMEUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_auto",
+    "roi_final": -52.15123859191656,
+    "preco": 0.01534,
+    "detalhes": "Score 93/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.015337142857142858,
+        "ma25": 0.0153404,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.01532857142857143,
+        "ma25": 0.015126000000000002,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.015207142857142858,
+        "ma25": 0.0155928,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.01493,
+        "topo": 0.01538,
+        "fib_382": 0.0151019,
+        "fib_500": 0.015155,
+        "fib_618": 0.0152081,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T18:18:06.550300+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0592,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 11.642,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T18:27:08.023355+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0587,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 12.388,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T18:33:08.392782+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0589,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 12.09,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.40% suporte, MA25 -0.32% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-12T18:36:33.745345+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0587,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 12.388,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T18:46:42.355098+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0584,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 12.836,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T18:53:38.573418+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0581,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 13.284,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T19:26:32.685423+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0588,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 12.239,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T19:39:49.457247+00:00",
+    "symbol": "MAGMAUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -98.51454877348075,
+    "preco": 0.198,
+    "detalhes": "Score 95/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.1961928571428571,
+        "ma25": 0.19606399999999996,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.19591857142857144,
+        "ma25": 0.2007568,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.19943714285714284,
+        "ma25": 0.1898176,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.19122,
+        "topo": 0.20819,
+        "fib_382": 0.19770253999999998,
+        "fib_500": 0.199705,
+        "fib_618": 0.20170746,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-12T19:44:29.237205+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0598,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 10.746,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T20:14:35.677679+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0591,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 11.791,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T20:44:45.328540+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0605,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 9.701,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T21:14:47.565042+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0604,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 9.851,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T21:45:06.729006+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0596,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 11.045,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.28% suporte, MA25 +0.63% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-12T22:15:32.655553+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0597,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 10.896,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.22% suporte, MA25 +0.21% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-12T22:45:52.757521+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0596,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 11.045,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T23:15:57.292794+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0593,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 11.493,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-12T23:46:16.391764+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0594,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 11.343,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T00:16:22.228077+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0609,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 9.104,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T00:27:51.098418+00:00",
+    "symbol": "0GUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -59.76384570921564,
+    "preco": 0.6074,
+    "detalhes": "Score 75/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.6007714285714286,
+        "ma25": 0.603896,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.6062428571428572,
+        "ma25": 0.6115520000000001,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.6153000000000001,
+        "ma25": 0.569748,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.5942,
+        "topo": 0.626,
+        "fib_382": 0.6063476,
+        "fib_500": 0.6101,
+        "fib_618": 0.6138524,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T00:29:49.180471+00:00",
+    "symbol": "0GUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -1.4304870042004971,
+    "preco": 0.6084,
+    "detalhes": "3x #1 | Pico +1.2% voltou -1.4%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.6028,
+        "ma25": 0.6037680000000001,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.6063857142857143,
+        "ma25": 0.611592,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.6155142857142858,
+        "ma25": 0.569808,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.5942,
+        "topo": 0.626,
+        "fib_382": 0.6063476,
+        "fib_500": 0.6101,
+        "fib_618": 0.6138524,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T00:30:50.365401+00:00",
+    "symbol": "DOLOUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_auto",
+    "roi_final": -58.42249860616986,
+    "preco": 0.03116,
+    "detalhes": "Score 78/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.030955714285714288,
+        "ma25": 0.0306308,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.030709999999999998,
+        "ma25": 0.0307532,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.030675714285714285,
+        "ma25": 0.0316312,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.03031,
+        "topo": 0.03149,
+        "fib_382": 0.030760759999999998,
+        "fib_500": 0.030899999999999997,
+        "fib_618": 0.03103924,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T00:34:57.390640+00:00",
+    "symbol": "DOLOUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 0.4473090557524976,
+    "preco": 0.03102,
+    "detalhes": "3x #1 | Pico +2.4% saida +0.4% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03115,
+        "ma25": 0.030724,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.03069,
+        "ma25": 0.0307476,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.03065714285714286,
+        "ma25": 0.031626,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.03031,
+        "topo": 0.03149,
+        "fib_382": 0.030760759999999998,
+        "fib_500": 0.030899999999999997,
+        "fib_618": 0.03103924,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T00:36:08.025660+00:00",
+    "symbol": "ENJUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -118.56667669131235,
+    "preco": 0.03643,
+    "detalhes": "Score 80/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03639857142857143,
+        "ma25": 0.036136,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.03618428571428572,
+        "ma25": 0.037634799999999996,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.03822857142857143,
+        "ma25": 0.0364864,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03541,
+        "topo": 0.03879,
+        "fib_382": 0.03670116,
+        "fib_500": 0.037099999999999994,
+        "fib_618": 0.03749884,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T00:37:45.381923+00:00",
+    "symbol": "ENJUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -4.846975088967972,
+    "preco": 0.03653,
+    "detalhes": "3x #1 | Pico +1.2% voltou -4.8%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03645428571428571,
+        "ma25": 0.036168,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.03619857142857143,
+        "ma25": 0.0376388,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.03823857142857142,
+        "ma25": 0.0364892,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03541,
+        "topo": 0.03879,
+        "fib_382": 0.03670116,
+        "fib_500": 0.037099999999999994,
+        "fib_618": 0.03749884,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T00:46:43.961826+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0602,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 10.149,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T01:16:57.143314+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0626,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.567,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T01:47:19.104767+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0637,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.925,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T02:16:27.277769+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0636,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.075,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T02:16:38.857726+00:00",
+    "symbol": "ENJUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 1.6508052780679838,
+    "preco": 0.03664,
+    "detalhes": "3x #1 | Pico +7.3% saida +1.7% | Entrada DCA: +2%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03666857142857143,
+        "ma25": 0.036835599999999996,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.03684428571428571,
+        "ma25": 0.0366804,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.037770000000000005,
+        "ma25": 0.0368524,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03615,
+        "topo": 0.03727,
+        "fib_382": 0.03657784,
+        "fib_500": 0.03671,
+        "fib_618": 0.03684216,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T02:28:28.005718+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.063,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.97,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T02:49:20.560643+00:00",
+    "symbol": "NIGHTUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_auto",
+    "roi_final": -53.571426699349075,
+    "preco": 0.0391,
+    "detalhes": "Score 85/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03968571428571428,
+        "ma25": 0.038632,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.03848714285714285,
+        "ma25": 0.0379416,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.03814571428571428,
+        "ma25": 0.0383624,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.03763,
+        "topo": 0.04047,
+        "fib_382": 0.03871488,
+        "fib_500": 0.03905,
+        "fib_618": 0.039385119999999996,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T02:58:52.413855+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0633,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.522,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.61% suporte, MA25 +1.37% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-13T03:29:16.045743+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.063,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.97,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T03:59:41.989607+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0635,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.224,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T04:02:13.223346+00:00",
+    "symbol": "TAGUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -83.09538541931897,
+    "preco": 0.0008312,
+    "detalhes": "Score 125/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.0008241285714285715,
+        "ma25": 0.0008206559999999999,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.0008228285714285714,
+        "ma25": 0.00084528,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.0008596428571428571,
+        "ma25": 0.0008472880000000001,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.0008101,
+        "topo": 0.0008641,
+        "fib_382": 0.000830728,
+        "fib_500": 0.0008371,
+        "fib_618": 0.0008434720000000001,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T04:03:56.695772+00:00",
+    "symbol": "TAGUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 16.304218657159833,
+    "preco": 0.0008427,
+    "detalhes": "3x #1 | Pico +25.9% saida +16.3% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.0008281428571428572,
+        "ma25": 0.000821964,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.0008244714285714286,
+        "ma25": 0.0008457400000000001,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.0008614,
+        "ma25": 0.00084778,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.0008101,
+        "topo": 0.0008641,
+        "fib_382": 0.000830728,
+        "fib_500": 0.0008371,
+        "fib_618": 0.0008434720000000001,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T04:30:04.354438+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0625,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.716,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T04:32:04.732697+00:00",
+    "symbol": "NIGHTUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 0.19594767889202358,
+    "preco": 0.03896,
+    "detalhes": "3x #1 | Pico +2.9% saida +0.2% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03898714285714285,
+        "ma25": 0.0392288,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.03917428571428572,
+        "ma25": 0.0392276,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.038432857142857144,
+        "ma25": 0.0383956,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03885,
+        "topo": 0.03973,
+        "fib_382": 0.039186160000000005,
+        "fib_500": 0.039290000000000005,
+        "fib_618": 0.03939384,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T05:00:08.054936+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0626,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.567,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.42% suporte, MA25 -0.30% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-13T05:30:21.263365+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0631,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.821,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T06:00:23.354918+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0642,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.179,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T06:30:24.870971+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0643,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.03,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T06:34:19.859195+00:00",
+    "symbol": "DOLOUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_auto",
+    "roi_final": -52.27863194226545,
+    "preco": 0.03185,
+    "detalhes": "Score 75/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03194857142857143,
+        "ma25": 0.03192,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.03186428571428571,
+        "ma25": 0.031529999999999996,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.031084285714285714,
+        "ma25": 0.031221199999999998,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.03125,
+        "topo": 0.03209,
+        "fib_382": 0.03157088,
+        "fib_500": 0.031670000000000004,
+        "fib_618": 0.03176912,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T07:00:48.694796+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0635,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.224,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.64% suporte, MA25 +0.87% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-13T07:30:50.056008+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06555,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 2.164,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T07:57:25.123058+00:00",
+    "symbol": "DOLOUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 3.996570171192009,
+    "preco": 0.0316,
+    "detalhes": "3x #1 | Pico +7.6% saida +4.0% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03158857142857143,
+        "ma25": 0.0317196,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.03173142857142857,
+        "ma25": 0.0318272,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.03123142857142857,
+        "ma25": 0.0311928,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.0315,
+        "topo": 0.03222,
+        "fib_382": 0.03177504,
+        "fib_500": 0.03186,
+        "fib_618": 0.03194496,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T08:00:51.746516+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06567,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 1.985,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T08:31:14.771248+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06378,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.806,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T09:01:35.412950+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06433,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 3.985,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.55% suporte, MA25 +0.20% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-13T09:32:00.967442+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06411,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.313,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.40% suporte, MA25 +0.00% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-13T09:54:39.972913+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06408,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.358,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T10:25:06.801936+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06565,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 2.015,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T10:55:34.212351+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06637,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 0.94,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T11:26:25.521388+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06866,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -2.478,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T11:56:35.378157+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07314,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -9.164,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T12:27:05.092345+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06811,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -1.657,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T12:57:30.720863+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07003,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -4.522,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.95% suporte, MA25 +1.56% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-13T13:28:08.730494+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06793,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -1.388,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T13:55:57.473027+00:00",
+    "symbol": "BBUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -58.53800470606397,
+    "preco": 0.02552,
+    "detalhes": "Score 120/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.025415714285714288,
+        "ma25": 0.0253168,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.025398571428571434,
+        "ma25": 0.025799600000000002,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.025708571428571424,
+        "ma25": 0.024736,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.02512,
+        "topo": 0.0261,
+        "fib_382": 0.02549436,
+        "fib_500": 0.02561,
+        "fib_618": 0.02572564,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T13:59:00.105197+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06722,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -0.328,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T14:07:03.368806+00:00",
+    "symbol": "GERAL",
+    "direcao": "?",
+    "tipo": "auditoria_completa_13_04",
+    "roi_final": 0,
+    "preco": 0,
+    "detalhes": "Auditoria profunda comparando conta do usuario vs Lisa. MESMO codigo, MESMAS configs, MESMAS moedas. Diferenca: Lisa tinha RAVEUSDT LONG +867% ($4.17 lucro) que ficou presa por bug de quantidade minima — responsavel por 80% da diferenca. Lisa tambem tinha posicoes herdadas fortes (AIAUSDT +398%, FOLKSUSDT +191%, EDGEUSDT +100%). O bot, config, codigo, blacklist, horarios — tudo identico. A diferenca era SORTE nas posicoes iniciais, nao performance do sistema.",
+    "licao": "Quando duas contas rodam o mesmo bot e uma performa melhor, a causa mais provavel NAO e o bot — e a POSICAO INICIAL. Uma unica formiga foguete (RAVEUSDT) fez 80% da diferenca. O sistema precisa ENCONTRAR esses foguetes, nao depender de sorte. Solucoes: (1) fix do RSI que bloqueava foguetes (ja feito), (2) direcao da colonia alinhada, (3) mais ativos analisados pra encontrar os outliers."
+  },
+  {
+    "timestamp": "2026-04-13T14:29:34.178758+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06659,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 0.612,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T14:36:18.326511+00:00",
+    "symbol": "FLOCKUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -55.37796891855214,
+    "preco": 0.05533,
+    "detalhes": "Score 133/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.05687857142857143,
+        "ma25": 0.05551999999999999,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.055427142857142855,
+        "ma25": 0.054482,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.05420285714285714,
+        "ma25": 0.0529592,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.05346,
+        "topo": 0.05848,
+        "fib_382": 0.05537764,
+        "fib_500": 0.05597,
+        "fib_618": 0.05656236,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T14:38:14.247298+00:00",
+    "symbol": "FLOCKUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -1.6066504107782222,
+    "preco": 0.05569,
+    "detalhes": "3x #1 | Pico +4.5% voltou -1.6%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.05648142857142857,
+        "ma25": 0.0556188,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.05547857142857143,
+        "ma25": 0.05449639999999999,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.05425714285714285,
+        "ma25": 0.0529744,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.05346,
+        "topo": 0.05848,
+        "fib_382": 0.05537764,
+        "fib_500": 0.05597,
+        "fib_618": 0.05656236,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T14:59:43.274941+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06819,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -1.776,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T15:30:01.574285+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06571,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 1.925,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T15:53:02.239868+00:00",
+    "symbol": "CROSSUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_auto",
+    "roi_final": -70.11109493873235,
+    "preco": 0.06999,
+    "detalhes": "Score 85/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.0704757142857143,
+        "ma25": 0.0694708,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.06940571428571428,
+        "ma25": 0.0685408,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.06749428571428571,
+        "ma25": 0.0688356,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.0676,
+        "topo": 0.07139,
+        "fib_382": 0.06904777999999999,
+        "fib_500": 0.069495,
+        "fib_618": 0.06994222,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T16:00:10.109575+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06538,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 2.418,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T16:10:42.120563+00:00",
+    "symbol": "CROSSUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_piso_zero",
+    "roi_final": -0.07620677726300447,
+    "preco": 0.0696,
+    "detalhes": "3x #1 | Pico +2.6% voltou -0.1%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.06962857142857143,
+        "ma25": 0.0699948,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.06998428571428572,
+        "ma25": 0.06885759999999999,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.06794714285714286,
+        "ma25": 0.0687696,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.06812,
+        "topo": 0.07139,
+        "fib_382": 0.06936914,
+        "fib_500": 0.069755,
+        "fib_618": 0.07014086,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T16:15:35.089968+00:00",
+    "symbol": "MONUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -52.95374165240132,
+    "preco": 0.03333,
+    "detalhes": "Score 80/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03335285714285714,
+        "ma25": 0.033323200000000004,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.033358571428571425,
+        "ma25": 0.0340424,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.03379857142857143,
+        "ma25": 0.0331908,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03312,
+        "topo": 0.0351,
+        "fib_382": 0.033876359999999994,
+        "fib_500": 0.03411,
+        "fib_618": 0.034343639999999995,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T16:19:10.615143+00:00",
+    "symbol": "TUTUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -59.09042469786275,
+    "preco": 0.01031,
+    "detalhes": "Score 106/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.01043,
+        "ma25": 0.010262799999999999,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.010190000000000001,
+        "ma25": 0.009826,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.009705714285714286,
+        "ma25": 0.0094972,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.0096,
+        "topo": 0.01061,
+        "fib_382": 0.00998582,
+        "fib_500": 0.010105,
+        "fib_618": 0.01022418,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T16:20:25.565539+00:00",
+    "symbol": "TUTUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -12.95703125,
+    "preco": 0.01023,
+    "detalhes": "3x #1 | Pico +1.8% voltou -13.0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.010394285714285715,
+        "ma25": 0.0102664,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.010231428571428572,
+        "ma25": 0.009854799999999999,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.009694285714285714,
+        "ma25": 0.009494,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.00961,
+        "topo": 0.01061,
+        "fib_382": 0.009992000000000001,
+        "fib_500": 0.010110000000000001,
+        "fib_618": 0.010228,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T16:31:13.947456+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06214,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 7.254,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T16:32:03.363674+00:00",
+    "symbol": "MONUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -0.3109367367878622,
+    "preco": 0.03352,
+    "detalhes": "3x #1 | Pico +0.8% voltou -0.3%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.033345714285714284,
+        "ma25": 0.0333016,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.03334,
+        "ma25": 0.0339248,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.033825714285714285,
+        "ma25": 0.0331984,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03312,
+        "topo": 0.03482,
+        "fib_382": 0.0337694,
+        "fib_500": 0.03397,
+        "fib_618": 0.034170599999999995,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T17:01:27.470069+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06315,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.746,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T17:31:46.589815+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06373,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.881,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T17:43:32.629679+00:00",
+    "symbol": "VELVETUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -82.38486846726789,
+    "preco": 0.09412,
+    "detalhes": "Score 120/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.09348,
+        "ma25": 0.0931528,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.09359857142857142,
+        "ma25": 0.0967028,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.09676285714285715,
+        "ma25": 0.0935876,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.09088,
+        "topo": 0.09972,
+        "fib_382": 0.09425688,
+        "fib_500": 0.0953,
+        "fib_618": 0.09634312,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T17:50:42.068729+00:00",
+    "symbol": "VELVETUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 2.6455511148134847,
+    "preco": 0.0948,
+    "detalhes": "3x #1 | Pico +17.5% saida +2.6% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.09490285714285715,
+        "ma25": 0.0932732,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.0935457142857143,
+        "ma25": 0.09636439999999999,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.09681714285714285,
+        "ma25": 0.0936028,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.09088,
+        "topo": 0.09972,
+        "fib_382": 0.09425688,
+        "fib_500": 0.0953,
+        "fib_618": 0.09634312,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T18:01:49.274875+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06475,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 3.358,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T18:31:50.530887+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06293,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.075,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T19:02:11.725817+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06285,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.194,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T19:32:29.173696+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06304,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.91,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T20:02:44.563191+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06402,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.448,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T20:32:59.520269+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06495,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 3.06,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T21:03:23.679220+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06457,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 3.627,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T21:33:38.926880+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06484,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 3.224,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T22:03:55.416137+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06465,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 3.507,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T22:29:57.259773+00:00",
+    "symbol": "OXTUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_auto",
+    "roi_final": -91.61876466515378,
+    "preco": 0.01091,
+    "detalhes": "Score 75/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.010971428571428573,
+        "ma25": 0.0109208,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.01089142857142857,
+        "ma25": 0.0106728,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.01057142857142857,
+        "ma25": 0.010655999999999999,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.01045,
+        "topo": 0.0111,
+        "fib_382": 0.010698299999999999,
+        "fib_500": 0.010775,
+        "fib_618": 0.0108517,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T22:34:03.892680+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06671,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 0.433,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T22:45:28.355468+00:00",
+    "symbol": "OXTUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_piso_zero",
+    "roi_final": -9.297478003743064,
+    "preco": 0.01087,
+    "detalhes": "3x #1 | Pico +3.8% voltou -9.3%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.010874285714285713,
+        "ma25": 0.010935199999999999,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.01092,
+        "ma25": 0.010736800000000001,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.010567142857142858,
+        "ma25": 0.010654799999999999,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.01055,
+        "topo": 0.0111,
+        "fib_382": 0.0107601,
+        "fib_500": 0.010825000000000001,
+        "fib_618": 0.010889900000000001,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-13T23:04:11.833202+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06614,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 1.284,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-13T23:15:05.266998+00:00",
+    "symbol": "GERAL",
+    "direcao": "LONG",
+    "tipo": "padrao_vencedor_lisa",
+    "roi_final": 0,
+    "preco": 0,
+    "detalhes": "Padrao dos top 10 vencedores da Lisa (todas com 100% WR): RAVEUSDT (+$3.23, foguete var24h +57%), BLESSUSDT (+$1.15, foguete +282%), TAGUSDT (+$1.09), LABUSDT (+$0.77), BinanceLifeUSDT (+$0.74, tendencia forte +23%), BANUSDT (+$0.66), AIAUSDT (+$0.54), FOLKSUSDT (+$0.48), AIOTUSDT (+$0.42), TSTUSDT (+$0.41). Todas LONG. Todas 100% WR. Total +$9.28 (+47% em <24h).",
+    "licao": "Padrao vencedor da Lisa: (1) FOGUETES com var24h > 30% e volume > $50M = RAVEUSDT e BLESSUSDT sozinhas deram $4.38 (47% do lucro total). (2) TENDENCIA FORTE var24h 10-30% = BinanceLife, BANUSDT, LABUSDT. (3) TODAS eram LONG em mercado BULL. (4) Volume alto (>$50M) confirma momentum real. (5) O bot precisa PRIORIZAR foguetes (var24h > 15%) com volume alto. O fix do RSI ja permite entrar nesses ativos."
+  },
+  {
+    "timestamp": "2026-04-14T00:21:25.683164+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06358,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.104,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T00:51:35.229817+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06311,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.806,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T01:21:44.563935+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06276,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.328,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T01:28:50.400634+00:00",
+    "symbol": "CYSUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -54.724550981218876,
+    "preco": 0.2737,
+    "detalhes": "Score 80/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.27704285714285715,
+        "ma25": 0.28238,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.28177142857142856,
+        "ma25": 0.280696,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.27645714285714285,
+        "ma25": 0.2682,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.27,
+        "topo": 0.2877,
+        "fib_382": 0.2767614,
+        "fib_500": 0.27885000000000004,
+        "fib_618": 0.28093860000000004,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T01:44:53.447284+00:00",
+    "symbol": "CYSUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 23.095977011494252,
+    "preco": 0.2798,
+    "detalhes": "3x #1 | Pico +37.6% saida +23.1% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.27337142857142854,
+        "ma25": 0.27412,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.27658571428571427,
+        "ma25": 0.27959999999999996,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.27747142857142854,
+        "ma25": 0.268484,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.2672,
+        "topo": 0.2877,
+        "fib_382": 0.275031,
+        "fib_500": 0.27745,
+        "fib_618": 0.279869,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T01:51:48.660610+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06245,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.791,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T01:52:40.233620+00:00",
+    "symbol": "MAGMAUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -52.75986474771203,
+    "preco": 0.19091,
+    "detalhes": "Score 75/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.19161428571428574,
+        "ma25": 0.1910088,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.19098857142857145,
+        "ma25": 0.1940908,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.19914285714285715,
+        "ma25": 0.18714200000000003,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.18967,
+        "topo": 0.19754,
+        "fib_382": 0.19267634,
+        "fib_500": 0.193605,
+        "fib_618": 0.19453366,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T02:03:26.208391+00:00",
+    "symbol": "MAGMAUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 2.869031519816914,
+    "preco": 0.19233,
+    "detalhes": "3x #1 | Pico +9.9% saida +2.9% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.19130142857142857,
+        "ma25": 0.19121760000000002,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.19111428571428574,
+        "ma25": 0.1937408,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.19743285714285716,
+        "ma25": 0.18761679999999997,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.18924,
+        "topo": 0.19754,
+        "fib_382": 0.1924106,
+        "fib_500": 0.19339,
+        "fib_618": 0.1943694,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T02:21:55.455695+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06243,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.821,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T02:39:16.746861+00:00",
+    "symbol": "ORDIUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -57.07367140608183,
+    "preco": 2.498,
+    "detalhes": "Score 80/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 2.502,
+        "ma25": 2.49964,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 2.502714285714286,
+        "ma25": 2.53056,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 2.5252857142857144,
+        "ma25": 2.33864,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 2.484,
+        "topo": 2.56,
+        "fib_382": 2.513032,
+        "fib_500": 2.5220000000000002,
+        "fib_618": 2.530968,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T02:52:04.150710+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06371,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.91,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T03:09:01.514958+00:00",
+    "symbol": "ORDIUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 3.2135920945394476,
+    "preco": 2.512,
+    "detalhes": "3x #1 | Pico +4.8% saida +3.2% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 2.5088571428571425,
+        "ma25": 2.49976,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 2.501142857142857,
+        "ma25": 2.50976,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 2.523285714285714,
+        "ma25": 2.34932,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 2.484,
+        "topo": 2.53,
+        "fib_382": 2.501572,
+        "fib_500": 2.5069999999999997,
+        "fib_618": 2.512428,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T03:22:26.520707+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0665,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 0.746,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T03:52:28.778995+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06445,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 3.806,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T04:20:24.862108+00:00",
+    "symbol": "BREVUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -53.42244887387597,
+    "preco": 0.1225,
+    "detalhes": "Score 95/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.12357142857142857,
+        "ma25": 0.123444,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.12332857142857143,
+        "ma25": 0.123592,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.12437142857142858,
+        "ma25": 0.12118000000000001,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.1225,
+        "topo": 0.1239,
+        "fib_382": 0.1230348,
+        "fib_500": 0.1232,
+        "fib_618": 0.1233652,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T04:22:29.777742+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06489,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 3.149,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.21% suporte, MA25 +1.55% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-14T04:52:33.803772+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06591,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 1.627,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T05:23:02.975263+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06639,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 0.91,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T05:53:23.800825+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06632,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 1.015,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T06:19:44.180581+00:00",
+    "symbol": "SPXUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -61.55399601127293,
+    "preco": 0.3185,
+    "detalhes": "Score 105/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.31817142857142855,
+        "ma25": 0.317772,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.31792857142857145,
+        "ma25": 0.3193,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.32242857142857145,
+        "ma25": 0.312104,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.3168,
+        "topo": 0.3211,
+        "fib_382": 0.3184426,
+        "fib_500": 0.31895,
+        "fib_618": 0.3194574,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T06:23:45.616486+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06548,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 2.269,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T06:24:05.378162+00:00",
+    "symbol": "AXLUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -52.8479063120205,
+    "preco": 0.04606,
+    "detalhes": "Score 120/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.04597714285714286,
+        "ma25": 0.0459508,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.04592142857142857,
+        "ma25": 0.0461832,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.0464,
+        "ma25": 0.046190800000000004,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.04578,
+        "topo": 0.04636,
+        "fib_382": 0.04600156,
+        "fib_500": 0.04607,
+        "fib_618": 0.04613844,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T06:26:48.151315+00:00",
+    "symbol": "SPXUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -0.8204147520376521,
+    "preco": 0.3199,
+    "detalhes": "3x #1 | Pico +1.8% voltou -0.8%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.31951428571428575,
+        "ma25": 0.31829999999999997,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.3184571428571429,
+        "ma25": 0.319164,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.32262857142857143,
+        "ma25": 0.31216,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.3168,
+        "topo": 0.3205,
+        "fib_382": 0.31821340000000004,
+        "fib_500": 0.31865,
+        "fib_618": 0.3190866,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T06:54:13.026030+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0639,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.627,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T07:24:37.739070+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06379,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.791,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T07:26:10.271807+00:00",
+    "symbol": "AIXBTUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -73.52638872295263,
+    "preco": 0.02441,
+    "detalhes": "Score 120/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.024370000000000003,
+        "ma25": 0.0243668,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.024385714285714285,
+        "ma25": 0.0244592,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.02467714285714286,
+        "ma25": 0.024233599999999998,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.02428,
+        "topo": 0.02462,
+        "fib_382": 0.02440988,
+        "fib_500": 0.02445,
+        "fib_618": 0.02449012,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T07:55:09.913980+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06421,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.164,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T08:25:12.173910+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06338,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.403,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T08:55:16.135432+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06367,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.97,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T09:25:36.208679+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06323,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.627,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T09:55:42.046385+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06227,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 7.06,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T09:57:00.183888+00:00",
+    "symbol": "AIXBTUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -0.9357200276435584,
+    "preco": 0.02449,
+    "detalhes": "3x #1 | Pico +3.7% voltou -0.9%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.02446571428571429,
+        "ma25": 0.0244592,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.024455714285714282,
+        "ma25": 0.024402399999999998,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.024584285714285715,
+        "ma25": 0.0243468,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.02433,
+        "topo": 0.02454,
+        "fib_382": 0.02441022,
+        "fib_500": 0.024435,
+        "fib_618": 0.02445978,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T10:25:52.987148+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06284,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.209,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T10:42:55.526671+00:00",
+    "symbol": "ZAMAUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -120.13944757307591,
+    "preco": 0.03696,
+    "detalhes": "Score 95/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03832714285714286,
+        "ma25": 0.038119600000000003,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.03735714285714286,
+        "ma25": 0.0324912,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.030512857142857144,
+        "ma25": 0.027123599999999998,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.02942,
+        "topo": 0.04057,
+        "fib_382": 0.0336793,
+        "fib_500": 0.034995,
+        "fib_618": 0.0363107,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T10:44:52.468521+00:00",
+    "symbol": "ZAMAUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -3.346064071801099,
+    "preco": 0.03672,
+    "detalhes": "3x #1 | Pico +14.7% voltou -3.3%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.037590000000000005,
+        "ma25": 0.038203999999999995,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.037322857142857144,
+        "ma25": 0.0324816,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.030468571428571428,
+        "ma25": 0.027111200000000002,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.02942,
+        "topo": 0.04057,
+        "fib_382": 0.0336793,
+        "fib_500": 0.034995,
+        "fib_618": 0.0363107,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T10:56:00.601481+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06346,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 5.284,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T11:26:25.369897+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06285,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 6.194,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T11:56:28.098918+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06414,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.269,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T12:26:52.948264+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06441,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 3.866,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T12:57:00.923064+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06417,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 4.224,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T13:27:09.086980+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06572,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 1.91,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T13:57:19.405229+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06701,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -0.015,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T14:08:49.586490+00:00",
+    "symbol": "GERAL",
+    "direcao": "?",
+    "tipo": "dna_vencedoras_lisa_14_04",
+    "roi_final": 0,
+    "preco": 0,
+    "detalhes": "DNA das moedas da Lisa em 14/04. VENCEDORAS (13): var24h media 10.4%, volume medio $26M, RSI medio 57, tipos: 1 foguete + 5 tendencia_forte + 5 tendencia + 2 lateral. PERDEDORAS (7): var24h media 4.6%, volume medio $4M, RSI medio 45, tipos: 6 tendencia + 1 lateral. ZERO foguetes ou tendencia_forte nas perdedoras.",
+    "licao": "PADRAO CLARO: (1) Vencedoras tem var24h 2x maior que perdedoras (10.4% vs 4.6%). (2) Volume 6x maior ($26M vs $4M). (3) RSI mais alto (57 vs 45 — momentum presente). (4) NENHUMA perdedora era foguete ou tendencia_forte. (5) 100% das perdedoras eram tendencia fraca ou lateral. CONCLUSAO: priorizar ativos com var24h > 8% E volume > $15M. Ativos com var24h < 5% E volume < $5M tem alta chance de virar perdedora."
   }
 ]

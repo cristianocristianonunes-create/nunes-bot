@@ -5007,11 +5007,30 @@ def main() -> None:
                     simbolos_abertos = [p["symbol"] for p in abertas]
                     pares_filtrados = [s for s in pares if s not in simbolos_abertos]
 
+                    # Ticker map pra filtro DNA Lisa + ordenacao por var24h
+                    try:
+                        ticker_map = {t["symbol"]: t for t in client.futures_ticker() if t["symbol"].endswith("USDT")}
+                    except Exception:
+                        ticker_map = {}
+
                     sinais_encontrados = []
                     lock_sinais = threading.Lock()
 
                     def analisar_par(symbol):
                         try:
+                            # FILTRO DNA LISA: prioriza ativos com momentum real
+                            # Vencedoras: var24h > 8%, vol > $15M, RSI 50-70
+                            # Perdedoras: var24h < 5%, vol < $5M — sem forca
+                            try:
+                                _tk_dna = ticker_map.get(symbol, {})
+                                _var_dna = abs(float(_tk_dna.get("priceChangePercent", 0)))
+                                _vol_dna = float(_tk_dna.get("quoteVolume", 0))
+                                # Rejeita ativos fracos (var < 3% E vol < $5M)
+                                if _var_dna < 3 and _vol_dna < 5_000_000:
+                                    return  # lateral sem volume — 100% das perdedoras da Lisa
+                            except Exception:
+                                pass
+
                             # Tenta Guardiao primeiro (Bollinger Squeeze — sinal forte)
                             sinal = sinal_guardiao(client, symbol, btc_tendencia)
                             tipo_sinal = "squeeze"
@@ -5097,9 +5116,19 @@ def main() -> None:
                     except Exception:
                         pass
 
-                    # Ordena: MOMENTUM primeiro (mais urgente), depois CNS, depois GUARDIAO
-                    ordem_qualidade = {"MOMENTUM": 0, "CNS": 1, "COPY": 2, "GUARDIAO": 3, "PREMIUM": 4, "NORMAL": 5}
-                    sinais_encontrados.sort(key=lambda x: ordem_qualidade.get(x[4], 9))
+                    # Ordena: FOGUETES primeiro (maior var24h), depois por qualidade
+                    # DNA Lisa: vencedoras tinham var24h 2x maior que perdedoras
+                    def _score_ordenacao(sinal_tuple):
+                        sym, _, _, _, qual = sinal_tuple
+                        ordem_q = {"MOMENTUM": 0, "CNS": 1, "COPY": 2, "GUARDIAO": 3, "COLONIA": 3, "PREMIUM": 4, "NORMAL": 5}
+                        # Prioriza por var24h (invertido: maior var = menor score = primeiro)
+                        try:
+                            var = abs(float(ticker_map.get(sym, {}).get("priceChangePercent", 0)))
+                        except:
+                            var = 0
+                        # Score: qualidade * 100 - var24h (foguetes ficam no topo)
+                        return ordem_q.get(qual, 9) * 100 - var
+                    sinais_encontrados.sort(key=_score_ordenacao)
 
                     # MODO VOLATILIDADE: se noticias mistas ou vol alta, reduz entradas
                     _modo_vol = sentimento_mercado.get("sentimento") == "misto" or \
