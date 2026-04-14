@@ -3083,15 +3083,12 @@ def calcular_margem(banca: float) -> float:
 
 def alavancagem_dinamica(saldo_total: float) -> int:
     """
-    Ajusta alavancagem conforme o saldo cresce.
-    Conservador até $300, aumenta progressivamente.
+    Alavancagem FIXA em 20x. Todas as formigas iguais.
+    50x com $1000 gerava perdas de $7-8 por formiga (ARIAUSDT -$8.37).
+    20x provado pela Lisa e Gabriel (+47% em 8h).
+    Misturar 50x e 20x na colonia desequilibra — uma grande pisa nas pequenas.
     """
-    if saldo_total >= 1000:
-        return 50
-    elif saldo_total >= 500:
-        return 30
-    else:
-        return 20  # padrão atual
+    return 20
 
 
 def horario_volatil() -> bool:
