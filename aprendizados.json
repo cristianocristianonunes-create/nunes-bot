@@ -33220,5 +33220,483 @@
     "preco": 0,
     "detalhes": "Top 10 erros 48h: ARIAUSDT -$1.06 (0W/2L), MAGMAUSDT -$0.57 (0W/3L), UAIUSDT -$0.47 (0W/1L), LITUSDT -$0.30 (0W/1L), WLDUSDT -$0.28 (0W/1L), KERNELUSDT -$0.27 (0W/1L), GIGGLEUSDT -$0.23 (1W/2L). Var24h media: 20.3%. Volume medio: $105M.",
     "licao": "SURPRESA: erros tinham var24h MAIS ALTA (20.3% vs 8.5%) e volume MAIS ALTO ($105M vs $40M). Isso contradiz o DNA Lisa. Explicacao: o bot entrou na DIRECAO ERRADA em ativos de alta variacao. Variacao alta + direcao errada = perda grande. O filtro DNA precisa considerar DIRECAO, nao so magnitude. Entrar SHORT num ativo com var +20% = erro. Entrar LONG num ativo com var -20% = erro."
+  },
+  {
+    "timestamp": "2026-04-14T17:22:55.785727+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06673,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 0.403,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T17:32:31.561580+00:00",
+    "symbol": "PROMPTUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -88.09118695131815,
+    "preco": 0.03157,
+    "detalhes": "Score 90/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03143857142857143,
+        "ma25": 0.031438,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.03145571428571429,
+        "ma25": 0.031824000000000005,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.03126857142857143,
+        "ma25": 0.0307424,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03124,
+        "topo": 0.03229,
+        "fib_382": 0.0316411,
+        "fib_500": 0.031765,
+        "fib_618": 0.0318889,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T17:46:38.618007+00:00",
+    "symbol": "FOLKSUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -96.74981103552533,
+    "preco": 1.33,
+    "detalhes": "Score 120/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 1.3087142857142857,
+        "ma25": 1.2997999999999998,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 1.3027142857142857,
+        "ma25": 1.3362,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 1.3402857142857143,
+        "ma25": 1.277,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 1.28,
+        "topo": 1.397,
+        "fib_382": 1.324694,
+        "fib_500": 1.3385,
+        "fib_618": 1.352306,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T17:53:16.837099+00:00",
+    "symbol": "PROMPTUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -1.0890036477939493,
+    "preco": 0.03169,
+    "detalhes": "3x #1 | Pico +1.0% voltou -1.1%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.03160142857142857,
+        "ma25": 0.031495999999999996,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.03147428571428572,
+        "ma25": 0.0317288,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.031285714285714285,
+        "ma25": 0.030747200000000002,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.03124,
+        "topo": 0.03227,
+        "fib_382": 0.03163346,
+        "fib_500": 0.031755,
+        "fib_618": 0.03187654,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T17:53:34.199600+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06694,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": 0.09,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T18:14:21.367604+00:00",
+    "symbol": "FOLKSUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 4.52376000587501,
+    "preco": 1.334,
+    "detalhes": "3x #1 | Pico +14.9% saida +4.5% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 1.323,
+        "ma25": 1.31996,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 1.3187142857142857,
+        "ma25": 1.3284,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 1.3457142857142859,
+        "ma25": 1.2813999999999999,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 1.28,
+        "topo": 1.376,
+        "fib_382": 1.316672,
+        "fib_500": 1.3279999999999998,
+        "fib_618": 1.3393279999999999,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T18:15:44.016978+00:00",
+    "symbol": "STOUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -133.9084871978197,
+    "preco": 0.1183,
+    "detalhes": "Score 95/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.11826714285714286,
+        "ma25": 0.117488,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.11759571428571429,
+        "ma25": 0.11916440000000002,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.11827142857142857,
+        "ma25": 0.1176276,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.11582,
+        "topo": 0.12195,
+        "fib_382": 0.11816166,
+        "fib_500": 0.118885,
+        "fib_618": 0.11960834000000001,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T18:19:35.747842+00:00",
+    "symbol": "APRUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -146.65999107252853,
+    "preco": 0.23431,
+    "detalhes": "Score 95/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.22556714285714285,
+        "ma25": 0.22054120000000002,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.22213857142857144,
+        "ma25": 0.2516368,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.24932,
+        "ma25": 0.2175748,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.21279,
+        "topo": 0.30666,
+        "fib_382": 0.24864834,
+        "fib_500": 0.259725,
+        "fib_618": 0.27080166,
+        "preco_zona": "abaixo_382"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T18:23:31.593344+00:00",
+    "symbol": "APRUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 82.43442121989976,
+    "preco": 0.25042,
+    "detalhes": "3x #1 | Pico +123.1% saida +82.4% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.2405,
+        "ma25": 0.22481,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.2255785714285714,
+        "ma25": 0.25090120000000005,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.25124857142857143,
+        "ma25": 0.2181148,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.21279,
+        "topo": 0.28653,
+        "fib_382": 0.24095868,
+        "fib_500": 0.24966,
+        "fib_618": 0.25836132,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T18:23:50.875130+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06718,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -0.269,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T18:54:05.151850+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07025,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -4.851,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T19:24:20.599626+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06993,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -4.373,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T19:50:51.241087+00:00",
+    "symbol": "STOUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -2.943428041480482,
+    "preco": 0.1186,
+    "detalhes": "3x #1 | Pico +1.4% voltou -2.9%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.11846285714285713,
+        "ma25": 0.11771839999999999,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.11778,
+        "ma25": 0.1176288,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.11876857142857143,
+        "ma25": 0.11787320000000001,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.11602,
+        "topo": 0.119,
+        "fib_382": 0.11715836,
+        "fib_500": 0.11751,
+        "fib_618": 0.11786163999999999,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T19:54:25.351051+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06967,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -3.985,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.85% suporte, MA25 +1.27% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-14T20:24:35.385523+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0699,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -4.328,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T20:55:10.819189+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07131,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -6.433,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T21:06:08.515543+00:00",
+    "symbol": "CLOUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -55.177147808749936,
+    "preco": 0.07899,
+    "detalhes": "Score 113/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.07888714285714285,
+        "ma25": 0.0788248,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.07877428571428571,
+        "ma25": 0.0787524,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.07979285714285714,
+        "ma25": 0.07912839999999999,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.07811,
+        "topo": 0.07945,
+        "fib_382": 0.07862188,
+        "fib_500": 0.07878,
+        "fib_618": 0.07893812,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T21:13:17.620818+00:00",
+    "symbol": "CLOUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_piso_zero",
+    "roi_final": -0.20743541272841842,
+    "preco": 0.07932,
+    "detalhes": "3x #1 | Pico +1.1% voltou -0.2%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.07924285714285714,
+        "ma25": 0.0790524,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.07894000000000001,
+        "ma25": 0.0787976,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.07986857142857143,
+        "ma25": 0.0791496,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.07811,
+        "topo": 0.0795,
+        "fib_382": 0.07864098,
+        "fib_500": 0.078805,
+        "fib_618": 0.07896902,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-14T21:25:27.574300+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.06956,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -3.821,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T21:42:54.183220+00:00",
+    "symbol": "GERAL",
+    "direcao": "?",
+    "tipo": "licao_escala_saldo_1000",
+    "roi_final": 0,
+    "preco": 0,
+    "detalhes": "Aporte de $1000 feito. Saldo subiu de $41 pra $1038. TODOS os parametros precisam escalar proporcionalmente: margem por formiga (25x maior), PnL por trade (25x maior), perdas por trade (25x maior), taxas (25x maior). Valores fixos que funcionavam com $41 nao funcionam com $1038. O racio de congelamento em 18% travou o bot em 20 posicoes quando deveria ter 103. Corrigido pra 25%.",
+    "licao": "Quando o saldo muda de ordem de grandeza ($40 -> $1000), TUDO precisa ser revisado: (1) racio de congelamento, (2) threshold de excesso de 3x, (3) threshold de horarios bloqueados (PnL > $5 era pra $40, com $1000 deveria ser PnL > $50), (4) cascata tecnica thresholds. O auditor precisa escalar decisoes pelo saldo, nao por valores absolutos."
   }
 ]

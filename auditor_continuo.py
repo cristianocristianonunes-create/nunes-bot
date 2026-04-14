@@ -207,8 +207,10 @@ def analisar_performance(incomes: list) -> dict:
         peak = max(peak, running)
         max_dd = max(max_dd, peak - running)
 
-    # Piores horarios
-    horarios_ruins = [h for h, pnl in pnl_por_hora.items() if pnl < -5]
+    # Piores horarios — threshold escala com saldo (1% do total de trades)
+    # Com $40: bloqueia se perdeu > $5. Com $1000: bloqueia se perdeu > $50
+    _threshold_horario = max(5, abs(total_pnl) * 0.10) if total_pnl != 0 else 5
+    horarios_ruins = [h for h, pnl in pnl_por_hora.items() if pnl < -_threshold_horario]
 
     return {
         "total_pnl": total_pnl, "total_taxas": total_taxas,
@@ -431,7 +433,9 @@ def atualizar_blacklist(metricas: dict) -> set:
         if w == 0 and n >= 3:
             novos.add(symbol)
             motivos[symbol] = f"0 wins em {n} trades (perda ${perda:.2f})"
-        if perda < -10:
+        # Threshold escala: 1% do PnL total absoluto (min $10)
+        _bl_threshold = max(10, abs(sum(pnl.values())) * 0.05)
+        if perda < -_bl_threshold:
             novos.add(symbol)
             motivos[symbol] = f"Perda ${perda:.2f} em {n} trades (WR {w/n*100:.0f}%)" if n > 0 else f"Perda ${perda:.2f}"
         if n >= 10 and w / n < 0.20:
@@ -513,7 +517,7 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
     horarios_ruins = metricas.get("horarios_ruins", [])
     if horarios_ruins and horarios_ruins != config.get("horarios_bloqueados", []):
         config["horarios_bloqueados"] = horarios_ruins
-        mudancas.append(f"Horarios bloqueados: {horarios_ruins} (PnL negativo > $5)")
+        mudancas.append(f"Horarios bloqueados: {horarios_ruins} (PnL negativo significativo)")
 
     # --- DETECCAO DE DEGRADACAO ---
     pf_hist = estado.get("pf_historico", [])
