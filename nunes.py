@@ -3878,6 +3878,7 @@ def main() -> None:
     resumo_diario_enviado = False
     dia_atual             = datetime.now().day
     ultimo_entrada        = time.time()  # controla timeout sem entrada
+    ultimo_heartbeat      = time.time()  # heartbeat Telegram a cada 30min
 
     # Controle de ciclos
     ciclo_num                    = ciclo_salvo
@@ -4174,28 +4175,39 @@ def main() -> None:
                     # Bug CRCLUSDT: abriu com $19 e bot achou que era 3x de $7.86 anterior.
                     posicao_existe_ha_tempo = symbol in posicao_abertura and (time.time() - posicao_abertura.get(symbol, 0)) > 120
                     if margem_base_ok and proporcao_ok and not foi_topup and aumento_real > 3.0 and posicao_existe_ha_tempo:
-                        if symbol not in dca_aplicado:
-                            dca_aplicado.add(symbol)
-                            dca_contagem[symbol] = dca_contagem.get(symbol, 0) + 1
-                            # FIX TSLAUSDT: busca ROI ATUALIZADO da Binance (pos-DCA)
-                            # Bug anterior: usava ROI do ciclo anterior, stop ficava errado
-                            try:
-                                time.sleep(0.3)
-                                pos_atualizada = client.futures_position_information(symbol=symbol)
-                                for pa in pos_atualizada:
-                                    if float(pa["positionAmt"]) != 0:
-                                        roi_no_dca[symbol] = calcular_roi(pa)
-                                        break
-                                else:
-                                    roi_no_dca[symbol] = roi
-                            except Exception:
+                        # Detecta 3x manual SEMPRE — inclusive para posicoes que ja estao
+                        # em dca_aplicado (2o, 3o 3x manual). Licao 龙虾 15/04: user fez
+                        # 3x manual na posicao que ja tinha DCA automatico, e o bot
+                        # nao registrou pq a verificacao anterior era "if symbol not in
+                        # dca_aplicado". Sem registro, stop/trailing nao se ativaram pra
+                        # a nova entrada media.
+                        ja_tinha_3x = symbol in dca_aplicado
+                        dca_aplicado.add(symbol)
+                        dca_contagem[symbol] = dca_contagem.get(symbol, 0) + 1
+                        n_3x_agora = dca_contagem[symbol]
+                        # FIX TSLAUSDT: busca ROI ATUALIZADO da Binance (pos-DCA)
+                        # Bug anterior: usava ROI do ciclo anterior, stop ficava errado
+                        try:
+                            time.sleep(0.3)
+                            pos_atualizada = client.futures_position_information(symbol=symbol)
+                            for pa in pos_atualizada:
+                                if float(pa["positionAmt"]) != 0:
+                                    roi_no_dca[symbol] = calcular_roi(pa)
+                                    break
+                            else:
                                 roi_no_dca[symbol] = roi
-                            pico_pos_3x[symbol] = roi_no_dca[symbol]  # inicia rastreamento de pico
-                            if dca_ativo is None:
-                                dca_ativo = symbol
-                            salvar_estado()
-                            log.info(f"  {symbol}: 3x manual detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f} | +${aumento_real:.2f} | ROI pos-DCA: {roi_no_dca[symbol]:+.1f}%)")
-                            telegram(f"<b>3x manual detectado: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nROI pos-DCA: {roi_no_dca[symbol]:+.1f}%\nStop e trailing ativos.")
+                        except Exception:
+                            roi_no_dca[symbol] = roi
+                        pico_pos_3x[symbol] = roi_no_dca[symbol]  # reinicia rastreamento de pico
+                        # Reseta cooldown do 3x pra essa moeda (nova entrada merece nova chance)
+                        if symbol in cooldown_3x_falha:
+                            del cooldown_3x_falha[symbol]
+                        if dca_ativo is None:
+                            dca_ativo = symbol
+                        salvar_estado()
+                        tipo_txt = "3x manual #" + str(n_3x_agora) + (" (apos 3x anterior)" if ja_tinha_3x else "")
+                        log.info(f"  {symbol}: {tipo_txt} detectado (margem ${margem_anterior:.2f} -> ${margem_atual:.2f} | +${aumento_real:.2f} | ROI pos-DCA: {roi_no_dca[symbol]:+.1f}%)")
+                        telegram(f"<b>{tipo_txt}: {symbol}</b>\nMargem ${margem_anterior:.2f} -> ${margem_atual:.2f}\nROI pos-DCA: {roi_no_dca[symbol]:+.1f}%\nStop e trailing reativados.")
                 margem_registrada[symbol] = margem_atual
 
                 # Registra horário de abertura da posição
@@ -4861,10 +4873,21 @@ def main() -> None:
                             margem_3x_ok = margem_3x_total < saldo_3x_check * 0.15
                             racio_3x_ok = get_racio_margem(client) < 18
 
+                            # Teto por posicao 20%: nenhuma posicao pode ultrapassar
+                            # 20% do saldo APOS o 3x. Licao 龙虾 (15/04): posicao chegou
+                            # a 54% do patrimonio apos reboot+DCA+3x sem supervisao.
+                            TETO_POSICAO_PCT = 0.20
+                            margem_posicao_atual = float(p.get("positionInitialMargin", 0))
+                            # DCA adiciona max(5% banca, 2x margem atual) segundo estrategia
+                            margem_extra_3x_estimada = max(saldo_3x_check * 0.05, margem_posicao_atual * 2.0)
+                            margem_posicao_projetada = margem_posicao_atual + margem_extra_3x_estimada
+                            teto_posicao_ok = margem_posicao_projetada <= saldo_3x_check * TETO_POSICAO_PCT
+
                             pode_3x = (score >= score_min_3x and ma_1h_ok
                                        and not symbol_bloqueado(symbol)
                                        and not cooldown_ativo and not historico_ruim
                                        and margem_3x_ok and racio_3x_ok
+                                       and teto_posicao_ok
                                        and n_3x_ativos < MAX_3X_SIMULTANEOS)
 
                             if pode_3x:
@@ -4902,6 +4925,9 @@ def main() -> None:
                                 log.info(f"  {symbol}: Score {score} bom mas margem 3x total ${margem_3x_total:.2f} >= 15% saldo")
                             elif not racio_3x_ok and score >= score_min:
                                 log.info(f"  {symbol}: Score {score} bom mas racio >= 18%")
+                            elif not teto_posicao_ok and score >= score_min:
+                                pct = margem_posicao_projetada / saldo_3x_check * 100
+                                log.info(f"  {symbol}: Score {score} bom mas posicao projetada ${margem_posicao_projetada:.2f} ({pct:.1f}%) > teto 20% saldo (licao 龙虾)")
                             elif cooldown_ativo and score >= score_min:
                                 tempo_restante = (12 * 3600 - (time.time() - cooldown_3x_falha.get(symbol, 0))) / 3600
                                 log.info(f"  {symbol}: Score {score} bom mas em cooldown ({tempo_restante:.1f}h restantes)")
@@ -5329,6 +5355,25 @@ def main() -> None:
             if time.time() - ultimo_check_update >= 300:
                 verificar_atualizacao(reiniciar=True)
                 ultimo_check_update = time.time()
+
+            # HEARTBEAT: manda Telegram a cada 30 min pra user saber que o bot esta vivo.
+            # Se user nao receber por > 35 min, algo parou (reboot, travamento, queda rede).
+            # Licao 龙虾 15/04: bot ficou offline 4h sem ninguem saber.
+            if time.time() - ultimo_heartbeat >= 1800:  # 30 min
+                try:
+                    saldo_hb = get_saldo_total(client)
+                    abertas_hb = posicoes_abertas(client)
+                    n_abertas = len([p for p in abertas_hb if float(p["positionAmt"]) != 0])
+                    pnl_hb = sum(float(p.get("unrealizedProfit", p.get("unRealizedProfit", 0)))
+                                 for p in abertas_hb if float(p["positionAmt"]) != 0)
+                    racio_hb = get_racio_margem(client)
+                    telegram(
+                        f"<b>Heartbeat</b> ({datetime.now().strftime('%H:%M')})\n"
+                        f"Saldo: ${saldo_hb:.2f} | {n_abertas} pos | PnL ${pnl_hb:+.2f} | Rácio {racio_hb:.1f}%"
+                    )
+                except Exception as e:
+                    log.debug(f"Heartbeat falhou: {e}")
+                ultimo_heartbeat = time.time()
 
             # --- CHECKPOINT AUTOMATICO BASEDUSDT (caso de estudo) ---
             # Grava snapshot a cada 30 min enquanto o caso nao tiver veredicto
