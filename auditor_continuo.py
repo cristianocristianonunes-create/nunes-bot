@@ -495,10 +495,10 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
     # Auditor so monitora se esta funcionando, nao ajusta valores
 
     # --- SCORE 3x: ajusta baseado no historico recente de DCAs ---
-    # --- SCORE 3x: range atualizado pra novo sistema de score ---
-    # Score agora vai ate ~210 (com filtros de evidencia real).
-    # Piso: 80 (antes 70). Teto: 120 (antes 90).
-    # Um bom 3x pontua 100-160. Um ruim pontua 30-60.
+    # OVERRIDE MANUAL: se user setou score_minimo_3x_override, auditor nao mexe.
+    # Permite user forcar valor especifico sem ser sobrescrito a cada ciclo.
+    # Pra desativar o override, basta setar score_minimo_3x_override: null
+    score_override = config.get("score_minimo_3x_override")
     SCORE_PISO = 75   # afrouxado: 80 travava demais (1021 bloqueios/dia)
     SCORE_TETO = 110  # teto tambem desce (nao exigir demais)
     score_atual = config.get("score_minimo_3x", 75)
@@ -619,6 +619,14 @@ def decidir_e_aplicar(metricas: dict, metricas_curtas: dict, formiguinhas: dict,
     except Exception as e:
         log.debug(f"Erro direcao colonia: {e}")
     # (nao bloqueia, so informa — o sinal_guardiao ja filtra por BTC)
+
+    # OVERRIDE final: se user setou score_minimo_3x_override, forca o valor.
+    # Isso garante que nao importa o que os blocos acima fizeram, o valor final
+    # respeita o override do user.
+    if score_override is not None:
+        if config.get("score_minimo_3x") != int(score_override):
+            config["score_minimo_3x"] = int(score_override)
+            mudancas.append(f"Score 3x fixado em {score_override} (override manual user)")
 
     # Salva config
     if mudancas:
