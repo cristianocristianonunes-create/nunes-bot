@@ -89,6 +89,45 @@ MAX_POSICOES          = 20   # Lisa provou: 20 formigas x $0.24 = +43% em 8h
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------------------------------
+# Cache global de tickers — UMA chamada serve tudo (resolve rate limit)
+# 3 bots no mesmo IP causavam ban. Cache elimina ~80% das chamadas.
+# ---------------------------------------------------------------------------
+_ticker_cache: dict = {}
+_ticker_cache_ts: float = 0
+_TICKER_CACHE_TTL = 15  # segundos
+
+def _atualizar_cache_ticker(client_ref) -> None:
+    """Atualiza o cache global com UMA chamada futures_ticker()."""
+    global _ticker_cache, _ticker_cache_ts
+    if time.time() - _ticker_cache_ts < _TICKER_CACHE_TTL:
+        return
+    try:
+        tickers = client_ref.futures_ticker()
+        _ticker_cache = {t["symbol"]: t for t in tickers}
+        _ticker_cache_ts = time.time()
+    except Exception:
+        pass  # mantem cache anterior
+
+def get_preco_cache(symbol: str, client_ref=None) -> float:
+    """Retorna preco do cache. Se nao tiver, busca individual (fallback)."""
+    if client_ref:
+        _atualizar_cache_ticker(client_ref)
+    tk = _ticker_cache.get(symbol)
+    if tk:
+        return float(tk.get("lastPrice", tk.get("price", 0)))
+    # Fallback: chamada individual (raro)
+    if client_ref:
+        try:
+            return float(client_ref.futures_symbol_ticker(symbol=symbol)["price"])
+        except Exception:
+            pass
+    return 0
+
+def get_ticker_cache(symbol: str) -> dict:
+    """Retorna ticker completo do cache."""
+    return _ticker_cache.get(symbol, {})
+
+# ---------------------------------------------------------------------------
 # Config dinamico — parametros ajustados pelo auditor_continuo.py em tempo real
 # ---------------------------------------------------------------------------
 CONFIG_DINAMICO_FILE = os.path.join(_BASE_DIR, "config_dinamico.json")
@@ -731,7 +770,7 @@ def processar_comandos(client: Client) -> None:
                 symbol  = partes[1].upper()
                 direcao = partes[2].upper()
                 try:
-                    preco = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+                    preco = get_preco_cache(symbol, client)
                     banca = get_banca(client)
                     telegram(f"Forcando entrada {direcao} em {symbol} a {preco}...")
                     abrir_posicao(client, symbol, direcao, preco, banca)
@@ -879,7 +918,7 @@ def processar_comandos(client: Client) -> None:
                                 resultados.append(f"  ⛔ {symbol}: Racio {racio_atual:.2f}% >= limite {RACIO_MARGEM_MAX:.0f}% — topup interrompido")
                                 break
 
-                            preco     = float(client.futures_ticker(symbol=symbol)["lastPrice"])
+                            preco     = float(get_ticker_cache(symbol)["lastPrice"])
                             alav      = alavancagem_dinamica(saldo)
                             step      = get_step_size(client, symbol)
                             qty_add   = arredondar_quantidade((margem * alav) / preco, step)
@@ -945,7 +984,7 @@ def processar_comandos(client: Client) -> None:
                             ma_ok = c_eq["ma7"] < c_eq["ma25"]
                         if ma_ok and not pd.isna(c_eq["ma25"]):
                             falta = alvo_margem - margem_op
-                            preco_eq = float(client.futures_symbol_ticker(symbol=sym_op)["price"])
+                            preco_eq = get_preco_cache(sym_op, client)
                             step_eq = get_step_size(client, sym_op)
                             qty_eq = arredondar_quantidade((falta * ALAVANCAGEM) / preco_eq, step_eq)
                             side_eq = "BUY" if dire_op == "LONG" else "SELL"
@@ -1149,7 +1188,7 @@ def detectar_sinais_cns(client: Client, simbolos_abertos: list[str]) -> list[tup
             if preco <= ma7:
                 continue  # preço tem que estar acima da MA7
 
-            preco_ticker = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+            preco_ticker = get_preco_cache(symbol, client)
 
             # Prioriza horário CNS (01-09h BRT) mas aceita fora também se volume for muito alto
             if CNS_HORARIO_INICIO <= hora_local <= CNS_HORARIO_FIM:
@@ -1229,7 +1268,8 @@ def get_top_pares(client: Client, n: int = TOP_PARES) -> list[str]:
         "TRXUSDT", "XLMUSDT", "VETUSDT", "HBARUSDT", "TONUSDT",
     ]
 
-    tickers = client.futures_ticker()
+    _atualizar_cache_ticker(client)
+    tickers = list(_ticker_cache.values())
     ticker_map = {t["symbol"]: t for t in tickers if t["symbol"].endswith("USDT")}
 
     # Filtra ilíquidos (mínimo 5M USDT de volume nas 24h)
@@ -2227,7 +2267,7 @@ def aplicar_dca(client: Client, posicao: dict, banca: float) -> None:
 
     log.info(f"  {symbol}: {modo_3x} | ROI {roi:+.1f}% | Adicional: ${adicional:.2f} | Recuperacao: {recuperacao_pct:.2f}%")
 
-    preco      = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+    preco      = get_preco_cache(symbol, client)
     precisao   = get_precisao_quantidade(client, symbol)
     quantidade = round((adicional * ALAVANCAGEM) / preco, precisao)
     side       = "BUY" if direcao == "LONG" else "SELL"
@@ -2550,7 +2590,8 @@ def multiplicar_colonia(client: Client, symbol_origem: str, direcao: str, pnl_re
         simbolos_abertos = {p["symbol"] for p in abertas_atual}
         # Pega os top movers na direcao certa
         try:
-            tickers = client.futures_ticker()
+            _atualizar_cache_ticker(client)
+            tickers = list(_ticker_cache.values())
             candidatos = []
             for t in tickers:
                 sym = t["symbol"]
@@ -2589,14 +2630,14 @@ def multiplicar_colonia(client: Client, symbol_origem: str, direcao: str, pnl_re
                 # Verifica sinal rapido (formiguinha)
                 sinal = sinal_formiguinha(client, sym_novo, tendencia_btc(client))
                 if sinal and sinal == direcao_final:
-                    preco_novo = float(client.futures_symbol_ticker(symbol=sym_novo)["price"])
+                    preco_novo = get_preco_cache(sym_novo, client)
                     abrir_posicao(client, sym_novo, direcao_final, preco_novo, banca, "COLONIA")
                     criadas += 1
                     log.info(f"  NOVA FORMIGA: {sym_novo} {direcao_final} (filha de {symbol_origem})")
                 elif not sinal:
                     # Sem sinal formiguinha, tenta abrir direto se variacao for forte
                     if abs(var) >= 8:
-                        preco_novo = float(client.futures_symbol_ticker(symbol=sym_novo)["price"])
+                        preco_novo = get_preco_cache(sym_novo, client)
                         abrir_posicao(client, sym_novo, direcao_final, preco_novo, banca, "COLONIA")
                         criadas += 1
                         log.info(f"  NOVA FORMIGA: {sym_novo} {direcao_final} (filha de {symbol_origem}, momentum {var:+.0f}%)")
@@ -2648,7 +2689,7 @@ def analisar_e_salvar_fechamento(client: Client, symbol: str, direcao: str, roi:
     try:
         resultado = "acerto" if pnl > 0 else "erro"
         # Snapshot tecnico no momento do fechamento
-        tk = client.futures_ticker(symbol=symbol)
+        tk = get_ticker_cache(symbol)
         var24 = float(tk.get("priceChangePercent", 0))
         vol24 = float(tk.get("quoteVolume", 0)) / 1e6
 
@@ -2961,7 +3002,7 @@ def sinal_guardiao(client: Client, symbol: str, btc_tendencia: str = "lateral") 
         # EXCECAO: se ativo ja moveu forte (>15% em 24h), RSI alto e NORMAL (momentum)
         # Licao RAVEUSDT +175%: bloqueada por RSI 71. Perdeu o foguete inteiro.
         try:
-            _ticker_rsi = client.futures_ticker(symbol=symbol)
+            _ticker_rsi = get_ticker_cache(symbol)
             _var24_rsi = abs(float(_ticker_rsi.get("priceChangePercent", 0)))
         except Exception:
             _var24_rsi = 0
@@ -3020,7 +3061,7 @@ def sinal_formiguinha(client: Client, symbol: str, btc_tendencia: str = "lateral
         # RSI fora da faixa = nao entra
         # EXCECAO: foguetes (var24h > 15%) tem RSI alto naturalmente
         try:
-            _tk_f = client.futures_ticker(symbol=symbol)
+            _tk_f = get_ticker_cache(symbol)
             _vf = abs(float(_tk_f.get("priceChangePercent", 0)))
         except Exception:
             _vf = 0
@@ -4491,7 +4532,7 @@ def main() -> None:
                     cripto_pump = False
                     try:
                         ticker_info = client.futures_symbol_ticker(symbol=symbol)
-                        ticker_24h = client.futures_ticker(symbol=symbol)
+                        ticker_24h = get_ticker_cache(symbol)
                         var_24h = abs(float(ticker_24h["priceChangePercent"]))
                         cripto_pump = var_24h >= 30.0  # variou mais de 30% em 24h
                     except Exception:
@@ -4677,7 +4718,7 @@ def main() -> None:
                                     if time.time() - alerta_dca_log.get(topup_key, 0) >= 300:
                                         # Checa racio antes
                                         if get_racio_margem(client) < RACIO_MARGEM_MAX:
-                                            preco_tp = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+                                            preco_tp = get_preco_cache(symbol, client)
                                             step_tp = get_step_size(client, symbol)
                                             qty_tp = arredondar_quantidade((falta_eq * ALAVANCAGEM) / preco_tp, step_tp)
                                             side_tp = "BUY" if direcao == "LONG" else "SELL"
@@ -4863,7 +4904,7 @@ def main() -> None:
                                            (direcao == "SHORT" and c1["ma7"] < c1["ma25"])
                                 if ma_favor:
                                     saldo_tp   = get_saldo_total(client)
-                                    preco_tp   = float(client.futures_ticker(symbol=symbol)["lastPrice"])
+                                    preco_tp   = float(get_ticker_cache(symbol)["lastPrice"])
                                     alav_tp    = alavancagem_dinamica(saldo_tp)
                                     margem_add = max(saldo_tp * 0.01, 0.30)  # mínimo $0.30 margem = $6 notional
                                     # Garante notional mínimo de $5.50 (Binance exige $5)
@@ -5042,7 +5083,7 @@ def main() -> None:
                                                 f"Abriu {sym_novo} {sinal_novo} score {score_novo}\n"
                                                 f"Sinal mais forte substitui posicao fraca."
                                             )
-                                            preco_novo = float(client.futures_symbol_ticker(symbol=sym_novo)["price"])
+                                            preco_novo = get_preco_cache(sym_novo, client)
                                             abrir_posicao(client, sym_novo, sinal_novo, preco_novo, get_banca(client))
                                             break
                                 except Exception:
@@ -5067,7 +5108,8 @@ def main() -> None:
 
                     # Ticker map pra filtro DNA Lisa + ordenacao por var24h
                     try:
-                        ticker_map = {t["symbol"]: t for t in client.futures_ticker() if t["symbol"].endswith("USDT")}
+                        _atualizar_cache_ticker(client)
+                        ticker_map = {s: t for s, t in _ticker_cache.items() if s.endswith("USDT")}
                     except Exception:
                         ticker_map = {}
 
@@ -5109,7 +5151,7 @@ def main() -> None:
                                 if master_pos[symbol]["direcao"] != sinal:
                                     return
 
-                            preco = float(client.futures_symbol_ticker(symbol=symbol)["price"])
+                            preco = get_preco_cache(symbol, client)
 
                             # Classifica: ativos CNS prioritários = CNS, outros = GUARDIAO
                             qualidade = "CNS" if symbol in PARES_CNS else "GUARDIAO"
@@ -5133,7 +5175,7 @@ def main() -> None:
                     # Antes: bot abria 9 ordens SHORT no mesmo ativo em 24h, acumulando posicao errada.
                     MOMENTUM_COOLDOWN = 24 * 3600
                     try:
-                        tickers_24h = client.futures_ticker()
+                        tickers_24h = list(_ticker_cache.values())
                         for t in tickers_24h:
                             sym_m = t["symbol"]
                             if not sym_m.endswith("USDT") or sym_m in simbolos_abertos:
