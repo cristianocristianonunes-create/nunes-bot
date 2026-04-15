@@ -4873,21 +4873,10 @@ def main() -> None:
                             margem_3x_ok = margem_3x_total < saldo_3x_check * 0.15
                             racio_3x_ok = get_racio_margem(client) < 18
 
-                            # Teto por posicao 20%: nenhuma posicao pode ultrapassar
-                            # 20% do saldo APOS o 3x. Licao 龙虾 (15/04): posicao chegou
-                            # a 54% do patrimonio apos reboot+DCA+3x sem supervisao.
-                            TETO_POSICAO_PCT = 0.20
-                            margem_posicao_atual = float(p.get("positionInitialMargin", 0))
-                            # DCA adiciona max(5% banca, 2x margem atual) segundo estrategia
-                            margem_extra_3x_estimada = max(saldo_3x_check * 0.05, margem_posicao_atual * 2.0)
-                            margem_posicao_projetada = margem_posicao_atual + margem_extra_3x_estimada
-                            teto_posicao_ok = margem_posicao_projetada <= saldo_3x_check * TETO_POSICAO_PCT
-
                             pode_3x = (score >= score_min_3x and ma_1h_ok
                                        and not symbol_bloqueado(symbol)
                                        and not cooldown_ativo and not historico_ruim
                                        and margem_3x_ok and racio_3x_ok
-                                       and teto_posicao_ok
                                        and n_3x_ativos < MAX_3X_SIMULTANEOS)
 
                             if pode_3x:
@@ -4925,9 +4914,6 @@ def main() -> None:
                                 log.info(f"  {symbol}: Score {score} bom mas margem 3x total ${margem_3x_total:.2f} >= 15% saldo")
                             elif not racio_3x_ok and score >= score_min:
                                 log.info(f"  {symbol}: Score {score} bom mas racio >= 18%")
-                            elif not teto_posicao_ok and score >= score_min:
-                                pct = margem_posicao_projetada / saldo_3x_check * 100
-                                log.info(f"  {symbol}: Score {score} bom mas posicao projetada ${margem_posicao_projetada:.2f} ({pct:.1f}%) > teto 20% saldo (licao 龙虾)")
                             elif cooldown_ativo and score >= score_min:
                                 tempo_restante = (12 * 3600 - (time.time() - cooldown_3x_falha.get(symbol, 0))) / 3600
                                 log.info(f"  {symbol}: Score {score} bom mas em cooldown ({tempo_restante:.1f}h restantes)")
