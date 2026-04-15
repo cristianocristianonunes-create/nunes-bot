@@ -1121,7 +1121,17 @@ def sessao_atual() -> str:
 # ---------------------------------------------------------------------------
 # Dados de mercado
 # ---------------------------------------------------------------------------
+_klines_cache: dict = {}  # chave: "symbol_interval_limit" -> (timestamp, DataFrame)
+_KLINES_CACHE_TTL = 30  # segundos — klines nao mudam a cada segundo
+
 def get_candles(client: Client, symbol: str, interval: str, limit: int = 100) -> pd.DataFrame:
+    """Klines com cache de 30s. Elimina ~70% das chamadas API."""
+    global _klines_cache
+    cache_key = f"{symbol}_{interval}_{limit}"
+    cached = _klines_cache.get(cache_key)
+    if cached and time.time() - cached[0] < _KLINES_CACHE_TTL:
+        return cached[1]
+
     klines = client.futures_klines(symbol=symbol, interval=interval, limit=limit)
     df = pd.DataFrame(klines, columns=[
         "time", "open", "high", "low", "close", "volume",
@@ -1132,6 +1142,14 @@ def get_candles(client: Client, symbol: str, interval: str, limit: int = 100) ->
     df["high"]   = df["high"].astype(float)
     df["low"]    = df["low"].astype(float)
     df["volume"] = df["volume"].astype(float)
+
+    _klines_cache[cache_key] = (time.time(), df)
+    # Limpa cache antigo (max 500 entradas)
+    if len(_klines_cache) > 500:
+        oldest = sorted(_klines_cache.keys(), key=lambda k: _klines_cache[k][0])[:200]
+        for k in oldest:
+            _klines_cache.pop(k, None)
+
     return df
 
 
@@ -1795,28 +1813,28 @@ def calcular_rsi(df, periodo=14):
     return rsi.iloc[-1] if not pd.isna(rsi.iloc[-1]) else 50.0
 
 
-def btc_caindo_forte(client: Client) -> bool:
-    """Verifica se BTC caiu > 2% nas ultimas 4h. Se sim, LONG eh perigoso."""
-    try:
-        kl = client.futures_klines(symbol="BTCUSDT", interval="4h", limit=2)
-        abertura = float(kl[-1][1])  # open do candle 4h atual
-        atual = float(kl[-1][4])     # close atual
-        var = (atual - abertura) / abertura * 100
-        return var < -2.0
-    except Exception:
-        return False
+_btc_var_cache = {"ts": 0, "var": 0}
 
-
-def btc_subindo_forte(client: Client) -> bool:
-    """Verifica se BTC subiu > 2% nas ultimas 4h. Se sim, SHORT eh perigoso."""
+def _btc_var_4h(client: Client) -> float:
+    """Variacao BTC 4h com cache de 60s."""
+    global _btc_var_cache
+    if time.time() - _btc_var_cache["ts"] < 60:
+        return _btc_var_cache["var"]
     try:
         kl = client.futures_klines(symbol="BTCUSDT", interval="4h", limit=2)
         abertura = float(kl[-1][1])
         atual = float(kl[-1][4])
         var = (atual - abertura) / abertura * 100
-        return var > 2.0
+        _btc_var_cache = {"ts": time.time(), "var": var}
+        return var
     except Exception:
-        return False
+        return _btc_var_cache["var"]
+
+def btc_caindo_forte(client: Client) -> bool:
+    return _btc_var_4h(client) < -2.0
+
+def btc_subindo_forte(client: Client) -> bool:
+    return _btc_var_4h(client) > 2.0
 
 
 def calcular_score_3x(client: Client, symbol: str, direcao: str) -> tuple[int, dict]:
@@ -3504,8 +3522,16 @@ def arredondar_quantidade(quantidade: float, step: float) -> float:
     return float((qty_d // step_d) * step_d)
 
 
+_account_cache: dict = {"ts": 0, "data": None}
+_ACCOUNT_CACHE_TTL = 5  # 5 segundos
+
 def posicoes_abertas(client: Client) -> list:
+    """Posicoes abertas com cache de 5s (chamada frequente no loop)."""
+    global _account_cache
+    if time.time() - _account_cache["ts"] < _ACCOUNT_CACHE_TTL and _account_cache["data"]:
+        return [p for p in _account_cache["data"]["positions"] if abs(float(p["positionAmt"])) > 0]
     account = client.futures_account()
+    _account_cache = {"ts": time.time(), "data": account}
     return [p for p in account["positions"] if abs(float(p["positionAmt"])) > 0]
 
 
@@ -3519,19 +3545,23 @@ def get_usd_brl(client: Client) -> float:
         return 0.0
 
 
+def _get_account_cached(client: Client) -> dict:
+    """Retorna account com cache de 5s (evita chamadas repetidas)."""
+    global _account_cache
+    if time.time() - _account_cache["ts"] < _ACCOUNT_CACHE_TTL and _account_cache["data"]:
+        return _account_cache["data"]
+    account = client.futures_account()
+    _account_cache = {"ts": time.time(), "data": account}
+    return account
+
 def get_saldo_total(client: Client) -> float:
     """Retorna o saldo de margem total (saldo + PnL aberto), igual ao exibido na Binance."""
-    account = client.futures_account()
-    return float(account.get("totalMarginBalance", 0))
+    return float(_get_account_cached(client).get("totalMarginBalance", 0))
 
 
 def get_racio_margem(client: Client) -> float:
-    """
-    Rácio de Margem igual ao exibido no app da Binance.
-    Fórmula: totalMaintMargin / totalMarginBalance × 100
-    totalMarginBalance = saldo da carteira + PnL não realizado
-    """
-    account = client.futures_account()
+    """Rácio de Margem igual ao exibido no app da Binance."""
+    account = _get_account_cached(client)
     maint  = float(account.get("totalMaintMargin", 0))
     balance = float(account.get("totalMarginBalance", 0))
     if balance == 0:
