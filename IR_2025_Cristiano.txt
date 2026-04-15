@@ -1,0 +1,68 @@
+======================================================================
+RELATORIO IMPOSTO DE RENDA 2025 — CRISTIANO NUNES SILVA
+Gerado em: 14/04/2026
+======================================================================
+
+RESUMO ANUAL
+  Periodo com operacoes: Setembro a Outubro de 2025
+  PnL realizado liquido: -$1.486,88 (-R$7.422,49)
+  Resultado: PREJUIZO (compensavel com lucros futuros)
+
+----------------------------------------------------------------------
+DETALHAMENTO MENSAL
+----------------------------------------------------------------------
+
+SETEMBRO/2025
+  PnL bruto:    $-219,93
+  Comissoes:    $-0,86
+  Funding fees: $+0,02
+  LIQUIDO:      $-220,76 (R$-1.102,03)
+  Trades:       50
+  Depositos:    $98,98
+
+OUTUBRO/2025
+  PnL bruto:    $-1.174,77
+  Comissoes:    $-110,59
+  Funding fees: $+19,24
+  LIQUIDO:      $-1.266,12 (R$-6.320,46)
+  Trades:       1.358
+  Depositos:    $1.190,21
+
+----------------------------------------------------------------------
+TOTAIS 2025
+----------------------------------------------------------------------
+  PnL realizado liquido: $-1.486,88 (R$-7.422,49)
+  Total comissoes pagas: $-111,45 (R$-556,36)
+  Total funding fees:    $+19,26 (R$+96,15)
+  Total depositado:      $1.289,19 (R$6.435,34)
+  Cotacao USD/BRL usada:  R$4,99
+
+----------------------------------------------------------------------
+ORIENTACOES PARA DECLARACAO
+----------------------------------------------------------------------
+
+1. DECLARACAO DE BENS E DIREITOS
+   - Grupo: 08 (Criptoativos)
+   - Codigo: 01 (Criptoativo Bitcoin - BTC) ou 10 (Demais criptoativos)
+   - Declarar saldo em USDT na carteira de Futuros em 31/12/2025
+   - Converter pra R$ pela cotacao do dia
+
+2. PREJUIZO ACUMULADO
+   - R$7.422,49 de prejuizo pode ser COMPENSADO com lucros futuros
+   - Nao ha imposto a pagar (resultado negativo)
+   - Guardar este relatorio como comprovante
+
+3. DARF
+   - Nao necessario (nao houve lucro)
+
+4. OBSERVACOES
+   - Operacoes em Binance Futures (derivativos cripto)
+   - Alavancagem utilizada: 20x
+   - Pares operados: USDT perpétuos
+   - Plataforma: Binance (binance.com)
+
+----------------------------------------------------------------------
+IMPORTANTE: Este relatorio e informativo. Consulte um contador
+para a declaracao oficial do Imposto de Renda.
+Dados extraidos via API Binance (futures_income_history).
+======================================================================

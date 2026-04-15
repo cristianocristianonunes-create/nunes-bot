@@ -5225,20 +5225,26 @@ def main() -> None:
                             # Massacrada: caindo forte = SHORT
                             if var24 <= -8:
                                 try:
-                                    k5m = client.futures_klines(symbol=sym_m, interval="5m", limit=10)
-                                    c_now = float(k5m[-1][4])
-                                    c_prev = float(k5m[-2][4])
-                                    if c_now < c_prev:
+                                    k15m = client.futures_klines(symbol=sym_m, interval="15m", limit=12)
+                                    closes_m = [float(k[4]) for k in k15m]
+                                    c_now = closes_m[-1]
+                                    ma5_m = sum(closes_m[-5:]) / 5
+                                    ma10_m = sum(closes_m[-10:]) / 10 if len(closes_m) >= 10 else ma5_m
+                                    # Confirma tendencia: preco ABAIXO das MAs e MA5 < MA10
+                                    if c_now < ma5_m and ma5_m < ma10_m:
                                         sinais_encontrados.append((sym_m, "SHORT", "momentum", float(t["lastPrice"]), "MOMENTUM"))
                                         momentum_log[sym_m] = time.time()
                                 except Exception:
                                     pass
                             elif var24 >= 8:
                                 try:
-                                    k5m = client.futures_klines(symbol=sym_m, interval="5m", limit=10)
-                                    c_now = float(k5m[-1][4])
-                                    c_prev = float(k5m[-2][4])
-                                    if c_now > c_prev:
+                                    k15m = client.futures_klines(symbol=sym_m, interval="15m", limit=12)
+                                    closes_m = [float(k[4]) for k in k15m]
+                                    c_now = closes_m[-1]
+                                    ma5_m = sum(closes_m[-5:]) / 5
+                                    ma10_m = sum(closes_m[-10:]) / 10 if len(closes_m) >= 10 else ma5_m
+                                    # Confirma tendencia: preco ACIMA das MAs e MA5 > MA10
+                                    if c_now > ma5_m and ma5_m > ma10_m:
                                         sinais_encontrados.append((sym_m, "LONG", "momentum", float(t["lastPrice"]), "MOMENTUM"))
                                         momentum_log[sym_m] = time.time()
                                 except Exception:

@@ -33698,5 +33698,305 @@
     "preco": 0,
     "detalhes": "Aporte de $1000 feito. Saldo subiu de $41 pra $1038. TODOS os parametros precisam escalar proporcionalmente: margem por formiga (25x maior), PnL por trade (25x maior), perdas por trade (25x maior), taxas (25x maior). Valores fixos que funcionavam com $41 nao funcionam com $1038. O racio de congelamento em 18% travou o bot em 20 posicoes quando deveria ter 103. Corrigido pra 25%.",
     "licao": "Quando o saldo muda de ordem de grandeza ($40 -> $1000), TUDO precisa ser revisado: (1) racio de congelamento, (2) threshold de excesso de 3x, (3) threshold de horarios bloqueados (PnL > $5 era pra $40, com $1000 deveria ser PnL > $50), (4) cascata tecnica thresholds. O auditor precisa escalar decisoes pelo saldo, nao por valores absolutos."
+  },
+  {
+    "timestamp": "2026-04-14T21:44:21.339830+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.071,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -5.97,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.69% suporte, MA25 +0.47% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-14T21:47:09.212210+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07161,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -6.881,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.67% suporte, MA25 +0.51% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-14T22:18:19.667706+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07258,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -8.328,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T22:49:53.110860+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07839,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -17.0,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T23:11:51.633202+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07696,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -14.866,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-14T23:38:24.711319+00:00",
+    "symbol": "APRUSDT",
+    "direcao": "LONG",
+    "tipo": "fechamento_acerto",
+    "roi_final": 449.2240953510401,
+    "preco": 0.31819,
+    "detalhes": "ACERTO: LONG APRUSDT ROI +449% PnL $+3.82 | var24h +63.0% vol $143M | alinhado: True | Cascata 1 TECNICA PnL $+12.72"
+  },
+  {
+    "timestamp": "2026-04-14T23:41:39.905298+00:00",
+    "symbol": "XANUSDT",
+    "direcao": "LONG",
+    "tipo": "fechamento_acerto",
+    "roi_final": 494.49425498180517,
+    "preco": 0.011335,
+    "detalhes": "ACERTO: LONG XANUSDT ROI +494% PnL $+5.78 | var24h +40.8% vol $19M | alinhado: True | Cascata 1 META PnL $+19.26"
+  },
+  {
+    "timestamp": "2026-04-14T23:43:41.767353+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07606,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -13.522,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +1.10% suporte, MA25 +3.11% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-15T00:04:26.882152+00:00",
+    "symbol": "AIOUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_auto",
+    "roi_final": -82.26361573373677,
+    "preco": 0.07867,
+    "detalhes": "Score 98/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.07893285714285714,
+        "ma25": 0.0790036,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.07882,
+        "ma25": 0.078666,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.07929714285714286,
+        "ma25": 0.09389600000000002,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.07779,
+        "topo": 0.07964,
+        "fib_382": 0.0784967,
+        "fib_500": 0.07871500000000001,
+        "fib_618": 0.0789333,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-15T00:14:41.693338+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07352,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -9.731,
+    "padrao_adverso_ativo": true,
+    "motivo_padrao": "fundo em formacao (MA99 +0.91% suporte, MA25 +1.78% fraca, MA7 desacelerando)"
+  },
+  {
+    "timestamp": "2026-04-15T00:19:36.737280+00:00",
+    "symbol": "VELODROMEUSDT",
+    "direcao": "SHORT",
+    "tipo": "3x_auto",
+    "roi_final": -74.32432432432432,
+    "preco": 0.0148,
+    "detalhes": "Score 100/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.014802857142857144,
+        "ma25": 0.014823199999999998,
+        "ma7_acima_ma25": false
+      },
+      "5min": {
+        "ma7": 0.014815714285714284,
+        "ma25": 0.014634000000000001,
+        "ma99": null,
+        "ma7_acima_ma25": true,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.014698571428571427,
+        "ma25": 0.015158,
+        "ma7_acima_ma25": false
+      },
+      "fibonacci": {
+        "suporte": 0.01438,
+        "topo": 0.01489,
+        "fib_382": 0.01457482,
+        "fib_500": 0.014635,
+        "fib_618": 0.01469518,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-15T01:13:56.408723+00:00",
+    "symbol": "CYSUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_auto",
+    "roi_final": -109.21218905472637,
+    "preco": 0.324,
+    "detalhes": "Score 115/110 | #1",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.3172857142857143,
+        "ma25": 0.31279599999999996,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.3141428571428571,
+        "ma25": 0.32807200000000003,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.32894285714285715,
+        "ma25": 0.31388,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.3077,
+        "topo": 0.3405,
+        "fib_382": 0.3202296,
+        "fib_500": 0.3241,
+        "fib_618": 0.3279704,
+        "preco_zona": "382_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-15T01:16:13.114151+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.0767,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -14.478,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-15T01:21:45.176376+00:00",
+    "symbol": "CYSUSDT",
+    "direcao": "LONG",
+    "tipo": "3x_lucro_imediato",
+    "roi_final": 36.65286124162065,
+    "preco": 0.332,
+    "detalhes": "3x #1 | Pico +41.7% saida +36.7% | Entrada DCA: +0%",
+    "snapshot": {
+      "1min": {
+        "ma7": 0.32901428571428576,
+        "ma25": 0.318,
+        "ma7_acima_ma25": true
+      },
+      "5min": {
+        "ma7": 0.31899999999999995,
+        "ma25": 0.327436,
+        "ma99": null,
+        "ma7_acima_ma25": false,
+        "ma7_acima_ma99": null
+      },
+      "1h": {
+        "ma7": 0.3301428571428571,
+        "ma25": 0.314216,
+        "ma7_acima_ma25": true
+      },
+      "fibonacci": {
+        "suporte": 0.3077,
+        "topo": 0.3405,
+        "fib_382": 0.3202296,
+        "fib_500": 0.3241,
+        "fib_618": 0.3279704,
+        "preco_zona": "acima_618"
+      }
+    }
+  },
+  {
+    "timestamp": "2026-04-15T01:21:48.232632+00:00",
+    "symbol": "CYSUSDT",
+    "direcao": "LONG",
+    "tipo": "fechamento_acerto",
+    "roi_final": 36.65286124162065,
+    "preco": 0.3247,
+    "detalhes": "ACERTO: LONG CYSUSDT ROI +37% PnL $+13.30 | var24h +14.0% vol $22M | alinhado: True | 3x pico +41.7% saida +36.7%"
+  },
+  {
+    "timestamp": "2026-04-15T01:47:30.625055+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.08032,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -19.881,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
+  },
+  {
+    "timestamp": "2026-04-15T02:08:28.942659+00:00",
+    "symbol": "XANUSDT",
+    "direcao": "LONG",
+    "tipo": "fechamento_acerto",
+    "roi_final": 241.65435745937964,
+    "preco": 0.010966,
+    "detalhes": "ACERTO: LONG XANUSDT ROI +242% PnL $+4.99 | var24h +37.4% vol $29M | alinhado: True | Trailing pos-MA reversal (piso 267%)"
+  },
+  {
+    "timestamp": "2026-04-15T02:18:05.887498+00:00",
+    "symbol": "BASEDUSDT",
+    "direcao": "SHORT",
+    "tipo": "caso_estudo_auto",
+    "preco": 0.07758,
+    "roi_final": 0.0,
+    "detalhes": "Checkpoint automatico a cada 30 min",
+    "movimento_desde_inicio": -15.791,
+    "padrao_adverso_ativo": false,
+    "motivo_padrao": "nenhum"
   }
 ]
